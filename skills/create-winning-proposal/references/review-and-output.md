@@ -2,35 +2,29 @@
 
 ## Integrated review
 
-Run one pass in this order:
+Run one pass: eligibility/submission → atomic coverage → evidence/freshness → scope/schedule/units/arithmetic/price/version/responsibility → technical/security/privacy/legal feasibility → assumptions/dependencies/exclusions → readability/accessibility/rendering.
 
-1. Submission instructions and mandatory requirement coverage
-2. Claim-to-evidence alignment and freshness
-3. Scope, schedule, quantity, price, version, and responsibility consistency
-4. Technical, operational, security, compliance, and delivery feasibility
-5. Assumptions, dependencies, exclusions, customer actions, and change control
-6. Evaluator readability, terminology, structure, and visual integrity
+For page-based proposals, also review the page-message map: every scored evaluator question has a response location; every page has one defensible conclusion; every visual proves that conclusion; repeated diagrams use consistent terms, boundaries, units, and versions.
 
-Classify findings:
-
-- **Critical**: submission blocker, mandatory miss, false or unsupported high-impact claim, or material contradiction
-- **Major**: important gap that weakens scoring, feasibility, or buyer confidence
+- **Critical**: disqualifier, mandatory miss, unsupported high-impact claim, unapproved commitment, or contradiction affecting eligibility, mandatory targets, scope, price, staffing, security, or schedule
+- **Major**: important gap; a missing value becomes Critical when it creates a mandatory miss or commitment
 - **Minor**: local clarity, terminology, structure, or formatting issue
 - **Note**: optional improvement
 
-If severity is uncertain, choose the lower level and state what evidence would raise it.
+Every minimal correction should name the changed fact, owner/role, decision deadline, approval, and downstream calculations/sections to update.
 
-## Finalization gates
+## Deterministic finalization gates
 
-Do not describe a proposal as submission-ready while any of these remains:
+Block submission-ready status for unresolved bid conditions, mandatory items, material claims, commitments, tokens/comments/conflicts, attachments/signatures/forms/filenames, consistency/arithmetic/submission checks, or required render verification.
 
-- uncovered mandatory requirement or instruction violation
-- unsupported material claim presented as fact
-- contradictory scope, date, number, price, version, or responsibility
-- unapproved commitment
-- missing required attachment or signature
-- failed or incomplete DOCX/PDF rendering check
+Apply render verification only when a rendered artifact is requested. Analysis-only and Markdown review tasks declare `artifact_required: false`.
 
-## Delivery package
+For price review, show: one-time items + recurring item × term → subtotal → named discount base/amount → tax basis/amount → final total. Never infer tax inclusion.
 
-Provide the proposal, compliance matrix, evidence gaps, assumptions/dependencies/exclusions, review findings, verification result, and remaining manual checks. For review-only work, keep the original intact and provide targeted corrections.
+For strict submissions, verify deadline/timezone, exact filename, attachment names, page-count semantics, signature/seal type and authority, and requested PDF/A profile/validator. Do not claim PDF/A compliance without validation evidence.
+
+Use `scripts/proposal_gate.py audit.json`; human review still decides truth, persuasiveness, legal acceptability, and visual quality.
+
+## Output bundle
+
+Provide the proposal, requirement ledger, evidence manifest, review events, assumptions/dependencies/exclusions, gate report, and applicable render result. For review-only work, keep the original intact and provide targeted corrections plus explicit verification limits.
