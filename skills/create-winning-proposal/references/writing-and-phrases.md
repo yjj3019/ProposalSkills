@@ -27,6 +27,16 @@
 
 Reject unsupported forms of: best, unique, perfect, innovative, revolutionary, 100%, zero downtime, fully automated, complete coverage, risk-free, guaranteed, industry-leading, seamless, and significant savings. State the exact capability, boundary, evidence, and expected effect instead.
 
+Buyer wording may be quoted and attributed even when it contains those terms; do not repeat it as the bidder's factual claim.
+
+| Unsafe claim | Safe treatment |
+|---|---|
+| `100% secure` | remove; describe approved controls, scope, and residual risk |
+| `zero downtime` | state the approved outage objective, measurement boundary, exclusions, and test evidence |
+| `guaranteed savings` | state a baseline, measurement method, attribution window, and approval condition |
+| `industry-leading` / `unique` | remove unless a current comparative study and defined comparison set exist |
+| `fully compliant` | list the exact requirement, evidence, exception, and approval status |
+
 ## Executive summary test
 
 1. What decision should the buyer make?

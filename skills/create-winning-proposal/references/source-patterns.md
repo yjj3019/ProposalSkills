@@ -1,19 +1,33 @@
-# Public repository patterns
+# Repository-derived patterns
 
-Checked 2026-07-18. Use these as design evidence, not as proof that a project is production-ready.
+Source code, tests, workflows, and licenses were inspected on 2026-07-18. Use the full audit in the repository's top-level `references/repository-deep-audit.md` when maintaining this skill.
 
-| Source | Pattern retained | Decision |
-|---|---|---|
-| `SalesforceLabs/ProposalForce` | RFP → question → response model; assignee, status, trusted answer library, DOCX export | Retain the item model. Repository is archived; do not depend on it. BSD-3-Clause |
-| `degerahmet/q-flow` | closed-context answers, citations, confidence, human review, audit events, export gate | Retain evidence boundary, approval states, and export gate. Skip its event-driven/RAG stack. MIT |
-| `Parth-Gochhwal/RFP-IGNITE` | governance, human approval, auditability, commitment control | Retain governance. Skip multi-agent orchestration unless separate roles prove necessary. MIT |
-| `Satyapraveenv/ai-rfp-response-generator` | compliance matrix, conclusion-first writing, editable extraction, draft warning | Retain matrix and drafting principles. Treat performance claims as unverified. MIT |
-| `bhargavhari2001-cloud/BidCraft` | extraction, knowledge matching, confidence-directed review, DOCX output | Retain workflow ideas only. No detected license; do not copy code. |
-| `sridivya9398/AutoProposal` | centralized approved knowledge | Retain only knowledge governance. No detected license; skip GraphRAG and multi-agent claims. |
-| `elapouya/python-docx-template` | populate a complex Word template with tagged fields | Prefer when a stable company template exists. LGPL-2.1 |
-| `python-openxml/python-docx` | native DOCX creation and targeted modification | Use for minimal post-processing or validation. MIT |
-| `jgm/pandoc` / `quarto-dev/quarto-cli` | source/style separation and reproducible publishing | Optional for Markdown-first or data-heavy proposals. |
-| `vale-cli/vale` | organization-specific terminology and prose checks | Add only after recurring rules justify automation. MIT |
-| `open-agreements/open-agreements` | source and license metadata on reusable templates | Retain provenance discipline. Apache-2.0 |
+## Adopt
 
-The skill requires no external runtime. Add retrieval only when direct search fails at scale, DOCX templating when a stable template exists, and prose linting when organization-specific rules recur.
+- ProposalForce: requirement/question/response separation, assignee, status, compliance fields, authorization checks.
+- q-flow: closed-context failure, citation records, review events, explicit state transitions, server-side export gate.
+- RFP-IGNITE: deterministic missing-field/unit checks, clarification queue, separate draft/approved artifacts, recomputed totals.
+- BidCraft: separate extraction assessment from response assessment, edit-distance feedback, golden retrieval evaluation.
+- grant-framework: versioned proposals, staged human approvals, immutable milestone evidence.
+- open-agreements: source/license sidecars, canonical registry, schema checks, deterministic postconditions, render QA.
+- python-docx-template/python-docx: existing template preservation plus minimal post-processing.
+- Vale organization packs: objective rules, positive/negative fixtures, exceptions, policy links, gradual gating.
+
+## Reject
+
+- multi-agent labels without independently useful state
+- model-generated quality/confidence scores
+- retrieval similarity presented as truth
+- source titles without exact location, version/date, and hash
+- silent default facts, neutral metrics, or fallback high scores
+- UI simulations presented as implemented AI/security
+- external transmission, public data access, or raw logging by default
+- export without deterministic readiness gates
+- wholesale translation of English style-lint rules into Korean
+
+## License boundary
+
+- Reuse compatible MIT/BSD concepts or code only with required notices.
+- Preserve Apache-2.0 LICENSE/NOTICE and modification notices when copying.
+- Treat LPPL, CC BY/SA/NC, mixed-license Gists, fonts, logos, and official templates separately.
+- When no license is declared, reuse independently expressed concepts only; do not copy code or text.
