@@ -21,6 +21,21 @@
 예외: 발주처 원문(RFP·평가표)을 인용할 때는 출처를 밝히고 그대로 쓸 수 있다.
 단, 인용을 제안사의 사실 주장으로 되풀이하지 않는다.
 
+**영문 제안 금지어 사전** (영문 산출 시 동일 규율을 적용한다. 한국어 목록과 1:1이
+아니라 영문 관용 과장어까지 포함):
+
+> best, best-in-class, world-class, industry-leading, leading, unique, only,
+> perfect, flawless, innovative, revolutionary, cutting-edge, state-of-the-art,
+> next-generation, 100%, zero downtime, zero risk, fully automated, fully compliant,
+> complete/total coverage, seamless, effortless, guaranteed, bulletproof,
+> future-proof, unlimited, instant, significant savings
+
+대체 원칙(한국어와 동일): 정확한 역량 + 경계 + 근거 + 기대 효과로 바꾼다.
+예: "industry-leading performance" → "measured N TPS under [조건], verified by [출처]";
+"zero downtime" → "target [가용률/RTO] with [이중화 구성], validated by [시험]";
+"guaranteed 40% savings" → "estimated up to 40% against [기준선], subject to [전제]".
+발주처 원문 인용은 출처를 밝히면 예외이나, 제안사 사실 주장으로 되풀이하지 않는다.
+
 대체 패턴 (실제 수주 제안서 관례):
 
 | 금지 표현 | 대체 표현 + 근거 형식 |

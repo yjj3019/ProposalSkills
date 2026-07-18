@@ -17,6 +17,15 @@ description: "IT 인프라·클라우드·유지보수 사업 제안서(PPTX 장
 산출 기본 형식은 **PPTX 장표형**이다. 발주처가 A4 문서형을 요구하면 DOCX로 전환하되
 동일한 구조·문장 규칙을 적용한다(스타일 계층은 `references/visual-style.md` 참조).
 
+## 경로 선택
+
+- **새 제안서 작성**: 아래 작업 순서를 전부 수행한다.
+- **기존 제안서 검토·수정만**(review-only): 원본을 통째로 다시 쓰지 말고
+  `references/review-checklist.md`의 "검수 전용 요청" 절대로 진단한다 —
+  심각도(Critical/Major/Minor)순 지적 + 최소 수정안 + 검토 범위·한계만 산출.
+- **영문 제안**: 문장 규칙은 언어 무관이다. 과장어 통제는 writing-style.md의
+  영문 금지어 사전을 적용하고, 기계 검사는 `quality_gate.py --lang en`(이중언어는 both).
+
 ## 작업 순서 (반드시 이 순서)
 
 ### 0. 리서치 먼저
