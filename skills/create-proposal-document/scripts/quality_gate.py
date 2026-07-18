@@ -41,7 +41,9 @@ def banned_hits(text: str, word: str) -> bool:
 
 
 def extract_blocks(path: Path) -> list[str]:
-    """PPTX는 슬라이드별, DOCX는 문서 전체 1블록으로 텍스트를 추출한다."""
+    """근거 병기 판정은 '같은 블록' 단위다.
+    PPTX는 슬라이드별, DOCX는 문단(<w:p>)별로 쪼갠다 — 문서 전체를 1블록으로 보면
+    근거어 1회가 문서 내 모든 과장어를 면제하는 과잉 관용이 생기므로 문단 단위로 정밀화."""
     with zipfile.ZipFile(path) as z:
         if path.suffix.lower() == ".pptx":
             names = sorted(n for n in z.namelist()
@@ -50,7 +52,9 @@ def extract_blocks(path: Path) -> list[str]:
                     for n in names]
         if path.suffix.lower() == ".docx":
             xml = z.read("word/document.xml").decode("utf-8", "ignore")
-            return [re.sub(r"<[^>]+>", " ", xml)]
+            paras = re.findall(r"<w:p[ >].*?</w:p>", xml, re.DOTALL)
+            blocks = [re.sub(r"<[^>]+>", " ", p) for p in paras]
+            return [b for b in blocks if b.strip()] or [re.sub(r"<[^>]+>", " ", xml)]
     raise ValueError(f"지원하지 않는 형식: {path.suffix}")
 
 
@@ -68,12 +72,13 @@ def extract_colors(path: Path) -> set[str]:
 
 
 def run(path: Path, names: list[str], palette: set[str], lang: str) -> list[str]:
-    banned = {"ko": BANNED_KO, "en": BANNED_EN,
-              "both": BANNED_KO + BANNED_EN}[lang]
+    raw = {"ko": BANNED_KO, "en": BANNED_EN, "both": BANNED_KO + BANNED_EN}[lang]
+    banned = list(dict.fromkeys(raw))  # 중복 제거(both의 '100%' 이중 리포트 방지), 순서 유지
+    is_pptx = path.suffix.lower() == ".pptx"
     fails: list[str] = []
     blocks = extract_blocks(path)
     for i, block in enumerate(blocks, 1):
-        loc = f"슬라이드 {i}" if len(blocks) > 1 else "본문"
+        loc = (f"슬라이드 {i}" if is_pptx else f"문단 {i}") if len(blocks) > 1 else "본문"
         low = block.lower()
         has_evidence = any(m.lower() in low for m in EVIDENCE_MARKS)
         for w in banned:
