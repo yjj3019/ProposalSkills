@@ -20,6 +20,10 @@
 | Requirement response | `Comply. [Actor] will [action] using [method]. Evidence/acceptance: [artifact or criterion].` |
 | Partial compliance | `Partially comply. [covered scope]. [gap] requires [decision/change] by [owner/date].` |
 | Differentiation | `Unlike [defined alternative], this approach [verifiable difference], which enables [buyer outcome].` |
+| Capability | `[Buyer need] is addressed by [mechanism], producing [operating effect] within [scope/boundary]. Evidence: [approved source or acceptance test].` |
+| Comparison | `Against [defined criteria and baseline], option [label] differs in [verified dimension]. For this buyer, that means [implication], subject to [condition].` |
+| Resilience | `For [failure event and protected scope], the design targets [approved recovery objective] through [protection/orchestration], verified by [test and evidence]. Residual risk: [boundary].` |
+| Case relevance | `In an approved comparable context, [intervention] produced [verified outcome]. It is relevant here because [shared condition], but differs in [material limit].` |
 | Schedule | `[Phase] runs from [start] to [finish]. Exit requires [deliverable and approval].` |
 | Risk | `If [risk] occurs, [impact] follows. [Owner] will reduce likelihood/impact by [control], monitored through [indicator].` |
 | Assumption | `This schedule/cost assumes [condition]. If it changes, [impact and change process] apply.` |

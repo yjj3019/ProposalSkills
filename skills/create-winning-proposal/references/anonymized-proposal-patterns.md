@@ -4,7 +4,7 @@ Use this reference for planning and visual composition, not as evidence for a cu
 
 ## Corpus and privacy boundary
 
-These patterns were abstracted from 17 supplied Korean enterprise and public-sector proposal PDFs totaling more than 1,100 pages. The review sampled cover, contents, middle, and closing pages from every document and used text extraction only to measure broad section coverage.
+These patterns were abstracted from 25 supplied Korean enterprise and public-sector proposal documents totaling more than 1,300 pages/slides. The corpus includes PDF and PPTX material. The review sampled cover, contents, quarter points, middle, and closing pages from every document and used text extraction only to measure broad section coverage and sentence function.
 
 No source file, page image, filename, logo, person, contact detail, customer or supplier name, exact date, unique project number, proprietary figure, verbatim sentence, or document hash is included here. Do not reconstruct, quote, or identify a source from these aggregates.
 
@@ -14,6 +14,10 @@ No source file, page image, filename, logo, person, contact detail, customer or 
 - Solution, migration, and operations/support content appeared in nearly every document. Quality/security and references appeared in most; training appeared frequently. Executive summaries and explicit customer-understanding sections were less consistent, making them useful differentiators when the buyer permits them.
 - Operations/support proposals repeatedly organize around service scope, request and incident flow, severity, escalation, organization, reporting, SLA, transition, and improvement.
 - Migration/build proposals repeatedly follow current-state diagnosis, target architecture, phased execution, verification or rollback, stabilization, and operating handoff.
+- Standard product proposals commonly use context, product role, differentiators, architecture, capability groups, adoption, operations, and evidence. Convert this catalog order into a buyer decision flow; a feature inventory alone is not a proposal.
+- Policy or standardization proposals work best when they connect the reason to standardize, selection criteria, target baseline, governance and security controls, transition roadmap, and operating economics.
+- Resilience proposals progress from failure assumptions and recovery objectives to protection patterns, orchestration, validation, operating ownership, and pattern-selection criteria. A topology without recovery behavior and test evidence is incomplete.
+- Case-led proposals use context, challenge, choice, implementation, result, and transferability. Treat every name, image, date, metric, quote, and architecture as restricted until reuse permission and evidence are confirmed.
 - Strong technical pages pair a conclusion-style headline with an architecture, process, comparison, schedule, or responsibility model. Weak pages use topic-only headings, tiny prose, unexplained vendor diagrams, illegible screenshots, or placeholder imagery.
 - Covers and section dividers establish navigation, but decorative pages do not replace scored content. Closing pages should be omitted or minimized when page limits count them.
 
@@ -39,6 +43,10 @@ Use this spine only when it fits the buyer's required order:
 - **Operating model page**: roles; responsibility matrix; escalation; reporting cadence; service hours; exclusions.
 - **Evidence page**: requirement or claim; evidence ID; scope and date; relevance; limitation.
 - **Risk page**: cause; event; effect; probability/impact; prevention; contingency; owner; trigger.
+- **Capability page**: buyer need; mechanism; operating effect; boundary; dependency; evidence. Group related functions instead of listing every feature.
+- **Comparison page**: decision criteria; defined alternatives; same measurement basis; source/date; gaps; buyer implication. Do not use an unsupported winner-first table.
+- **Resilience pattern page**: failure domain; protected scope; recovery objective; data protection; orchestration; test method; residual risk; owner.
+- **Case page**: approved anonymous context; challenge; intervention; verified outcome; relevance; differences and limits. Omit it when permission or evidence is absent.
 
 ## Visual system rules
 
@@ -48,6 +56,7 @@ Use this spine only when it fits the buyer's required order:
 - Label scope, version, unit, date, source, assumptions, and abbreviations where relevant.
 - Keep diagram text readable at final page size. Redraw or summarize screenshots instead of enlarging low-resolution captures.
 - Test Korean and symbol fonts through the final PDF renderer. Font substitution can alter line breaks, tables, and symbols even when the source application looks correct.
+- Treat legacy connectors, embedded screenshots, and external media as portability risks. Render through the intended submission application and replace broken or unreadable objects.
 
 ## Adaptation rule
 

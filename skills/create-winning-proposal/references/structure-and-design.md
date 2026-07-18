@@ -8,6 +8,10 @@ Always use the buyer's mandatory outline first. Otherwise choose only the sectio
 - **Migration and modernization**: current constraints; target state; assessment; migration waves; compatibility/data/cutover; verification and rollback; stabilization; operating handoff.
 - **Platform or system build**: objectives; target architecture; functional and non-functional design; integration/data/security; implementation plan; testing and acceptance; operations.
 - **Product or solution selection**: evaluation criteria; fit and gaps; architecture; lifecycle and support; implementation; risk; total value; evidence.
+- **Standard product proposal**: buyer context; product role; decision criteria; differentiators; architecture; grouped capabilities; adoption and integration; operations and lifecycle; evidence; next decision.
+- **Policy or standardization decision**: why standardize; policy and operational constraints; selection criteria; approved baseline; governance/security; transition; economics; decision and next step.
+- **Resilience or continuity design**: business service and failure assumptions; recovery objectives; protection patterns; target architecture; orchestration; testing; operations; pattern selection; roadmap.
+- **Case-led education or persuasion**: audience question; context and challenge; decision; implementation; verified outcome; transferability and limits; implications. Use only approved case evidence.
 - **Outsourcing or managed service**: service boundaries; responsibility matrix; transition; organization and facilities; processes and tools; service levels; governance; exit plan.
 
 Hybrid work may combine archetypes, but assign one primary narrative: the archetype that carries the highest evaluation weight; if weights are absent, use the one carrying the main buyer decision and delivery risk. Do not copy a prior proposal's section order when the buyer specifies another.
