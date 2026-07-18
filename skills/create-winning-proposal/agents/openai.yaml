@@ -1,0 +1,4 @@
+interface:
+  display_name: "제안서 작성"
+  short_description: "근거 기반 RFP 제안서 작성·검토·산출"
+  default_prompt: "Use $create-winning-proposal to analyze this RFP and produce an evidence-backed proposal draft."
