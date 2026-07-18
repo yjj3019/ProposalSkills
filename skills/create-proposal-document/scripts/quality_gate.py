@@ -23,7 +23,8 @@ BANNED_EN = ["best-in-class", "best", "world-class", "industry-leading", "leadin
              "unique", "perfect", "flawless", "innovative", "revolutionary",
              "cutting-edge", "state-of-the-art", "next-generation", "100%",
              "zero downtime", "zero risk", "fully automated", "fully compliant",
-             "seamless", "effortless", "guaranteed", "bulletproof", "future-proof",
+             "seamless", "effortless", "guarantee", "guaranteed", "guarantees",
+             "guaranteeing", "bulletproof", "future-proof",
              "unlimited", "significant savings"]
 PLACEHOLDERS = ["lorem", "xxxx", "TBD", "샘플텍스트", "placeholder", "OOO", "○○○",
                 "[]", "NEEDS INPUT"]
@@ -33,9 +34,11 @@ EVIDENCE_MARKS = ["출처", "기준", "근거", "산식", "전제", "인용",
 
 
 def banned_hits(text: str, word: str) -> bool:
-    """영문은 단어 경계로, 한국어·기호 포함어는 부분 문자열로 매칭한다."""
+    """영문은 단어 경계로, 한국어·기호 포함어는 부분 문자열로 매칭한다.
+    경계에 하이픈 포함 — 'best-in-class' 안의 'best', 'industry-leading' 안의
+    'leading'이 이중 검출되지 않게 한다(복합어는 자체 항목으로 검사)."""
     if re.search(r"[A-Za-z]", word):
-        return re.search(r"(?<![A-Za-z])" + re.escape(word) + r"(?![A-Za-z])",
+        return re.search(r"(?<![A-Za-z-])" + re.escape(word) + r"(?![A-Za-z-])",
                          text, re.IGNORECASE) is not None
     return word in text
 

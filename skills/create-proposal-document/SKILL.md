@@ -25,6 +25,8 @@ description: "IT 인프라·클라우드·유지보수 사업 제안서(PPTX 장
   심각도(Critical/Major/Minor)순 지적 + 최소 수정안 + 검토 범위·한계만 산출.
 - **영문 제안**: 문장 규칙은 언어 무관이다. 과장어 통제는 writing-style.md의
   영문 금지어 사전을 적용하고, 기계 검사는 `quality_gate.py --lang en`(이중언어는 both).
+- **발표 요약본(PT덱)**: 본제안서 축소 복사가 아니라 평가위원 질문 순서로 재구성 —
+  `references/proposal-structure.md`의 "발표 요약본" 절(장수=발표시간, 본문 동기화 대조).
 
 ## 작업 순서 (반드시 이 순서)
 
