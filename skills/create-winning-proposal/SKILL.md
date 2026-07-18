@@ -1,6 +1,6 @@
 ---
 name: create-winning-proposal
-description: Create, rewrite, review, and finalize evidence-backed Korean or English business, public-sector, technical, RFP, RFI, and RFx proposals. Use when Codex must make a bid/no-bid assessment, extract atomic requirements, build a compliance and evidence ledger, draft evaluator-focused responses, standardize wording and visual structure, verify commitments and consistency, preserve a supplied DOCX template, or prepare and gate a submission-ready DOCX/PDF proposal with an audit bundle.
+description: Create, rewrite, review, and finalize evidence-backed Korean or English business, public-sector, technical, RFP, RFI, and RFx proposals. Use when an AI assistant must make a bid/no-bid assessment, extract atomic requirements, build a compliance and evidence ledger, draft evaluator-focused responses, standardize wording and visual structure, verify commitments and consistency, preserve a supplied DOCX template, or prepare and gate a submission-ready DOCX/PDF proposal with an audit bundle.
 ---
 
 # Create Winning Proposal
@@ -12,7 +12,11 @@ Create evaluator-readable proposals in which every requirement, claim, commitmen
 - For RFP/RFI/RFx work, run the full workflow.
 - Without an RFP, convert the request, audience, constraints, decision, and success criteria into a requirement brief, then continue at planning.
 - For review only, preserve the source and run one integrated review; do not rewrite everything unless asked.
-- For DOCX/PDF delivery, also use the document/PDF skill and its render-and-verify process.
+- For DOCX/PDF delivery, also use the host platform's document/PDF capability and its render-and-verify process.
+
+## Stay model-neutral
+
+Apply the same workflow with ChatGPT, Claude, Gemini, Grok, or another capable model. Treat platform-specific tools, agent syntax, memory, and retrieval as optional adapters. Never make proposal logic, evidence rules, review states, or audit outputs depend on one model vendor.
 
 ## Execute the workflow
 
