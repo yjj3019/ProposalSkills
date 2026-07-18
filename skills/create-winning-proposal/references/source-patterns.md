@@ -1,6 +1,6 @@
 # Repository-derived patterns
 
-Source code, tests, workflows, and licenses were inspected on 2026-07-18. Use the full audit in the repository's top-level `references/repository-deep-audit.md` when maintaining this skill.
+Source code, tests, workflows, and licenses were inspected before these patterns were distilled.
 
 ## Adopt
 
