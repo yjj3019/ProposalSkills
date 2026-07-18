@@ -13,9 +13,18 @@ def ready_data():
         "unresolved_tokens": [],
         "attachments": [{"name": "form", "required": True, "present": True}],
         "source_conflicts": [],
+        "inputs": [],
+        "defects": [],
         "checks": {"consistency": True, "arithmetic": True, "submission": True},
         "artifact_required": True,
         "render": {"verified": True},
+        "package": {"required": True, "inspected": True},
+        "submission": {
+            "cleared": True,
+            "rehearsal_evidence": ["test upload opened"],
+            "receipt_plan": "save portal confirmation",
+            "receipt_evidence": [],
+        },
     }
 
 
@@ -38,6 +47,20 @@ class ProposalGateTests(unittest.TestCase):
 
     def test_missing_schema_is_blocked(self):
         self.assertIn("missing field: requirements", evaluate({"mode": "review"}))
+
+    def test_open_pm_gates_are_blocked(self):
+        data = ready_data()
+        data["inputs"] = [{"id": "I1", "class": "blocking", "status": "open"}]
+        data["defects"] = [{"id": "D1", "severity": "major", "status": "open"}]
+        data["package"] = {"required": True, "inspected": False}
+        data["submission"] = {"cleared": False, "rehearsal_evidence": [], "receipt_plan": ""}
+        failures = evaluate(data)
+        self.assertIn("blocking input I1 is open", failures)
+        self.assertIn("major defect D1 is open", failures)
+        self.assertIn("package inspection is missing or failed", failures)
+        self.assertIn("submission is not cleared", failures)
+        self.assertIn("submission rehearsal evidence is missing", failures)
+        self.assertIn("submission receipt plan is missing", failures)
 
     def test_blocked(self):
         data = ready_data()

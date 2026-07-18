@@ -11,7 +11,7 @@ from pathlib import Path
 REQUIRED_FIELDS = {
     "mode", "bid_decision", "bid_conditions", "requirements", "claims",
     "unresolved_tokens", "attachments", "source_conflicts", "checks",
-    "artifact_required", "render",
+    "inputs", "defects", "artifact_required", "render", "package", "submission",
 }
 
 
@@ -50,6 +50,14 @@ def evaluate(data: dict) -> list[str]:
     failures.extend(f"unresolved token: {token}" for token in data["unresolved_tokens"])
     failures.extend(f"source conflict: {item}" for item in data["source_conflicts"])
 
+    for item in data["inputs"]:
+        if item.get("class") == "blocking" and item.get("status") != "closed":
+            failures.append(f"blocking input {item.get('id', '?')} is open")
+
+    for defect in data["defects"]:
+        if defect.get("severity") in {"critical", "major"} and defect.get("status") != "closed":
+            failures.append(f"{defect.get('severity')} defect {defect.get('id', '?')} is open")
+
     for attachment in data["attachments"]:
         if attachment.get("required") and not attachment.get("present"):
             failures.append(f"missing attachment: {attachment.get('name', '?')}")
@@ -60,6 +68,15 @@ def evaluate(data: dict) -> list[str]:
 
     if data["artifact_required"] and not data["render"].get("verified"):
         failures.append("render verification is missing or failed")
+    if data["package"].get("required") and not data["package"].get("inspected"):
+        failures.append("package inspection is missing or failed")
+    if data["mode"] == "submission":
+        if not data["submission"].get("cleared"):
+            failures.append("submission is not cleared")
+        if not data["submission"].get("rehearsal_evidence"):
+            failures.append("submission rehearsal evidence is missing")
+        if not data["submission"].get("receipt_plan"):
+            failures.append("submission receipt plan is missing")
     return failures
 
 
