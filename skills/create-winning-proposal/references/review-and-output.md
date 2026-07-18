@@ -4,6 +4,8 @@
 
 Run one pass: eligibility/submission → atomic coverage → evidence/freshness → scope/schedule/units/arithmetic/price/version/responsibility → technical/security/privacy/legal feasibility → assumptions/dependencies/exclusions → readability/accessibility/rendering.
 
+For page-based proposals, also review the page-message map: every scored evaluator question has a response location; every page has one defensible conclusion; every visual proves that conclusion; repeated diagrams use consistent terms, boundaries, units, and versions.
+
 - **Critical**: disqualifier, mandatory miss, unsupported high-impact claim, unapproved commitment, or contradiction affecting eligibility, mandatory targets, scope, price, staffing, security, or schedule
 - **Major**: important gap; a missing value becomes Critical when it creates a mandatory miss or commitment
 - **Minor**: local clarity, terminology, structure, or formatting issue
