@@ -1,0 +1,7 @@
+openpyxl
+pdfplumber
+pypdf
+python-docx
+python-pptx
+reportlab
+Pillow
