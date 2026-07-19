@@ -3,13 +3,15 @@
 
 사용법:
     python3 quality_gate.py 제안서.pptx [--names 금지명단.txt]
-        [--palette "1F3864,8FAADC,..."] [--lang ko|en|both]
+        [--palette "1F3864,8FAADC,..."] [--lang ko|en|both] [--stage draft|submission]
 
 검사 항목:
   1. 과장어(근거가 있어도 사람 검토)   3. 잔존 금지 명칭(이전 고객사 등)
-  2. 플레이스홀더 잔존                 4. 팔레트 일탈(허용 색 외 사용, PPTX만)
+  2. 플레이스홀더/미확정 마커 잔존       4. 팔레트 일탈(허용 색 외 사용, PPTX만)
 --lang: 과장어 사전 언어 선택(기본 ko). 영문 제안은 en, 이중언어는 both.
-종료 코드: 0=통과, 1=차단(실패 목록 출력), 2=사용 오류.
+--stage: draft=미확정 마커([NEEDS INPUT]·입력요망)를 비차단 경고로 허용,
+         submission(기본)=차단. 생성 도구 테마색 NOT INSPECTED는 항상 비차단 경고다.
+종료 코드: 0=통과(경고만 있을 수 있음), 1=차단(차단 목록 출력), 2=사용 오류.
 판정은 기계 검사일 뿐이며, 문장 맥락·설득력·법적 적정성은 사람이 검토한다.
 """
 from __future__ import annotations
@@ -27,8 +29,12 @@ BANNED_EN = ["best-in-class", "best", "world-class", "industry-leading", "market
              "seamless", "effortless", "guarantee", "guaranteed", "guarantees",
              "guaranteeing", "bulletproof", "future-proof",
              "unlimited", "significant savings"]
-PLACEHOLDERS = ["lorem", "xxxx", "TBD", "샘플텍스트", "placeholder", "OOO", "○○○",
-                "NEEDS INPUT"]
+PLACEHOLDERS = ["lorem", "xxxx", "TBD", "샘플텍스트", "placeholder", "OOO", "○○○"]
+# 초안 단계 사실 슬롯 마커. 제출 단계에서는 차단(placeholder), 초안 단계에서는 경고(비차단).
+# 스킬 권장 마커([NEEDS INPUT]·［입력요망］)를 게이트가 스스로 차단하던 자기충돌을 해소한다.
+DRAFT_MARKERS = ["needs input", "입력요망"]
+# 아래 접두사로 시작하는 항목은 '비차단 경고'다(종료코드에 반영하지 않는다).
+WARNING_PREFIXES = ("[NOT INSPECTED]", "[검토필요]")
 
 
 def banned_hits(text: str, word: str) -> bool:
@@ -82,7 +88,10 @@ def read_names(path: Path) -> list[str]:
             if line.strip()]
 
 
-def run(path: Path, names: list[str], palette: set[str], lang: str) -> list[str]:
+def run(path: Path, names: list[str], palette: set[str], lang: str,
+        stage: str = "submission") -> list[str]:
+    """모든 발견 항목을 문자열 리스트로 반환한다. WARNING_PREFIXES로 시작하는 항목은
+    '비차단 경고'이며 종료코드에 반영되지 않는다(차단 여부는 blocking()이 판정)."""
     raw = {"ko": BANNED_KO, "en": BANNED_EN, "both": BANNED_KO + BANNED_EN}[lang]
     banned = list(dict.fromkeys(raw))  # 중복 제거(both의 '100%' 이중 리포트 방지), 순서 유지
     is_pptx = path.suffix.lower() == ".pptx"
@@ -97,6 +106,12 @@ def run(path: Path, names: list[str], palette: set[str], lang: str) -> list[str]
         for p in PLACEHOLDERS:
             if p.lower() in low:
                 fails.append(f"[플레이스홀더] {loc}: '{p}' 잔존")
+        for m in DRAFT_MARKERS:
+            if m in low:
+                if stage == "submission":
+                    fails.append(f"[플레이스홀더] {loc}: 미확정 마커('{m}') 잔존 — 제출 전 해결 필요")
+                else:
+                    fails.append(f"[검토필요] {loc}: 미확정 마커('{m}') — 초안 허용, 제출 전 해결")
         for name in names:
             if name and name in block:
                 fails.append(f"[금지 명칭] {loc}: '{name}' 잔존 — 즉시 탈락 사유")
@@ -106,8 +121,14 @@ def run(path: Path, names: list[str], palette: set[str], lang: str) -> list[str]
         for c in sorted(colors - allowed):
             fails.append(f"[팔레트 일탈] 허용 목록 외 색상 #{c}")
         if unresolved_theme:
+            # 생성 도구 기본 테마의 schemeClr는 최종 HEX를 자동 판정할 수 없다 → 비차단 경고.
             fails.append("[NOT INSPECTED] 테마·마스터·레이아웃·차트 색상은 최종 HEX 해석 필요")
     return fails
+
+
+def blocking(items: list[str]) -> list[str]:
+    """비차단 경고(WARNING_PREFIXES)를 제외한 실제 차단 항목만 반환한다."""
+    return [f for f in items if not f.startswith(WARNING_PREFIXES)]
 
 
 def main() -> int:
@@ -117,14 +138,20 @@ def main() -> int:
     ap.add_argument("--palette", help="허용 색상 hex 콤마 목록(미지정 시 색 검사 생략)")
     ap.add_argument("--lang", choices=["ko", "en", "both"], default="ko",
                     help="과장어 사전 언어(기본 ko)")
+    ap.add_argument("--stage", choices=["draft", "submission"], default="submission",
+                    help="draft: 미확정 마커를 경고로 허용 / submission(기본): 차단")
     a = ap.parse_args()
     if not a.file.is_file():
         print(f"파일 없음: {a.file}", file=sys.stderr); return 2
     names = read_names(a.names) if a.names else []
     palette = {c.strip().upper().lstrip("#") for c in a.palette.split(",")} if a.palette else set()
-    fails = run(a.file, names, palette, a.lang)
-    if fails:
-        print(f"차단 — {len(fails)}건"); [print(" -", f) for f in fails]; return 1
+    items = run(a.file, names, palette, a.lang, a.stage)
+    blockers = blocking(items)
+    warnings = [f for f in items if f.startswith(WARNING_PREFIXES)]
+    for w in warnings:
+        print("  경고:", w)
+    if blockers:
+        print(f"차단 — {len(blockers)}건"); [print(" -", f) for f in blockers]; return 1
     print("통과 (기계 검사 항목 한정 — 리드문 스토리·일관성·렌더 확인은 별도 수행)")
     return 0
 

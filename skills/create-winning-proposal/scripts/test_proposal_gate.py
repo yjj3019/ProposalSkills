@@ -159,5 +159,45 @@ class ProposalGateTests(unittest.TestCase):
         self.assertIn("requirement R1 is not approved", failures)
 
 
+    # --- #6 종합 개선: 규제/제조사 확약 게이트 (후방호환) ---
+    def test_baseline_without_optional_fields_still_ready(self):
+        self.assertEqual(evaluate(ready_data()), [])
+
+    def test_missing_vendor_confirmation_blocks(self):
+        d = ready_data()
+        d["vendor_confirmations"] = [{"id": "V1", "kind": "support", "required": True, "present": False}]
+        self.assertTrue(any("vendor confirmation V1" in f for f in evaluate(d)))
+
+    def test_present_vendor_confirmation_passes(self):
+        d = ready_data()
+        d["vendor_confirmations"] = [{"id": "V1", "kind": "supply", "required": True, "present": True}]
+        self.assertEqual(evaluate(d), [])
+
+    def test_regulatory_gap_blocks(self):
+        d = ready_data()
+        d["regulatory_checks"] = [{"id": "REG1", "status": "gap"}]
+        self.assertTrue(any("regulatory check REG1 is gap" in f for f in evaluate(d)))
+
+    def test_regulatory_met_without_evidence_blocks(self):
+        d = ready_data()
+        d["regulatory_checks"] = [{"id": "REG1", "status": "met"}]
+        self.assertTrue(any("REG1 claims met without evidence" in f for f in evaluate(d)))
+
+    def test_financial_flag_requires_regulatory_checks(self):
+        d = ready_data()
+        d["flags"] = {"financial": True}
+        self.assertTrue(any("financial submission requires regulatory_checks" in f for f in evaluate(d)))
+
+    def test_financial_flag_with_met_regulatory_passes(self):
+        d = ready_data()
+        d["flags"] = {"financial": True}
+        d["regulatory_checks"] = [{"id": "REG1", "status": "met", "evidence": ["감독규정 준수 확인서"]}]
+        self.assertEqual(evaluate(d), [])
+
+    def test_unsupported_vendor_kind_is_invalid(self):
+        d = ready_data()
+        d["vendor_confirmations"] = [{"id": "V1", "kind": "warranty", "required": True, "present": True}]
+        self.assertTrue(any("unsupported kind" in f for f in validate_schema(d)))
+
 if __name__ == "__main__":
     unittest.main()

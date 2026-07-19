@@ -29,6 +29,10 @@ REQUIRED_PACKAGE_CHECKS = {
     "metadata", "notes", "comments", "hidden-content", "embedded-files",
     "external-links", "macros", "stale-customer-data", "price-leakage",
 }
+# 선택 필드(후방호환): 존재할 때만 검증한다.
+OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations"}
+REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
+VENDOR_KINDS = {"support", "supply"}
 
 
 def is_iso_datetime(value: object) -> bool:
@@ -93,6 +97,19 @@ def validate_schema(data: object) -> list[str]:
     render = data.get("render")
     if isinstance(render, dict) and "evidence" in render and not isinstance(render["evidence"], list):
         failures.append("render evidence must be an array")
+    for name in OPTIONAL_ARRAY_FIELDS:
+        if name in data and not isinstance(data[name], list):
+            failures.append(f"{name} must be an array")
+        elif isinstance(data.get(name), list) and any(not isinstance(x, dict) for x in data[name]):
+            failures.append(f"{name} entries must be objects")
+    if "flags" in data and not isinstance(data["flags"], dict):
+        failures.append("flags must be an object")
+    for check in data.get("regulatory_checks", []) if isinstance(data.get("regulatory_checks"), list) else []:
+        if isinstance(check, dict) and check.get("status") not in REGULATORY_STATUSES:
+            failures.append(f"regulatory check {check.get('id', '?')} has unsupported status: {check.get('status')}")
+    for vc in data.get("vendor_confirmations", []) if isinstance(data.get("vendor_confirmations"), list) else []:
+        if isinstance(vc, dict) and vc.get("kind") not in VENDOR_KINDS:
+            failures.append(f"vendor confirmation {vc.get('id', '?')} has unsupported kind: {vc.get('kind')}")
     return failures
 
 
@@ -174,6 +191,23 @@ def evaluate(data: dict) -> list[str]:
             failures.append("submission rehearsal evidence is missing")
         if not data["submission"].get("receipt_plan"):
             failures.append("submission receipt plan is missing")
+
+    # 제조사 확약(vendor_confirmations): 필수인데 미제출이면 차단(계약 전 독소조항 대응).
+    for vc in data.get("vendor_confirmations", []):
+        if vc.get("required") and not vc.get("present"):
+            failures.append(f"vendor confirmation {vc.get('id', '?')} ({vc.get('kind', '?')}) is missing")
+
+    # 금융 등 규제 완료증거(regulatory_checks): 명시적 gap/in-progress는 차단,
+    # met는 증거 필요. 금융 플래그가 켜진 제출 건은 규제 검사 목록이 반드시 있어야 한다.
+    reg_checks = data.get("regulatory_checks", [])
+    for check in reg_checks:
+        status = check.get("status")
+        if status in {"gap", "in-progress"}:
+            failures.append(f"regulatory check {check.get('id', '?')} is {status}")
+        elif status == "met" and not check.get("evidence"):
+            failures.append(f"regulatory check {check.get('id', '?')} claims met without evidence")
+    if data.get("flags", {}).get("financial") and data["mode"] == "submission" and not reg_checks:
+        failures.append("financial submission requires regulatory_checks")
     return failures
 
 
