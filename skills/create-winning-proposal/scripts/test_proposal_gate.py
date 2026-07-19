@@ -59,6 +59,12 @@ class ProposalGateTests(unittest.TestCase):
         data["render"] = {"verified": False}
         self.assertEqual(evaluate(data), [])
 
+    def test_simulation_mode_does_not_override_no_bid(self):
+        data = ready_data()
+        data["artifact_mode"] = "simulation-only"
+        data["bid_decision"] = "no-bid"
+        self.assertIn("bid_decision must be 'bid' or accepted 'conditional-bid'", evaluate(data))
+
     def test_missing_schema_is_blocked(self):
         self.assertIn("missing field: requirements", evaluate({"mode": "review"}))
 

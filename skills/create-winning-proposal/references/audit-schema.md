@@ -5,6 +5,7 @@ Create every top-level field; do not omit empty arrays.
 ```json
 {
   "mode": "submission",
+  "artifact_mode": "submission-candidate",
   "bid_decision": "conditional-bid",
   "bid_conditions": [{"id": "B1", "owner": "Legal", "deadline": "2026-08-20T17:00:00+09:00", "accepted": true}],
   "requirements": [{"id": "R1", "mandatory": true, "state": "approved", "rationale": "", "reviewer": "Security lead"}],
@@ -23,6 +24,8 @@ Create every top-level field; do not omit empty arrays.
 ```
 
 - `mode`: submission, draft, review, or analysis.
+- `artifact_mode`(선택): `submission-candidate` 또는 `simulation-only`. 마감 경과 등으로
+  no-bid인 RFP를 벤치마크 작성할 때도 `bid_decision`은 바꾸지 않는다.
 - Conditional-bid passes only when every condition has an owner, ISO-8601 date/time with timezone, and acceptance.
 - Intake-incomplete and no-bid never pass submission readiness.
 - Not-applicable mandatory items need rationale and reviewer.
