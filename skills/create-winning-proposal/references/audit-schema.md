@@ -46,3 +46,28 @@ Create every top-level field; do not omit empty arrays.
   - `regulatory_checks[]` status ∈ {met, gap, in-progress, not-applicable}. `gap`·`in-progress`는 차단, `met`는 evidence 필수. `flags.financial: true`인 submission은 `regulatory_checks`가 비면 차단(금융 규제 미기재 방지).
   - `vendor_confirmations[]` kind ∈ {support, supply}. `required && !present`이면 차단 — 제조사 기술지원·공급 확약서 같은 계약 전 필수 제출물을 blocking으로 모델링한다.
 - Record completed or documented-not-applicable consistency, arithmetic, and submission checks as `true`.
+
+## 반낙관 하드닝(anti-optimism) — 자기선언 낙관 통과 차단
+
+게이트는 자기보고 어서션의 *구조적 완전성*만 검증하고 *진위*는 검증하지 않는다.
+따라서 모든 요구를 `approved`, 첨부를 `present`, 제출을 `cleared`로 낙관 선언하면
+READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
+
+- **근거 필수(evidence)**: 필수 requirement가 `state: approved`이면 비어있지 않은
+  `evidence_refs: []`(제안서 위치·산출물 해시 등)가 반드시 있어야 한다. 근거 없는
+  승인 자기선언은 차단된다.
+- **마감일 검증(deadline)**: `submission.deadline`은 timezone 포함 ISO-8601. submission
+  모드는 필수이며, 기준 현재시각(`PROPOSAL_GATE_NOW`로 주입 가능, 기본 UTC now)보다
+  과거이면 차단한다. 만료된 RFP를 `cleared: true`로 통과시킬 수 없다.
+- **자격 일관성(eligibility)**: `eligibility[] = {id, criterion, mandatory, met, curable}`.
+  submission 모드는 원장 필수. 미충족(`met:false`)이면서 `curable:false`면 `bid`/
+  `conditional-bid` 불가(no-bid만 허용); 미충족+`curable:true`면 단독 `bid` 불가
+  (조건부입찰 또는 불참). 치유 불가능한 자격 미달을 낙관적 `bid`로 선언할 수 없다.
+
+## 완성도 수치 일원화 — `score_completeness.py`(저장소 루트)
+
+리뷰어마다 'overall 수치'를 다르게 계산해 값이 갈리던 문제를 없애기 위해 동일 audit에서
+두 축을 결정론적으로 산출한다: 제출가능성(readiness, 세부 차원 충족률 + 게이트),
+제안 품질(quality, `--quality` 지표 파일이 있을 때 `0.4·compliance + 0.3·claim_support
++ 0.2·(1−defect) + 0.1·rehearsal`). **최종 상태는 오직 게이트가 결정한다** — 품질 점수가
+높아도 open BLOCKING이 있으면 NO-GO다. `python score_completeness.py AUDIT.json [QUALITY.json]`.

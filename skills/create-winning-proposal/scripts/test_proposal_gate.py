@@ -11,7 +11,10 @@ def ready_data():
         "mode": "submission",
         "bid_decision": "bid",
         "bid_conditions": [],
-        "requirements": [{"id": "R1", "mandatory": True, "state": "approved"}],
+        "requirements": [{"id": "R1", "mandatory": True, "state": "approved",
+                          "evidence_refs": ["proposal.md#3.1"]}],
+        "eligibility": [{"id": "E1", "criterion": "3억 실적", "mandatory": True,
+                         "met": True, "curable": True}],
         "claims": [{"id": "C1", "kind": "commitment", "status": "supported", "owner_approved": True}],
         "unresolved_tokens": [],
         "attachments": [{"name": "form", "required": True, "present": True}],
@@ -35,6 +38,7 @@ def ready_data():
         },
         "submission": {
             "cleared": True,
+            "deadline": "2099-12-31T17:00:00+09:00",
             "rehearsal_evidence": ["test upload opened"],
             "receipt_plan": "save portal confirmation",
             "receipt_evidence": [],
@@ -198,6 +202,90 @@ class ProposalGateTests(unittest.TestCase):
         d = ready_data()
         d["vendor_confirmations"] = [{"id": "V1", "kind": "warranty", "required": True, "present": True}]
         self.assertTrue(any("unsupported kind" in f for f in validate_schema(d)))
+
+    # --- P0 반낙관 하드닝: 3종 가드 (자기선언 낙관 통과 차단) ---
+    def test_approved_without_evidence_refs_blocks(self):
+        d = ready_data()
+        d["requirements"] = [{"id": "R1", "mandatory": True, "state": "approved"}]
+        self.assertIn("requirement R1 approved without evidence_refs", evaluate(d))
+
+    def test_approved_with_evidence_refs_passes(self):
+        self.assertEqual(evaluate(ready_data()), [])
+
+    def test_past_deadline_blocks(self):
+        d = ready_data()
+        d["submission"]["deadline"] = "2021-05-20T17:00:00+09:00"
+        self.assertTrue(any("deadline has passed" in f for f in evaluate(d)))
+
+    def test_missing_deadline_in_submission_blocks(self):
+        d = ready_data()
+        d["submission"].pop("deadline")
+        self.assertIn("submission deadline is missing", evaluate(d))
+
+    def test_non_iso_deadline_is_invalid(self):
+        d = ready_data()
+        d["submission"]["deadline"] = "next week"
+        self.assertIn("submission deadline must be ISO datetime with timezone", validate_schema(d))
+
+    def test_deadline_honours_now_override(self):
+        import os
+        d = ready_data()
+        d["submission"]["deadline"] = "2026-08-01T17:00:00+09:00"
+        os.environ["PROPOSAL_GATE_NOW"] = "2026-09-01T00:00:00+09:00"
+        try:
+            self.assertTrue(any("deadline has passed" in f for f in evaluate(d)))
+        finally:
+            del os.environ["PROPOSAL_GATE_NOW"]
+
+    def test_incurable_eligibility_forbids_bid(self):
+        d = ready_data()
+        d["eligibility"] = [{"id": "E1", "criterion": "3억 실적", "mandatory": True,
+                             "met": False, "curable": False}]
+        self.assertTrue(any("incurable; bid not permitted" in f for f in evaluate(d)))
+
+    def test_curable_eligibility_forbids_plain_bid(self):
+        d = ready_data()
+        d["eligibility"] = [{"id": "E1", "criterion": "SW 등록", "mandatory": True,
+                             "met": False, "curable": True}]
+        self.assertTrue(any("requires conditional-bid or no-bid" in f for f in evaluate(d)))
+
+    def test_missing_eligibility_in_submission_blocks(self):
+        d = ready_data()
+        d.pop("eligibility")
+        self.assertIn("submission requires eligibility ledger", evaluate(d))
+
+    def test_eligibility_met_type_is_invalid(self):
+        d = ready_data()
+        d["eligibility"] = [{"id": "E1", "met": "yes"}]
+        self.assertTrue(any("met must be a boolean" in f for f in validate_schema(d)))
+
+    def test_missing_curable_defaults_incurable(self):
+        # curable 생략은 fail-closed: conditional-bid로도 우회 불가.
+        d = ready_data()
+        d["bid_decision"] = "conditional-bid"
+        d["bid_conditions"] = [{"id": "B1", "owner": "Legal",
+                                "deadline": "2099-08-20T17:00:00+09:00", "accepted": True}]
+        d["eligibility"] = [{"id": "E1", "mandatory": True, "met": False}]  # curable 미지정
+        self.assertTrue(any("incurable; bid not permitted" in f for f in evaluate(d)))
+
+    def test_evidence_refs_empty_string_blocks(self):
+        d = ready_data()
+        d["requirements"] = [{"id": "R1", "mandatory": True, "state": "approved",
+                              "evidence_refs": ["", None]}]
+        self.assertIn("requirement R1 approved without evidence_refs", evaluate(d))
+
+    def test_antigravity_optimistic_audit_is_blocked(self):
+        """Antigravity false-pass 재현: approved(무증빙)+만료마감+자격원장부재→반드시 차단."""
+        d = ready_data()
+        d["requirements"] = [
+            {"id": "RFP-REQ-0%d" % i, "mandatory": True, "state": "approved"} for i in range(1, 6)
+        ]
+        d["submission"]["deadline"] = "2021-05-20T17:00:00+09:00"
+        d.pop("eligibility")
+        failures = evaluate(d)
+        self.assertTrue(any("approved without evidence_refs" in f for f in failures))
+        self.assertTrue(any("deadline has passed" in f for f in failures))
+        self.assertIn("submission requires eligibility ledger", failures)
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -30,9 +31,28 @@ REQUIRED_PACKAGE_CHECKS = {
     "external-links", "macros", "stale-customer-data", "price-leakage",
 }
 # 선택 필드(후방호환): 존재할 때만 검증한다.
-OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations"}
+OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibility"}
 REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
 VENDOR_KINDS = {"support", "supply"}
+
+
+def reference_now() -> datetime:
+    """기준 현재시각. 결정론적 테스트를 위해 PROPOSAL_GATE_NOW(ISO)로 주입 가능."""
+    override = os.environ.get("PROPOSAL_GATE_NOW")
+    if override:
+        try:
+            dt = datetime.fromisoformat(override.replace("Z", "+00:00"))
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc)
+
+
+def deadline_in_future(value: str) -> bool:
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt > reference_now()
 
 
 def is_iso_datetime(value: object) -> bool:
@@ -110,6 +130,16 @@ def validate_schema(data: object) -> list[str]:
     for vc in data.get("vendor_confirmations", []) if isinstance(data.get("vendor_confirmations"), list) else []:
         if isinstance(vc, dict) and vc.get("kind") not in VENDOR_KINDS:
             failures.append(f"vendor confirmation {vc.get('id', '?')} has unsupported kind: {vc.get('kind')}")
+    for e in data.get("eligibility", []) if isinstance(data.get("eligibility"), list) else []:
+        if not isinstance(e, dict):
+            continue
+        if "met" in e and not isinstance(e["met"], bool):
+            failures.append(f"eligibility {e.get('id', '?')} met must be a boolean")
+        if "curable" in e and not isinstance(e["curable"], bool):
+            failures.append(f"eligibility {e.get('id', '?')} curable must be a boolean")
+    sub = data.get("submission")
+    if isinstance(sub, dict) and "deadline" in sub and not is_iso_datetime(sub["deadline"]):
+        failures.append("submission deadline must be ISO datetime with timezone")
     return failures
 
 
@@ -132,6 +162,11 @@ def evaluate(data: dict) -> list[str]:
         if not item.get("mandatory"):
             continue
         if item.get("state") == "approved":
+            # 반낙관: approved 자기선언만으로는 통과 불가. 비어있지 않은 문자열 근거 필수.
+            refs = item.get("evidence_refs")
+            if not isinstance(refs, list) or not any(
+                    isinstance(r, str) and r.strip() for r in refs):
+                failures.append(f"requirement {item.get('id', '?')} approved without evidence_refs")
             continue
         if item.get("state") == "not-applicable" and item.get("rationale") and item.get("reviewer"):
             continue
@@ -191,6 +226,30 @@ def evaluate(data: dict) -> list[str]:
             failures.append("submission rehearsal evidence is missing")
         if not data["submission"].get("receipt_plan"):
             failures.append("submission receipt plan is missing")
+
+    # 반낙관 가드 1: 마감일 vs 현재일. 제출 모드는 마감일 필수이며 과거이면 차단.
+    deadline = data["submission"].get("deadline")
+    if data["mode"] == "submission" and not deadline:
+        failures.append("submission deadline is missing")
+    elif deadline and is_iso_datetime(deadline) and not deadline_in_future(deadline):
+        failures.append(f"submission deadline has passed: {deadline}")
+
+    # 반낙관 가드 3: 계량 자격 일관성. 미충족+치유불가면 bid 금지,
+    # 미충족+치유가능이면 단독 bid 금지(조건부입찰/불참만 허용). 제출 모드는 원장 필수.
+    eligibility = data.get("eligibility", [])
+    for e in eligibility:
+        if not e.get("mandatory", True) or e.get("met"):
+            continue
+        # fail-closed: curable 미지정은 보수적으로 '치유불가'로 취급(생략으로 우회 방지).
+        if not e.get("curable", False):
+            if decision != "no-bid":
+                failures.append(
+                    f"eligibility {e.get('id', '?')} unmet and incurable; bid not permitted")
+        elif decision == "bid":
+            failures.append(
+                f"eligibility {e.get('id', '?')} unmet; requires conditional-bid or no-bid")
+    if data["mode"] == "submission" and not eligibility:
+        failures.append("submission requires eligibility ledger")
 
     # 제조사 확약(vendor_confirmations): 필수인데 미제출이면 차단(계약 전 독소조항 대응).
     for vc in data.get("vendor_confirmations", []):
