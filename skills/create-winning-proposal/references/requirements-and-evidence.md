@@ -55,3 +55,5 @@ Require evidence for prices, dates, quantities, calculations, performance, savin
 Use `[NEEDS INPUT: owner — exact item]`, a visible assumption with impact, an assigned evidence gap, or remove the claim. Preserve the generated and approved versions in review events.
 
 Classify unresolved items as `blocking-input`, `non-blocking-input`, or `assumption`. Eligibility, mandatory compliance, price, schedule, SLA, contract, security, and required evidence are blocking unless the accountable approver documents otherwise. A prior proposal is pattern guidance only; never transfer its customer, price, staffing, schedule, architecture, result, or commitment as current evidence.
+
+Keep artifact placeholders separate from the input ledger. Any token physically remaining in a deliverable belongs in `unresolved_tokens` and blocks finalization; a non-blocking input or visible assumption belongs only in `inputs` unless its placeholder still remains in the artifact.

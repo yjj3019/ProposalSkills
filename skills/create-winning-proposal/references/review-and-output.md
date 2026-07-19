@@ -38,4 +38,9 @@ Use `scripts/proposal_gate.py audit.json`; human review still decides truth, per
 
 ## Output bundle
 
-Provide the proposal, requirement ledger, evidence manifest, review events, assumptions/dependencies/exclusions, gate report, and applicable render result. For review-only work, keep the original intact and provide targeted corrections plus explicit verification limits.
+Report two results separately; never average them into one readiness claim:
+
+- **Proposal Quality**: requirement traceability, evidence control, persuasive structure, execution specificity, visualization, and security.
+- **Submission Readiness**: mandatory inputs, approvals, evidence, render/package inspection, file rules, rehearsal, and receipt plan.
+
+Provide the proposal, requirement ledger, evidence manifest, review events, assumptions/dependencies/exclusions, both scores, gate report, and applicable render result. A high Proposal Quality score never overrides a `NO-GO`. For review-only work, keep the original intact and provide targeted corrections plus explicit verification limits.
