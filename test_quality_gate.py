@@ -46,6 +46,17 @@ class QualityGateTests(unittest.TestCase):
             self.assertTrue(any("NOT INSPECTED" in failure
                                 for failure in run(path, [], {"1F3864"}, "ko")))
 
+    def test_unused_master_colors_do_not_fail_palette(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "deck.pptx"
+            pptx(path, {1: "일반", 2: "일반"}, '<a:srgbClr val="1F3864"/>')
+            with zipfile.ZipFile(path, "a") as z:
+                z.writestr("ppt/slideMasters/slideMaster1.xml",
+                           '<a:srgbClr val="E97132"/>')
+            failures = run(path, [], {"1F3864"}, "ko")
+            self.assertFalse(any("#E97132" in failure for failure in failures))
+            self.assertTrue(any("NOT INSPECTED" in failure for failure in failures))
+
 
 if __name__ == "__main__":
     unittest.main()

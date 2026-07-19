@@ -24,6 +24,7 @@ BID_DECISIONS = {"bid", "conditional-bid", "intake-incomplete", "no-bid"}
 INPUT_CLASSES = {"blocking", "non-blocking", "assumption"}
 DEFECT_SEVERITIES = {"critical", "major", "minor", "note"}
 ITEM_STATUSES = {"open", "closed"}
+ARTIFACT_MODES = {"submission-candidate", "simulation-only"}
 REQUIRED_PACKAGE_CHECKS = {
     "metadata", "notes", "comments", "hidden-content", "embedded-files",
     "external-links", "macros", "stale-customer-data", "price-leakage",
@@ -50,6 +51,8 @@ def validate_schema(data: object) -> list[str]:
                  if name in data and not isinstance(data[name], dict)]
     if "artifact_required" in data and not isinstance(data["artifact_required"], bool):
         failures.append("artifact_required must be a boolean")
+    if "artifact_mode" in data and data["artifact_mode"] not in ARTIFACT_MODES:
+        failures.append(f"unsupported artifact_mode: {data['artifact_mode']}")
     for name in ("bid_conditions", "requirements", "claims", "attachments", "inputs", "defects"):
         if isinstance(data.get(name), list) and any(not isinstance(item, dict) for item in data[name]):
             failures.append(f"{name} entries must be objects")

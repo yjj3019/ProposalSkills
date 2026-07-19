@@ -65,13 +65,15 @@ def extract_colors(path: Path) -> tuple[set[str], bool]:
     unresolved_theme = False
     with zipfile.ZipFile(path) as z:
         for n in z.namelist():
-            if n.endswith(".xml") and n.startswith((
-                    "ppt/slides/", "ppt/slideLayouts/", "ppt/slideMasters/",
-                    "ppt/charts/", "ppt/diagrams/")):
-                xml = z.read(n).decode("utf-8", "ignore")
+            if not n.endswith(".xml") or not n.startswith("ppt/"):
+                continue
+            xml = z.read(n).decode("utf-8", "ignore")
+            if n.startswith(("ppt/slides/", "ppt/charts/", "ppt/diagrams/")):
                 colors.update(c.upper() for c in
                               re.findall(r'srgbClr val="([0-9A-Fa-f]{6})"', xml))
-                unresolved_theme |= "schemeClr" in xml
+            if n.startswith(("ppt/theme/", "ppt/slideLayouts/", "ppt/slideMasters/")) \
+                    or "schemeClr" in xml:
+                unresolved_theme = True
     return colors, unresolved_theme
 
 
