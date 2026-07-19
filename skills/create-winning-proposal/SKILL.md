@@ -10,7 +10,7 @@ Create evaluator-readable proposals in which every requirement, claim, commitmen
 ## Select the path
 
 - For RFP/RFI/RFx work, run the full workflow.
-- Without an RFP, convert the request, audience, constraints, decision, and success criteria into a requirement brief, then continue at planning.
+- Without an RFP, label the output a discovery/decision draft. Convert the request, audience, constraints, decision, and success criteria into a brief; keep facts, hypotheses, questions, decisions, and commitments separate. Apply submission-ready semantics only when the work becomes an approved external or binding offer.
 - For review only, preserve the source and run one integrated review; do not rewrite everything unless asked.
 - For DOCX/PDF delivery, also use the host platform's document/PDF capability and its render-and-verify process.
 
