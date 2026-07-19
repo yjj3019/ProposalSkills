@@ -13,10 +13,31 @@ REQUIRED_FIELDS = {
     "unresolved_tokens", "attachments", "source_conflicts", "checks",
     "artifact_required", "render",
 }
+ARRAY_FIELDS = {
+    "bid_conditions", "requirements", "claims", "unresolved_tokens",
+    "attachments", "source_conflicts",
+}
+OBJECT_FIELDS = {"checks", "render"}
+
+
+def validate_schema(data: object) -> list[str]:
+    if not isinstance(data, dict):
+        return ["audit root must be an object"]
+    failures = [f"missing field: {name}" for name in sorted(REQUIRED_FIELDS - data.keys())]
+    failures += [f"{name} must be an array" for name in sorted(ARRAY_FIELDS)
+                 if name in data and not isinstance(data[name], list)]
+    failures += [f"{name} must be an object" for name in sorted(OBJECT_FIELDS)
+                 if name in data and not isinstance(data[name], dict)]
+    if "artifact_required" in data and not isinstance(data["artifact_required"], bool):
+        failures.append("artifact_required must be a boolean")
+    for name in ("bid_conditions", "requirements", "claims", "attachments"):
+        if isinstance(data.get(name), list) and any(not isinstance(item, dict) for item in data[name]):
+            failures.append(f"{name} entries must be objects")
+    return failures
 
 
 def evaluate(data: dict) -> list[str]:
-    failures = [f"missing field: {name}" for name in sorted(REQUIRED_FIELDS - data.keys())]
+    failures = validate_schema(data)
     if failures:
         return failures
 
@@ -71,6 +92,12 @@ def main(argv: list[str]) -> int:
         data = json.loads(Path(argv[1]).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"invalid audit file: {exc}", file=sys.stderr)
+        return 2
+    schema_failures = validate_schema(data)
+    if schema_failures:
+        print("INVALID AUDIT")
+        for failure in schema_failures:
+            print(f"- {failure}")
         return 2
     failures = evaluate(data)
     if failures:

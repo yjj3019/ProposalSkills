@@ -1,6 +1,9 @@
 import unittest
+import json
+import tempfile
+from pathlib import Path
 
-from proposal_gate import evaluate
+from proposal_gate import evaluate, main, validate_schema
 
 
 def ready_data():
@@ -38,6 +41,20 @@ class ProposalGateTests(unittest.TestCase):
 
     def test_missing_schema_is_blocked(self):
         self.assertIn("missing field: requirements", evaluate({"mode": "review"}))
+
+    def test_wrong_types_are_invalid_without_exception(self):
+        data = ready_data()
+        data["requirements"] = None
+        self.assertEqual(validate_schema(data), ["requirements must be an array"])
+        self.assertEqual(evaluate(data), ["requirements must be an array"])
+
+    def test_cli_returns_two_for_invalid_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.json"
+            data = ready_data()
+            data["requirements"] = None
+            path.write_text(json.dumps(data), encoding="utf-8")
+            self.assertEqual(main(["proposal_gate.py", str(path)]), 2)
 
     def test_blocked(self):
         data = ready_data()
