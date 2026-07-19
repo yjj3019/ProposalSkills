@@ -65,9 +65,14 @@ def score(audit: dict, metrics: dict | None) -> dict:
     satisfied = sum(1 for _, ok in dims if ok)
     readiness = round(100 * satisfied / len(dims), 1)
     blocking = evaluate(audit)
+    decision = audit.get("bid_decision")
+    downgraded_from = None
     if blocking:
         status = "NO-GO"
-    elif audit.get("bid_decision") == "conditional-bid":
+        # 조건부입찰이 미결 항목으로 막히면 '결정 거부'가 아니라 다운그레이드임을 표기.
+        if decision == "conditional-bid":
+            downgraded_from = "CONDITIONAL-GO"
+    elif decision == "conditional-bid":
         status = "CONDITIONAL-GO"
     elif audit.get("mode") == "submission":
         status = "SUBMISSION-READY"
@@ -81,6 +86,9 @@ def score(audit: dict, metrics: dict | None) -> dict:
         "blocking": blocking,
         "quality_score": None,
     }
+    if downgraded_from:
+        result["downgraded_from"] = downgraded_from
+        result["downgrade_cause"] = blocking
     if metrics is not None:
         result["quality_score"] = quality_score(metrics)
     return result

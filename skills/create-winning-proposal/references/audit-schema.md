@@ -64,6 +64,46 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   `conditional-bid` 불가(no-bid만 허용); 미충족+`curable:true`면 단독 `bid` 불가
   (조건부입찰 또는 불참). 치유 불가능한 자격 미달을 낙관적 `bid`로 선언할 수 없다.
 
+## eligibility · conditional-bid 작성 예제 (자주 틀리는 부분)
+
+**eligibility 원장** — 제출 모드 필수. 각 필수 자격 기준을 met/curable로 표기한다.
+
+```json
+"eligibility": [
+  {"id": "E1", "criterion": "동종 실적 3억 이상 2건", "mandatory": true, "met": true,  "curable": true},
+  {"id": "E2", "criterion": "SW사업자 등록",          "mandatory": true, "met": true,  "curable": true},
+  {"id": "E3", "criterion": "정보보호 전문서비스 지정", "mandatory": false, "met": true, "rationale": "가점 항목-비필수"}
+]
+```
+
+**치유 항목을 어디에 담느냐가 상태를 가른다(중요).** 동일한 "실적 1건 부족"이라도 표현 위치에 따라
+게이트 상태가 달라진다 — 작성자가 의도에 맞게 선택해야 한다.
+
+- **CONDITIONAL-GO를 원하면**: 치유 항목을 `eligibility`(met:false, curable:true) + **accepted `bid_condition`**
+  으로 모델링하고 `bid_decision:"conditional-bid"`. 제출물에 지금 당장 있어야 하는 서류로 만들지 않는다.
+  ```json
+  "bid_decision": "conditional-bid",
+  "bid_conditions": [
+    {"id": "B1", "owner": "사업총괄", "deadline": "2026-08-30T17:00:00+09:00", "accepted": true,
+     "note": "컨소시엄 실적 보강으로 E-실적 기준 충족"}
+  ],
+  "eligibility": [{"id": "E1", "criterion": "실적 2건", "mandatory": true, "met": false, "curable": true}]
+  ```
+- **NO-GO(정상 차단)가 맞으면**: 치유 항목이 **이번 봉투에 반드시 present여야 하는** 필수 서류/제조사
+  확약서라면 `attachments`/`vendor_confirmations`에 `required:true, present:false`로 둔다. 제출 모드에서는
+  이것이 하드 차단이라 `conditional-bid`라도 NO-GO로 내려간다(fail-closed, 의도된 동작).
+- **결정 시점 검토**는 `mode:"review"`, **실제 봉투 제출**은 `mode:"submission"`로 분리한다. review 모드는
+  마감·eligibility 원장·제출 리허설 강제를 적용하지 않으므로 추진 판단에 적합하다.
+
+치유 불가 미달은 `curable:false` + `bid_decision:"no-bid"`. 치유 가능한데 조건을 아직 못 걸었으면
+`no-bid` 또는 미수락 `conditional-bid`(→ 차단)로 두되, 낙관적 단독 `bid`로 선언하지 않는다.
+
+## 게이트 결과 설명 — `proposal_gate.py --explain`
+
+차단 시 "무엇을 왜 고쳐야 하는지"를 마크다운 조치표로 출력한다. `no-bid`·`intake-incomplete`는 결함이
+아니라 **DECISION_MEMO**(정상 불참/보류)로 분기하고, `conditional-bid`가 미결로 막히면
+`CONDITIONAL-GO → NO-GO 다운그레이드`와 회복 조건을 함께 보여준다. `python proposal_gate.py --explain AUDIT.json`.
+
 ## 완성도 수치 일원화 — `score_completeness.py`(저장소 루트)
 
 리뷰어마다 'overall 수치'를 다르게 계산해 값이 갈리던 문제를 없애기 위해 동일 audit에서

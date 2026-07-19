@@ -39,6 +39,17 @@ class ScoreCompletenessTests(unittest.TestCase):
         self.assertEqual(quality_score({"compliance_coverage": 1, "claim_support_rate": 1,
                                          "defect_penalty": 0, "rehearsal_score": 1}), 100.0)
 
+    def test_conditional_bid_blocked_annotates_downgrade(self):
+        d = ready_data()
+        d["bid_decision"] = "conditional-bid"
+        d["bid_conditions"] = [{"id": "B1", "owner": "L",
+                                "deadline": "2099-01-01T00:00:00+09:00", "accepted": True}]
+        d["attachments"] = [{"name": "서식1", "required": True, "present": False}]
+        out = score(d, None)
+        self.assertEqual(out["status"], "NO-GO")
+        self.assertEqual(out.get("downgraded_from"), "CONDITIONAL-GO")
+        self.assertTrue(out.get("downgrade_cause"))
+
     def test_conditional_bid_is_conditional_go(self):
         d = ready_data()
         d["bid_decision"] = "conditional-bid"

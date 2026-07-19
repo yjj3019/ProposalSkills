@@ -3,7 +3,10 @@ import json
 import tempfile
 from pathlib import Path
 
-from proposal_gate import evaluate, main, validate_schema
+import io
+import contextlib
+from proposal_gate import (evaluate, main, validate_schema,
+                           explain_markdown, remediation_hint)
 
 
 def ready_data():
@@ -286,6 +289,76 @@ class ProposalGateTests(unittest.TestCase):
         self.assertTrue(any("approved without evidence_refs" in f for f in failures))
         self.assertTrue(any("deadline has passed" in f for f in failures))
         self.assertIn("submission requires eligibility ledger", failures)
+
+    # --- C1: --explain 출력(조치표·결정메모·다운그레이드) ---
+    def test_explain_ready(self):
+        md = explain_markdown(ready_data(), [], [])
+        self.assertIn("READY", md)
+
+    def test_explain_blocked_has_remediation_table(self):
+        d = ready_data()
+        d["requirements"] = [{"id": "R1", "mandatory": True, "state": "approved"}]
+        md = explain_markdown(d, [], evaluate(d))
+        self.assertIn("BLOCKED", md)
+        self.assertIn("조치", md)
+        self.assertIn("evidence_refs", md)  # 조치 힌트 포함
+
+    def test_explain_nobid_is_decision_memo(self):
+        d = ready_data()
+        d["bid_decision"] = "no-bid"
+        md = explain_markdown(d, [], evaluate(d))
+        self.assertIn("DECISION_MEMO", md)
+        self.assertIn("no-bid", md)
+
+    def test_explain_conditional_downgrade_note(self):
+        d = ready_data()
+        d["bid_decision"] = "conditional-bid"
+        d["bid_conditions"] = [{"id": "B1", "owner": "L", "deadline": "2099-01-01T00:00:00+09:00", "accepted": True}]
+        d["attachments"] = [{"name": "서식1", "required": True, "present": False}]
+        md = explain_markdown(d, [], evaluate(d))
+        self.assertIn("다운그레이드", md)
+
+    def test_remediation_hint_maps_known_failures(self):
+        self.assertIn("근거", remediation_hint("requirement R1 approved without evidence_refs"))
+        self.assertIn("마감", remediation_hint("submission deadline has passed: 2021-05-20"))
+
+    def test_cli_explain_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "a.json"
+            path.write_text(json.dumps(ready_data()), encoding="utf-8")
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = main(["proposal_gate.py", "--explain", str(path)])
+            self.assertEqual(code, 0)
+            self.assertIn("READY", buf.getvalue())
+
+    # --- C5: 금융 submission-ready 골든 ---
+    def test_golden_financial_submission_ready(self):
+        d = ready_data()
+        d["flags"] = {"financial": True}
+        d["regulatory_checks"] = [
+            {"id": "REG1", "requirement": "전자금융감독규정 망분리", "status": "met",
+             "evidence": ["점검 확인서 2026-06"], "owner": "보안담당"},
+            {"id": "REG2", "requirement": "금융보안원 가이드라인", "status": "met",
+             "evidence": ["준수 확인서"], "owner": "CISO"},
+        ]
+        d["vendor_confirmations"] = [{"id": "V1", "kind": "supply", "required": True, "present": True}]
+        self.assertEqual(evaluate(d), [])
+
+    # --- C11: 골든 3종(READY / BLOCKED / 만료) CI 고정 ---
+    def test_golden_ready(self):
+        self.assertEqual(evaluate(ready_data()), [])
+
+    def test_golden_blocked_optimistic(self):
+        d = ready_data()
+        d["requirements"] = [{"id": "R%d" % i, "mandatory": True, "state": "approved"} for i in range(1, 4)]
+        self.assertTrue(evaluate(d))
+
+    def test_golden_expired_deadline(self):
+        d = ready_data()
+        d["submission"]["deadline"] = "2021-05-20T17:00:00+09:00"
+        self.assertTrue(any("deadline has passed" in f for f in evaluate(d)))
+
 
 if __name__ == "__main__":
     unittest.main()

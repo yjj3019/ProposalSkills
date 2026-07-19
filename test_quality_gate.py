@@ -82,6 +82,25 @@ class QualityGateTests(unittest.TestCase):
             self.assertTrue(blocking(run(path, [], set(), "ko", "draft")))
             self.assertTrue(blocking(run(path, [], set(), "ko", "submission")))
 
+    # --- C4 네거티브 골든: 시뮬 B10(과장어)·C10(플레이스홀더) 승격 회귀 ---
+    def test_golden_overclaim_deck_is_blocked(self):
+        """B10형: 과장어 주입 덱은 근거 유무와 무관하게 차단되어야 한다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "b10.pptx"
+            pptx(path, {1: "본 솔루션은 업계 1위이며 무중단 100% 완벽 대응",
+                        2: "world-class and best-in-class throughput"})
+            ko = blocking(run(path, [], set(), "ko"))
+            en = blocking(run(path, [], set(), "en"))
+            self.assertTrue(any("무중단" in f or "100%" in f or "완벽" in f or "업계 1위" in f for f in ko))
+            self.assertTrue(any("world-class" in f or "best-in-class" in f for f in en))
+
+    def test_golden_placeholder_deck_is_blocked(self):
+        """C10형: 플레이스홀더 잔존 덱은 제출 단계에서 차단되어야 한다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "c10.pptx"
+            pptx(path, {1: "구성도 placeholder", 2: "담당자 ○○○ 기재"})
+            self.assertTrue(blocking(run(path, [], set(), "ko", "submission")))
+
 
 if __name__ == "__main__":
     unittest.main()

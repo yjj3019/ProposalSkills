@@ -270,22 +270,92 @@ def evaluate(data: dict) -> list[str]:
     return failures
 
 
+DECISION_STOP = {"no-bid", "intake-incomplete"}
+
+
+def remediation_hint(failure: str) -> str:
+    """차단 사유별 '무엇을 고칠지' 한 줄 조치 힌트. 작성자가 바로 행동하게 한다."""
+    f = failure.lower()
+    table = [
+        ("approved without evidence_refs", "해당 요구에 근거(evidence_refs: 제안서 위치·산출물 해시)를 채운다"),
+        ("deadline has passed", "마감이 지났다 — 제출 불가. 차기 공고 대응 또는 no-bid로 전환한다"),
+        ("deadline is missing", "submission.deadline(ISO/tz)을 RFP 마감으로 채운다"),
+        ("requires eligibility ledger", "eligibility 원장(기준·보유값·치유수단)을 작성한다"),
+        ("incurable; bid not permitted", "치유 불가 자격 미달 — bid를 no-bid로 정정한다"),
+        ("requires conditional-bid or no-bid", "치유 가능 미달 — accepted 조건을 단 conditional-bid로 바꾼다"),
+        ("vendor confirmation", "제조사 기술지원·공급 확약서를 확보해 present=true로 갱신한다"),
+        ("regulatory check", "해당 규제 항목을 met+증거로 완결하거나 gap을 해소한다"),
+        ("missing attachment", "누락 필수 서식을 제출물에 포함한다"),
+        ("missing required package check", "패키지 무결성 검사 항목을 수행해 결과를 기록한다"),
+        ("is not approved", "해당 필수 요구를 검토자 승인(approved) 상태로 완결한다"),
+        ("is not cleared", "제출 리허설·접수 증적 계획을 완료해 submission.cleared=true로 한다"),
+        ("rehearsal evidence", "제출 파일 생성·업로드 리허설을 수행하고 증적을 남긴다"),
+        ("receipt plan", "접수 확인(수신증) 캡처 계획을 채운다"),
+        ("unresolved token", "미해결 토큰(NEEDS INPUT 등)을 실제 값으로 채운다"),
+        ("source conflict", "수정공고·Q&A 우선순위로 충돌 값을 정리한다"),
+        ("blocking input", "미결 blocking 입력을 확보해 closed 처리한다"),
+        ("defect", "미해결 Critical/Major 결함을 조치·재검증한다"),
+        ("owner approval", "커밋먼트(약속) 항목에 책임 owner 승인을 받는다"),
+        ("must be 'bid'", "no-bid/intake-incomplete는 제출 대상이 아니다 — 결정 메모로 종료한다"),
+    ]
+    for key, hint in table:
+        if key in f:
+            return hint
+    return "해당 항목을 audit-schema.md 기준으로 완결한다"
+
+
+def explain_markdown(data: dict, schema_failures: list[str], failures: list[str]) -> str:
+    """게이트 결과를 사람이 바로 고칠 수 있는 마크다운으로 설명한다."""
+    if schema_failures:
+        lines = ["## 게이트 결과: INVALID AUDIT (스키마 오류)", "",
+                 "| # | 스키마 오류 | 조치 |", "|---|---|---|"]
+        for i, f in enumerate(schema_failures, 1):
+            lines.append(f"| {i} | {f} | audit-schema.md의 필드 타입·필수값을 확인한다 |")
+        return "\n".join(lines)
+    decision = data.get("bid_decision")
+    if not failures:
+        return "## 게이트 결과: READY\n\n제출 가능. 모든 결정론적 게이트를 통과했다."
+    # no-bid·intake-incomplete는 '의도된 정지'이므로 결함이 아니라 결정 메모로 제시한다.
+    if decision in DECISION_STOP:
+        residual = [f for f in failures if "must be 'bid'" not in f.lower()
+                    and "check failed or missing: submission" not in f.lower()]
+        lines = [f"## 게이트 결과: DECISION_MEMO ({decision})", "",
+                 f"이 audit은 **{decision}** 결정이다 — 제출하지 않는 것이 정상이며, 아래는 결함이 아니라 결정 근거다.",
+                 "", "| # | 판단 근거 | 비고 |", "|---|---|---|"]
+        basis = residual or ["자격·마감·필수 증빙 미충족으로 참여하지 않음"]
+        for i, f in enumerate(basis, 1):
+            lines.append(f"| {i} | {f} | 정상적인 불참/보류 결정 |")
+        return "\n".join(lines)
+    header = "## 게이트 결과: BLOCKED"
+    if decision == "conditional-bid":
+        header += "\n\n> 주의: `conditional-bid`이지만 미결 항목으로 **CONDITIONAL-GO → NO-GO 다운그레이드**됨. 아래를 해소하면 CONDITIONAL-GO로 회복된다."
+    lines = [header, "", "| # | 차단 사유 | 조치 |", "|---|---|---|"]
+    for i, f in enumerate(failures, 1):
+        lines.append(f"| {i} | {f} | {remediation_hint(f)} |")
+    return "\n".join(lines)
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print("usage: proposal_gate.py AUDIT.json", file=sys.stderr)
+    args = [a for a in argv[1:] if not a.startswith("--")]
+    explain = "--explain" in argv
+    if len(args) != 1:
+        print("usage: proposal_gate.py [--explain] AUDIT.json", file=sys.stderr)
         return 2
     try:
-        data = json.loads(Path(argv[1]).read_text(encoding="utf-8"))
+        data = json.loads(Path(args[0]).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"invalid audit file: {exc}", file=sys.stderr)
         return 2
     schema_failures = validate_schema(data)
+    failures = [] if schema_failures else evaluate(data)
+    if explain:
+        print(explain_markdown(data, schema_failures, failures))
+        return 2 if schema_failures else (1 if failures else 0)
     if schema_failures:
         print("INVALID AUDIT")
         for failure in schema_failures:
             print(f"- {failure}")
         return 2
-    failures = evaluate(data)
     if failures:
         print("BLOCKED")
         for failure in failures:
