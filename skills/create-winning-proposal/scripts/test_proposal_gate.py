@@ -26,7 +26,12 @@ def ready_data():
         },
         "package": {
             "required": True, "inspected": True, "artifact_hash": "sha256:test",
-            "tool": "ooxml-check-v1", "checks": {"metadata": "pass"}, "reviewer": "QA",
+            "tool": "ooxml-check-v1", "checks": {
+                "metadata": "pass", "notes": "pass", "comments": "pass",
+                "hidden-content": "pass", "embedded-files": "not-applicable",
+                "external-links": "pass", "macros": "not-applicable",
+                "stale-customer-data": "pass", "price-leakage": "pass",
+            }, "reviewer": "QA",
         },
         "submission": {
             "cleared": True,
@@ -44,7 +49,7 @@ class ProposalGateTests(unittest.TestCase):
     def test_accepted_conditional_bid(self):
         data = ready_data()
         data["bid_decision"] = "conditional-bid"
-        data["bid_conditions"] = [{"id": "B1", "owner": "Legal", "deadline": "2026-08-20", "accepted": True}]
+        data["bid_conditions"] = [{"id": "B1", "owner": "Legal", "deadline": "2026-08-20T17:00:00+09:00", "accepted": True}]
         self.assertEqual(evaluate(data), [])
 
     def test_analysis_does_not_require_render(self):
@@ -93,6 +98,12 @@ class ProposalGateTests(unittest.TestCase):
         self.assertTrue(any("unsupported class" in failure for failure in failures))
         self.assertTrue(any("unsupported severity" in failure for failure in failures))
 
+    def test_conditional_bid_deadline_requires_timezone(self):
+        data = ready_data()
+        data["bid_decision"] = "conditional-bid"
+        data["bid_conditions"] = [{"id": "B1", "owner": "Legal", "deadline": "tomorrow", "accepted": True}]
+        self.assertTrue(any("ISO deadline" in failure for failure in validate_schema(data)))
+
     def test_closed_major_requires_closure_evidence(self):
         data = ready_data()
         data["defects"] = [{"id": "D1", "severity": "major", "status": "closed"}]
@@ -117,6 +128,13 @@ class ProposalGateTests(unittest.TestCase):
         failures = validate_schema(data)
         self.assertIn("render evidence must be an array", failures)
         self.assertIn("package checks must be an object", failures)
+
+    def test_submission_requires_complete_package_scope(self):
+        data = ready_data()
+        data["package"]["checks"] = {"metadata": "pass"}
+        failures = evaluate(data)
+        self.assertIn("missing required package check: notes", failures)
+        self.assertIn("missing required package check: price-leakage", failures)
 
     def test_blocked(self):
         data = ready_data()

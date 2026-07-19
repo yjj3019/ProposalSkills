@@ -17,13 +17,13 @@ Create every top-level field; do not omit empty arrays.
   "checks": {"consistency": true, "arithmetic": true, "submission": true},
   "artifact_required": true,
   "render": {"verified": true, "artifact_hash": "sha256:proposal", "tool": "renderer version", "evidence": ["all pages reviewed"]},
-  "package": {"required": true, "inspected": true, "artifact_hash": "sha256:proposal", "tool": "package inspector version", "checks": {"metadata": "pass", "notes": "pass", "comments": "not-applicable"}, "reviewer": "QA lead"},
+  "package": {"required": true, "inspected": true, "artifact_hash": "sha256:proposal", "tool": "package inspector version", "checks": {"metadata": "pass", "notes": "pass", "comments": "pass", "hidden-content": "pass", "embedded-files": "not-applicable", "external-links": "pass", "macros": "not-applicable", "stale-customer-data": "pass", "price-leakage": "pass"}, "reviewer": "QA lead"},
   "submission": {"cleared": true, "rehearsal_evidence": ["test upload opened"], "receipt_plan": "save portal confirmation", "receipt_evidence": []}
 }
 ```
 
 - `mode`: submission, draft, review, or analysis.
-- Conditional-bid passes only when every condition has an owner, ISO-8601 deadline, and acceptance.
+- Conditional-bid passes only when every condition has an owner, ISO-8601 date/time with timezone, and acceptance.
 - Intake-incomplete and no-bid never pass submission readiness.
 - Not-applicable mandatory items need rationale and reviewer.
 - Material claims must be supported, qualified, or removed; commitments also need owner approval.
@@ -34,5 +34,6 @@ Create every top-level field; do not omit empty arrays.
 - Set package inspection `required` for editable office files; missing capability is `inspected: false`, not a pass.
 - Verified render/package states require artifact hash, tool identity, evidence/check results, and reviewer. These fields prove that a review event was recorded, not that its factual conclusion is true.
 - In submission mode, a failed or not-inspected required package check blocks readiness.
+- Submission package scope must cover metadata, notes, comments, hidden content, embedded files, external links, macros, stale customer data, and price leakage; use `not-applicable` only with reviewer accountability.
 - Submission clearance requires rehearsal evidence and a receipt-capture plan. Add the actual receipt evidence after submission; do not fabricate it before submission.
 - Record completed or documented-not-applicable consistency, arithmetic, and submission checks as `true`.

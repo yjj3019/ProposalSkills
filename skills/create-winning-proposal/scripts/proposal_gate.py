@@ -24,14 +24,18 @@ BID_DECISIONS = {"bid", "conditional-bid", "intake-incomplete", "no-bid"}
 INPUT_CLASSES = {"blocking", "non-blocking", "assumption"}
 DEFECT_SEVERITIES = {"critical", "major", "minor", "note"}
 ITEM_STATUSES = {"open", "closed"}
+REQUIRED_PACKAGE_CHECKS = {
+    "metadata", "notes", "comments", "hidden-content", "embedded-files",
+    "external-links", "macros", "stale-customer-data", "price-leakage",
+}
 
 
 def is_iso_datetime(value: object) -> bool:
     if not isinstance(value, str):
         return False
     try:
-        datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return True
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return "T" in value and parsed.tzinfo is not None
     except ValueError:
         return False
 
@@ -49,6 +53,9 @@ def validate_schema(data: object) -> list[str]:
     for name in ("bid_conditions", "requirements", "claims", "attachments", "inputs", "defects"):
         if isinstance(data.get(name), list) and any(not isinstance(item, dict) for item in data[name]):
             failures.append(f"{name} entries must be objects")
+    for condition in data.get("bid_conditions", []) if isinstance(data.get("bid_conditions"), list) else []:
+        if isinstance(condition, dict) and not is_iso_datetime(condition.get("deadline")):
+            failures.append(f"bid condition {condition.get('id', '?')} lacks ISO deadline with timezone")
     if "mode" in data and data["mode"] not in MODES:
         failures.append(f"unsupported mode: {data['mode']}")
     if "bid_decision" in data and data["bid_decision"] not in BID_DECISIONS:
@@ -154,6 +161,9 @@ def evaluate(data: dict) -> list[str]:
                 failures.append(f"package check {name} has unsupported status: {status}")
             elif status == "fail" or (data["mode"] == "submission" and status == "not-inspected"):
                 failures.append(f"package check {name} is {status}")
+        if data["mode"] == "submission":
+            for name in sorted(REQUIRED_PACKAGE_CHECKS - data["package"].get("checks", {}).keys()):
+                failures.append(f"missing required package check: {name}")
     if data["mode"] == "submission":
         if not data["submission"].get("cleared"):
             failures.append("submission is not cleared")
