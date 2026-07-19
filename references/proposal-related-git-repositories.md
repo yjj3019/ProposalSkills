@@ -48,7 +48,7 @@ GitHub의 [`rfp-automation` 토픽](https://github.com/topics/rfp-automation)에
 | [redhat-documentation/vale-at-red-hat](https://github.com/redhat-documentation/vale-at-red-hat) | 조직 내부 문체 규칙을 도입·운영하는 구성 참고 |
 | [elastic/vale-rules](https://github.com/elastic/vale-rules) | 조직별 Vale 규칙, 예외, GitHub Actions 연계 사례 |
 | [vale-cli/vale-action](https://github.com/vale-cli/vale-action) | GitHub Actions에서 문체 검사 자동 실행 |
-| [testthedocs/awesome-docs](https://github.com/testthedocs/awesome-docs) | 접근성·Microsoft·Google·Red Hat 등 문서 스타일 가이드 링크 모음 |
+| [testthedocs/awesome-docs](https://github.com/testthedocs/awesome-docs) | 접근성 및 주요 기술 문서 스타일 가이드 링크 모음 |
 
 한국어 제안서에는 위 영문 규칙을 그대로 적용하지 않는다. 저장소 구조와 검사 유형만 참고해 회사 용어집, 금지어, 숫자·제품명 표기 규칙을 자체 작성하는 편이 안전하다.
 

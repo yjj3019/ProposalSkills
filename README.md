@@ -7,7 +7,7 @@
 | 스킬 | 성격 | 이런 작업에 사용 |
 |---|---|---|
 | [`create-proposal-document`](skills/create-proposal-document/SKILL.md) | 한국어 · PPTX 장표형 중심(DOCX 지원) · 실제 수주 제안서에서 추출한 내용 패턴 뱅크 포함 | 한국어 IT 제안서(구축/유지보수·기술지원/기술답변서)를 실제로 **작성**할 때. 조견표, 리드문 장표 문법, 문체·과장어 규칙, 예방점검/테스트/사업관리 등 검증된 내용 뼈대 제공 |
-| [`create-winning-proposal`](skills/create-winning-proposal/SKILL.md) | 영문 · 모델 중립 · 프로세스 통제 중심 | 입찰 **프로세스 거버넌스**가 필요할 때: bid/no-bid 판정, 요구사항 원장과 승인 체인, 감사 JSON + 결정론적 제출 게이트, DOCX 템플릿 보존 |
+| [`create-winning-proposal`](skills/create-winning-proposal/SKILL.md) | 한/영 · 모델 중립 · 프로세스 통제 중심 | 입찰 **프로세스 거버넌스**가 필요할 때: bid/no-bid 판정, 요구사항 원장과 승인 체인, 감사 JSON + 결정론적 제출 게이트, DOCX 템플릿 보존 |
 
 두 스킬은 충돌하지 않습니다. 전자는 콘텐츠·문체·시각 레이어, 후자는 거버넌스 레이어입니다. 상호 대조 분석과 개선 반영 내역은 [스킬 대조 분석](references/skill-comparison-and-improvements.md)에 있습니다.
 
