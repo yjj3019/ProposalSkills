@@ -1,0 +1,352 @@
+{
+  "meta": {
+    "generated_at": "2026-08-08T06:35:31.569148+09:00",
+    "root": "D:\\AI-Codding\\Grok\\ProposalSkills",
+    "skills": [
+      "create-best-proposal",
+      "create-proposal-document",
+      "create-winning-proposal"
+    ],
+    "evidence": {
+      "skills": [
+        "create-best-proposal",
+        "create-proposal-document",
+        "create-winning-proposal"
+      ],
+      "n_skills": 3,
+      "best": true,
+      "doc": true,
+      "win": true,
+      "soft_dep": true,
+      "has_vendor": false,
+      "path_siblings": true,
+      "decision_memo": true,
+      "explain": false,
+      "anti": true,
+      "stage": true,
+      "build_audit": true,
+      "bulk": true,
+      "n_fixtures": 3,
+      "default_install": true,
+      "dual_axis": true,
+      "playbook": true,
+      "rel_count": 24,
+      "n_tests": 6,
+      "pg_lines": 313,
+      "ug_lines": 165,
+      "best_scripts": 4,
+      "doc_scripts": 1,
+      "win_scripts": 2
+    },
+    "method": "10 persona-weighted architecture reviews over shared evidence scores + deterministic jitter"
+  },
+  "dimension_means": {
+    "layering": 8.96,
+    "modularity": 8.99,
+    "coupling": 4.0,
+    "determinism": 8.71,
+    "extensibility": 9.52,
+    "operability": 7.66,
+    "testability": 7.98,
+    "consistency": 7.66
+  },
+  "overall": {
+    "mean": 7.89,
+    "median": 7.91,
+    "stdev": 0.14,
+    "min": 7.6,
+    "max": 8.13
+  },
+  "runs": [
+    {
+      "run": 1,
+      "lens": "R01 Layering architect",
+      "focus": "Layering architect",
+      "scores": {
+        "layering": 8.8,
+        "modularity": 8.9,
+        "coupling": 3.7,
+        "determinism": 8.9,
+        "extensibility": 9.5,
+        "operability": 7.5,
+        "testability": 8.1,
+        "consistency": 7.5
+      },
+      "overall": 7.88,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 2,
+      "lens": "R02 Modularity / SRP",
+      "focus": "Modularity / SRP",
+      "scores": {
+        "layering": 9.1,
+        "modularity": 9.2,
+        "coupling": 4.0,
+        "determinism": 8.5,
+        "extensibility": 9.8,
+        "operability": 7.8,
+        "testability": 7.7,
+        "consistency": 7.8
+      },
+      "overall": 7.98,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 3,
+      "lens": "R03 Coupling & deploy topology",
+      "focus": "Coupling & deploy topology",
+      "scores": {
+        "layering": 8.7,
+        "modularity": 8.8,
+        "coupling": 4.3,
+        "determinism": 8.8,
+        "extensibility": 9.4,
+        "operability": 7.4,
+        "testability": 8.0,
+        "consistency": 7.4
+      },
+      "overall": 7.6,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 4,
+      "lens": "R04 Deterministic control plane",
+      "focus": "Deterministic control plane",
+      "scores": {
+        "layering": 9.0,
+        "modularity": 9.1,
+        "coupling": 3.9,
+        "determinism": 8.4,
+        "extensibility": 9.7,
+        "operability": 7.7,
+        "testability": 8.3,
+        "consistency": 7.7
+      },
+      "overall": 7.94,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 5,
+      "lens": "R05 Extensibility / product growth",
+      "focus": "Extensibility / product growth",
+      "scores": {
+        "layering": 9.3,
+        "modularity": 8.7,
+        "coupling": 4.2,
+        "determinism": 8.7,
+        "extensibility": 9.3,
+        "operability": 8.0,
+        "testability": 7.9,
+        "consistency": 8.0
+      },
+      "overall": 8.13,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 6,
+      "lens": "R06 Operability / SRE of skills",
+      "focus": "Operability / SRE of skills",
+      "scores": {
+        "layering": 8.9,
+        "modularity": 9.0,
+        "coupling": 3.8,
+        "determinism": 9.0,
+        "extensibility": 9.6,
+        "operability": 7.6,
+        "testability": 8.2,
+        "consistency": 7.6
+      },
+      "overall": 7.82,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 7,
+      "lens": "R07 Testability & regression",
+      "focus": "Testability & regression",
+      "scores": {
+        "layering": 9.2,
+        "modularity": 9.3,
+        "coupling": 4.1,
+        "determinism": 8.6,
+        "extensibility": 9.2,
+        "operability": 7.9,
+        "testability": 7.8,
+        "consistency": 7.9
+      },
+      "overall": 8.01,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 8,
+      "lens": "R08 Consistency / vocabulary",
+      "focus": "Consistency / vocabulary",
+      "scores": {
+        "layering": 8.8,
+        "modularity": 8.9,
+        "coupling": 3.7,
+        "determinism": 8.9,
+        "extensibility": 9.5,
+        "operability": 7.5,
+        "testability": 8.1,
+        "consistency": 7.5
+      },
+      "overall": 7.83,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 9,
+      "lens": "R09 Security & fail-closed",
+      "focus": "Security & fail-closed",
+      "scores": {
+        "layering": 9.1,
+        "modularity": 9.2,
+        "coupling": 4.0,
+        "determinism": 8.5,
+        "extensibility": 9.8,
+        "operability": 7.8,
+        "testability": 7.7,
+        "consistency": 7.8
+      },
+      "overall": 7.95,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    },
+    {
+      "run": 10,
+      "lens": "R10 Agent-runtime fit",
+      "focus": "Agent-runtime fit",
+      "scores": {
+        "layering": 8.7,
+        "modularity": 8.8,
+        "coupling": 4.3,
+        "determinism": 8.8,
+        "extensibility": 9.4,
+        "operability": 7.4,
+        "testability": 8.0,
+        "consistency": 7.4
+      },
+      "overall": 7.77,
+      "strengths": [
+        "3-layer split: content / governance / orchestration",
+        "Anti-optimism gates (evidence_refs, deadline, eligibility)",
+        "Dual-axis completeness (readiness vs quality; gate owns status)",
+        "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)"
+      ],
+      "risks": [
+        "P1: create-best-proposal alone lacks vendored gates → degraded install",
+        "P1: local proposal_gate missing --explain/remediation vs origin/main",
+        "P2: heavy ../ sibling markdown coupling for agent context loading",
+        "P2: install default still create-winning-proposal, not flagship"
+      ],
+      "recommendation": "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best"
+    }
+  ]
+}

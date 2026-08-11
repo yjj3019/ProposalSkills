@@ -1,0 +1,66 @@
+{
+  "mode": "draft",
+  "bid_decision": "bid",
+  "title": "공공 클라우드 플랫폼 구축",
+  "buyer": "○○시청",
+  "proposal_type": "A",
+  "deadline": "2099-12-15T17:00:00+09:00",
+  "flags": {"financial": false},
+  "eligibility": [
+    {
+      "id": "E1",
+      "criterion": "최근 3년 내 3억원 이상 유사 실적",
+      "mandatory": true,
+      "met": true,
+      "curable": false
+    }
+  ],
+  "requirements": [
+    {
+      "id": "R1",
+      "text": "관리 노드 이중화",
+      "mandatory": true,
+      "state": "approved",
+      "slide": 12,
+      "evidence_refs": ["slide:12", "조견표#R1"]
+    },
+    {
+      "id": "R2",
+      "text": "국내 리전 보관",
+      "mandatory": true,
+      "state": "pending",
+      "evidence_refs": []
+    }
+  ],
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "commitment",
+      "text": "RTO 4시간 목표",
+      "status": "supported",
+      "owner_approved": true
+    }
+  ],
+  "attachments": [
+    {"name": "사업자등록증.pdf", "required": true, "present": true}
+  ],
+  "slides": [
+    {"no": 1, "title": "표지", "lead": "○○시청 클라우드 플랫폼 구축 제안", "req_ids": []},
+    {
+      "no": 12,
+      "title": "HA 구성",
+      "lead": "관리 노드 이중화와 로드밸런서로 단일 장애점을 제거합니다.",
+      "req_ids": ["R1"]
+    }
+  ],
+  "unresolved_tokens": ["[NEEDS INPUT: PM — R2 리전 증빙]"],
+  "defects": [],
+  "inputs": [],
+  "render": {"verified": false},
+  "package": {"required": true, "inspected": false},
+  "submission": {
+    "cleared": false,
+    "rehearsal_evidence": [],
+    "receipt_plan": ""
+  }
+}

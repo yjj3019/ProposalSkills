@@ -1,8 +1,24 @@
-# 두 스킬 대조 분석과 상호 개선 반영 (2026-07-18)
+# 스킬 대조 분석과 상호 개선 반영 (2026-07-18, 통합 갱신 2026-08-08)
 
 `create-winning-proposal`(ChatGPT 기반 제작, 영문·모델 중립·프로세스 통제 중심)과
 `create-proposal-document`(Claude 기반 제작, 한국어·장표 중심·내용 패턴 중심)를
 심층 대조한 결과와, 서로에게서 채택한 개선 사항의 기록이다.
+
+## 2026-08-08 통합 플래그십: create-best-proposal
+
+시뮬(문서 작성≈93 / readiness≈31, 거버넌스≈99)과 SI-B1~B4·C1·C3 open 항목을
+반영해 **오케스트레이션 스킬** `create-best-proposal`을 추가했다.
+
+| 개선 ID | 반영 |
+|---|---|
+| SI-B1 | `scripts/build_audit_from_meta.py` — meta→audit |
+| SI-B2 | SKILL + `unified-gates.md` stage 결정 트리 |
+| SI-B3 | `proposal_gate` / `unified_gate` → `DECISION_MEMO_ONLY` |
+| SI-B4 | `fixtures/audit_ready_financial.json` 금융 READY 골든 |
+| SI-C1 | `scripts/bulk_matrix.py` 전수 조견표 |
+| SI-C3 | `references/pre-submission-card.md` 제출 직전 5항목 |
+
+선택 가이드 갱신: 실전 원패스 → **create-best-proposal** (`--all` 설치 권장).
 
 ## 역할 비교
 

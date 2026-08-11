@@ -1,0 +1,39 @@
+{
+  "mode": "analysis",
+  "bid_decision": "no-bid",
+  "bid_conditions": [],
+  "requirements": [],
+  "claims": [],
+  "unresolved_tokens": [],
+  "attachments": [],
+  "source_conflicts": [],
+  "inputs": [
+    {
+      "id": "I1",
+      "class": "blocking",
+      "status": "open"
+    }
+  ],
+  "defects": [],
+  "checks": {"consistency": true, "arithmetic": true, "submission": false},
+  "artifact_required": false,
+  "render": {"verified": false},
+  "package": {"required": false, "inspected": false},
+  "submission": {
+    "cleared": false,
+    "rehearsal_evidence": [],
+    "receipt_plan": ""
+  },
+  "eligibility": [
+    {
+      "id": "E1",
+      "criterion": "ISO 27001 필수",
+      "mandatory": true,
+      "met": false,
+      "curable": false
+    }
+  ],
+  "flags": {},
+  "regulatory_checks": [],
+  "vendor_confirmations": []
+}

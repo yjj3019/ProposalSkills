@@ -1,0 +1,95 @@
+{
+  "mode": "submission",
+  "bid_decision": "bid",
+  "bid_conditions": [],
+  "requirements": [
+    {
+      "id": "R1",
+      "mandatory": true,
+      "state": "approved",
+      "evidence_refs": ["proposal.pptx#slide-18", "조견표#R1"]
+    },
+    {
+      "id": "R2",
+      "mandatory": true,
+      "state": "approved",
+      "evidence_refs": ["망분리 구성도#3", "regulatory REG1"]
+    }
+  ],
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "commitment",
+      "status": "supported",
+      "owner_approved": true
+    }
+  ],
+  "unresolved_tokens": [],
+  "attachments": [
+    {"name": "인감증명.pdf", "required": true, "present": true},
+    {"name": "보안확약서.pdf", "required": true, "present": true}
+  ],
+  "source_conflicts": [],
+  "inputs": [],
+  "defects": [],
+  "checks": {"consistency": true, "arithmetic": true, "submission": true},
+  "artifact_required": true,
+  "render": {
+    "verified": true,
+    "artifact_hash": "sha256:financial-proposal-fixture",
+    "tool": "renderer-v1",
+    "evidence": ["all pages reviewed"]
+  },
+  "package": {
+    "required": true,
+    "inspected": true,
+    "artifact_hash": "sha256:financial-proposal-fixture",
+    "tool": "ooxml-check-v1",
+    "checks": {
+      "metadata": "pass",
+      "notes": "pass",
+      "comments": "pass",
+      "hidden-content": "pass",
+      "embedded-files": "not-applicable",
+      "external-links": "pass",
+      "macros": "not-applicable",
+      "stale-customer-data": "pass",
+      "price-leakage": "pass"
+    },
+    "reviewer": "QA lead"
+  },
+  "submission": {
+    "cleared": true,
+    "deadline": "2099-11-30T17:00:00+09:00",
+    "rehearsal_evidence": ["portal test upload opened"],
+    "receipt_plan": "save portal confirmation number",
+    "receipt_evidence": []
+  },
+  "eligibility": [
+    {
+      "id": "E1",
+      "criterion": "금융권 유사 실적 1건 이상",
+      "mandatory": true,
+      "met": true,
+      "curable": false
+    }
+  ],
+  "flags": {"financial": true},
+  "regulatory_checks": [
+    {
+      "id": "REG1",
+      "requirement": "전자금융 감독규정(망분리)",
+      "status": "met",
+      "evidence": ["망분리 구성 점검 확인서 2026-06"],
+      "owner": "보안담당"
+    }
+  ],
+  "vendor_confirmations": [
+    {
+      "id": "V1",
+      "kind": "support",
+      "required": true,
+      "present": true
+    }
+  ]
+}
