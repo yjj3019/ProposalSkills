@@ -44,6 +44,14 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
 def normalize(row: dict[str, Any], index: int) -> dict[str, str]:
     rid = str(row.get("id") or row.get("ID") or f"R{index:03d}")
     support = str(row.get("support") or row.get("지원여부") or "").strip()
+    # S2: optional industry matrix columns (fit / eval weight / win theme / risk)
+    fit = str(row.get("fit") or row.get("적합") or "").strip().upper()
+    if fit in {"STRONG", "S", "강"}:
+        fit = "STRONG"
+    elif fit in {"PARTIAL", "P", "부분"}:
+        fit = "PARTIAL"
+    elif fit in {"GAP", "G", "공백"}:
+        fit = "GAP"
     return {
         "id": rid,
         "section": str(row.get("section") or row.get("구분") or ""),
@@ -51,6 +59,10 @@ def normalize(row: dict[str, Any], index: int) -> dict[str, str]:
         "text": str(row.get("text") or row.get("내용") or row.get("question") or ""),
         "mandatory": str(row.get("mandatory", "true")).lower() in {"1", "true", "yes", "y", "필수"},
         "support": support,
+        "fit": fit,
+        "eval_weight": str(row.get("eval_weight") or row.get("배점") or ""),
+        "win_theme_id": str(row.get("win_theme_id") or row.get("theme") or ""),
+        "risk": str(row.get("risk") or row.get("위험") or ""),
         "product": str(row.get("product") or row.get("제품명") or ""),
         "note": str(row.get("note") or row.get("추가설명") or ""),
         "source_loc": str(row.get("source_loc") or row.get("출처") or ""),
@@ -60,8 +72,11 @@ def normalize(row: dict[str, Any], index: int) -> dict[str, str]:
 
 def risk_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     risk_support = {"X", "부분", "조건부", "확인필요"}
-    ranked = [r for r in rows if r["support"] in risk_support or not r["support"]]
-    ranked.sort(key=lambda r: (0 if r["mandatory"] else 1, r["id"]))
+    ranked = [
+        r for r in rows
+        if r["support"] in risk_support or not r["support"] or r.get("fit") == "GAP"
+    ]
+    ranked.sort(key=lambda r: (0 if r["mandatory"] else 1, 0 if r.get("fit") == "GAP" else 1, r["id"]))
     return ranked
 
 
@@ -94,15 +109,17 @@ def to_markdown(rows: list[dict[str, str]], summary_rows: int) -> str:
         "",
         "## 전수 매트릭스",
         "",
-        "| ID | 구분 | 항목 | 내용 | 지원여부 | 제품명 | 추가설명 | 출처 | 응답위치 |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| ID | 구분 | 항목 | 내용 | 지원 | fit | 배점 | theme | 위험 | 제품 | 비고 | 출처 | 응답위치 |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         text = r["text"].replace("|", "\\|")
         note = r["note"].replace("|", "\\|")
         lines.append(
             f"| {r['id']} | {r['section']} | {r['item']} | {text} | "
-            f"{r['support']} | {r['product']} | {note} | {r['source_loc']} | {r['response_loc']} |"
+            f"{r['support']} | {r.get('fit', '')} | {r.get('eval_weight', '')} | "
+            f"{r.get('win_theme_id', '')} | {r.get('risk', '')} | {r['product']} | "
+            f"{note} | {r['source_loc']} | {r['response_loc']} |"
         )
     lines.append("")
     return "\n".join(lines)
@@ -110,6 +127,7 @@ def to_markdown(rows: list[dict[str, str]], summary_rows: int) -> str:
 
 def to_csv(rows: list[dict[str, str]]) -> str:
     fields = ["id", "section", "item", "text", "mandatory", "support",
+              "fit", "eval_weight", "win_theme_id", "risk",
               "product", "note", "source_loc", "response_loc"]
     from io import StringIO
     buf = StringIO()
@@ -129,7 +147,7 @@ def to_audit_requirements(rows: list[dict[str, str]]) -> list[dict]:
             state = "drafted"
         elif r["support"] in {"X", "N/A"}:
             state = "drafted"
-        out.append({
+        item = {
             "id": r["id"],
             "mandatory": r["mandatory"],
             "state": state,
@@ -137,7 +155,16 @@ def to_audit_requirements(rows: list[dict[str, str]]) -> list[dict]:
             "support": r["support"],
             "evidence_refs": [r["response_loc"]] if r["response_loc"] else [],
             "rationale": r["note"],
-        })
+        }
+        if r.get("fit"):
+            item["fit"] = r["fit"]
+        if r.get("eval_weight"):
+            item["eval_weight"] = r["eval_weight"]
+        if r.get("win_theme_id"):
+            item["win_theme_id"] = r["win_theme_id"]
+        if r.get("risk"):
+            item["risk"] = r["risk"]
+        out.append(item)
     return out
 
 

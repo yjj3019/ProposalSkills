@@ -42,6 +42,11 @@ Create every top-level field; do not omit empty arrays.
 - In submission mode, a failed or not-inspected required package check blocks readiness.
 - Submission package scope must cover metadata, notes, comments, hidden content, embedded files, external links, macros, stale customer data, and price leakage; use `not-applicable` only with reviewer accountability.
 - Submission clearance requires rehearsal evidence and a receipt-capture plan. Add the actual receipt evidence after submission; do not fabricate it before submission.
+- `win_themes`(선택): `[{id, statement, req_ids[], proof?}]`. 각 theme의 `req_ids`는
+  비어 있지 않아야 한다(장식 theme 금지). 게이트 필수 필드는 아니나 meta 빌더
+  `--strict`와 작성 규율이 강제한다.
+- requirements 항목 선택 필드(후방호환): `fit` ∈ {STRONG, PARTIAL, GAP},
+  `eval_weight`, `win_theme_id`, `risk`, `support`, `evidence_refs`(approved 시 필수).
 - `flags`, `regulatory_checks`, `vendor_confirmations`(선택·후방호환): 없으면 검사하지 않는다.
   - `regulatory_checks[]` status ∈ {met, gap, in-progress, not-applicable}. `gap`·`in-progress`는 차단, `met`는 evidence 필수. `flags.financial: true`인 submission은 `regulatory_checks`가 비면 차단(금융 규제 미기재 방지).
   - `vendor_confirmations[]` kind ∈ {support, supply}. `required && !present`이면 차단 — 제조사 기술지원·공급 확약서 같은 계약 전 필수 제출물을 blocking으로 모델링한다.

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Unified proposal gate: audit + optional document quality (SI-B2/B3).
+"""Unified proposal gate: audit + optional document quality (SI-B2/B3, S4).
 
 Exit codes:
-  0 READY or CONDITIONAL-GO (internal)
+  0 READY or CONDITIONAL-GO (internal)  — alias SUBMISSION-READY for READY
   1 BLOCKED or DECISION_MEMO_ONLY
   2 INVALID / usage / missing dependency
 """
@@ -61,11 +61,10 @@ def _load_gate_module(path: Path):
 
 
 def classify(decision: str, failures: list[str]) -> tuple[str, int]:
-    """Return (label, exit_code)."""
+    """Return (label, exit_code). READY ≡ SUBMISSION-READY (S8)."""
     if any(f.startswith("DECISION_MEMO_ONLY") for f in failures):
         return "DECISION_MEMO_ONLY", 1
     if decision in {"no-bid", "intake-incomplete"}:
-        # Fallback if older proposal_gate without DECISION_MEMO_ONLY prefix
         if failures:
             return "DECISION_MEMO_ONLY", 1
     if failures:
@@ -79,7 +78,8 @@ def run_quality_gate(doc: Path, stage: str, lang: str, names: Path | None,
                      palette: str | None) -> tuple[int, str]:
     qg = _find_quality_gate()
     if qg is None:
-        return 2, "quality_gate.py not found (install create-proposal-document or set QUALITY_GATE_PATH)"
+        return 2, "quality_gate.py not found (install create-proposal-document " \
+                  "or set QUALITY_GATE_PATH; use install_skill.py --with-deps)"
     cmd = [sys.executable, str(qg), str(doc), "--stage", stage, "--lang", lang]
     if names:
         cmd += ["--names", str(names)]
@@ -98,7 +98,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--lang", choices=["ko", "en", "both"], default="ko")
     ap.add_argument("--names", type=Path, help="Banned residual names file")
     ap.add_argument("--palette", help="Allowed hex palette comma-list")
+    ap.add_argument("--explain", action="store_true", default=True,
+                    help="Print remediation markdown (default: on)")
+    ap.add_argument("--no-explain", action="store_true",
+                    help="Status labels only, no remediation table")
     args = ap.parse_args(argv)
+    explain = not args.no_explain
 
     if args.doc:
         code, qout = run_quality_gate(args.doc, args.stage, args.lang, args.names, args.palette)
@@ -114,7 +119,8 @@ def main(argv: list[str] | None = None) -> int:
     gate_path = _find_proposal_gate()
     if gate_path is None:
         print("INVALID: proposal_gate.py not found "
-              "(install create-winning-proposal or set PROPOSAL_GATE_PATH)",
+              "(install create-winning-proposal or set PROPOSAL_GATE_PATH; "
+              "use install_skill.py --with-deps)",
               file=sys.stderr)
         return 2
 
@@ -127,14 +133,16 @@ def main(argv: list[str] | None = None) -> int:
     mod = _load_gate_module(gate_path)
     schema_failures = mod.validate_schema(data)
     if schema_failures:
-        print("INVALID")
-        for f in schema_failures:
-            print(f"- {f}")
+        if explain and hasattr(mod, "explain_markdown"):
+            print(mod.explain_markdown(data, schema_failures, []))
+        else:
+            print("INVALID")
+            for f in schema_failures:
+                print(f"- {f}")
         return 2
 
     failures = mod.evaluate(data)
     decision = data.get("bid_decision", "")
-    # Enrich older gates: rewrite generic bid message for decision-only paths
     if decision in {"no-bid", "intake-incomplete"}:
         enriched = []
         for f in failures:
@@ -147,8 +155,14 @@ def main(argv: list[str] | None = None) -> int:
         failures = enriched
 
     label, exit_code = classify(str(decision), failures)
-    print(f"=== proposal_gate → {label} ===")
-    if failures:
+    # S8: READY ≡ SUBMISSION-READY
+    display = "SUBMISSION-READY" if label == "READY" else label
+    print(f"=== proposal_gate → {display} ===")
+    if explain and hasattr(mod, "explain_markdown"):
+        # Rebuild failures list for explain: restore raw evaluate for clean table
+        raw = mod.evaluate(data)
+        print(mod.explain_markdown(data, [], raw))
+    elif failures:
         for f in failures:
             print(f"- {f}")
     else:
@@ -156,7 +170,9 @@ def main(argv: list[str] | None = None) -> int:
             print("internal continuation only — not external submission clearance")
         else:
             print("all deterministic checks passed")
-    print(f"STATUS: {label}")
+    print(f"STATUS: {display}")
+    if label == "READY":
+        print("ALIAS: READY ≡ SUBMISSION-READY")
     return exit_code
 
 

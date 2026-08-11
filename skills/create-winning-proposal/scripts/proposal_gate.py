@@ -357,11 +357,27 @@ def main(argv: list[str]) -> int:
             print(f"- {failure}")
         return 2
     if failures:
-        print("BLOCKED")
-        for failure in failures:
-            print(f"- {failure}")
+        decision = data.get("bid_decision")
+        # S5: no-bid/intake-incomplete는 기본 CLI에서도 의도 정지로 표기 (explain 없이도).
+        if decision in DECISION_STOP:
+            print("DECISION_MEMO")
+            for failure in failures:
+                if failure == "bid_decision must be 'bid' or accepted 'conditional-bid'":
+                    print(
+                        f"- DECISION_MEMO_ONLY: bid_decision={decision}; "
+                        "full proposal drafting blocked; deliver decision memo only")
+                else:
+                    print(f"- {failure}")
+        else:
+            print("BLOCKED")
+            for failure in failures:
+                print(f"- {failure}")
         return 1
-    print("READY")
+    if data.get("bid_decision") == "conditional-bid":
+        print("CONDITIONAL-GO")
+        print("internal continuation only — not external submission clearance")
+    else:
+        print("READY")
     return 0
 
 

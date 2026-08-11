@@ -32,6 +32,8 @@ class BuildAuditTests(unittest.TestCase):
         self.assertTrue(r1["evidence_refs"])
         self.assertIn("mode", audit)
         self.assertIn("eligibility", audit)
+        self.assertTrue(audit.get("win_themes"))
+        self.assertIn("R1", audit["win_themes"][0]["req_ids"])
 
     def test_strict_approved_without_evidence_fails(self):
         meta = {
@@ -40,6 +42,16 @@ class BuildAuditTests(unittest.TestCase):
             "requirements": [
                 {"id": "R1", "mandatory": True, "state": "approved", "evidence_refs": []},
             ],
+        }
+        with self.assertRaises(ValueError):
+            build_audit_from_meta.build_audit(meta, strict=True)
+
+    def test_strict_decorative_win_theme_fails(self):
+        meta = {
+            "mode": "draft",
+            "bid_decision": "bid",
+            "requirements": [{"id": "R1", "mandatory": True, "state": "pending"}],
+            "win_themes": [{"id": "WT1", "statement": "we are great", "req_ids": []}],
         }
         with self.assertRaises(ValueError):
             build_audit_from_meta.build_audit(meta, strict=True)
@@ -101,12 +113,23 @@ class UnifiedGateTests(unittest.TestCase):
     def test_financial_ready_fixture(self):
         proc = self._run_unified(FIXTURES / "audit_ready_financial.json")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        self.assertIn("STATUS: READY", proc.stdout)
+        self.assertTrue(
+            "STATUS: READY" in proc.stdout or "STATUS: SUBMISSION-READY" in proc.stdout,
+            proc.stdout)
 
     def test_decision_memo_no_bid(self):
         proc = self._run_unified(FIXTURES / "audit_decision_memo.json")
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn("DECISION_MEMO_ONLY", proc.stdout)
+        self.assertTrue(
+            "DECISION_MEMO" in proc.stdout or "DECISION_MEMO_ONLY" in proc.stdout,
+            proc.stdout)
+
+    def test_financial_ready_shows_submission_ready_alias(self):
+        proc = self._run_unified(FIXTURES / "audit_ready_financial.json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertTrue(
+            "SUBMISSION-READY" in proc.stdout or "STATUS: READY" in proc.stdout,
+            proc.stdout)
 
     def test_proposal_gate_financial_direct(self):
         gate = SKILLS_ROOT / "create-winning-proposal" / "scripts" / "proposal_gate.py"

@@ -64,7 +64,11 @@ no-bid를 "must be bid" 일반 오류와 섞지 않는다. 메시지는
 python scripts/unified_gate.py audit.json
 python scripts/unified_gate.py audit.json --doc 제안서.pptx --stage submission
 python scripts/unified_gate.py audit.json --doc 제안서.pptx --stage draft --lang ko
+python scripts/unified_gate.py audit.json --no-explain   # 조치표 생략
 ```
 
-문서 경로를 주면 quality_gate를 먼저 실행하고, 실패 시 audit 평가 전 BLOCKED.
-형제 스크립트를 못 찾으면 명확한 오류 메시지 후 exit 2.
+- 기본 **--explain on**: proposal_gate remediation 마크다운을 함께 출력 (S4).
+- `STATUS: SUBMISSION-READY` ≡ `READY` (S8 별칭).
+- 문서 경로를 주면 quality_gate를 먼저 실행하고, 실패 시 audit 평가 전 BLOCKED.
+- 형제 스크립트를 못 찾으면 `PROPOSAL_GATE_PATH` / `QUALITY_GATE_PATH` 또는
+  `install_skill.py --with-deps` 안내 후 exit 2.

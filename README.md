@@ -19,18 +19,22 @@
 AI에게 이 저장소와 함께 **“README의 설치 지침에 따라 스킬을 설치해줘”**라고 요청합니다.
 
 ```bash
-# 권장: 세 스킬 모두 (통합 + 형제 상세 reference)
+# 권장: 세 스킬 모두
 python install_skill.py --dest <AI의 스킬 상위 디렉터리> --all
 
-# 플래그십만
-python install_skill.py --dest <AI의 스킬 상위 디렉터리> --name create-best-proposal
+# 플래그십 + sibling 게이트(권장)
+python install_skill.py --dest <AI의 스킬 상위 디렉터리> --with-deps
 
 # 개별
 python install_skill.py --dest <AI의 스킬 상위 디렉터리> --name create-proposal-document
 python install_skill.py --dest <AI의 스킬 상위 디렉터리> --name create-winning-proposal
 ```
 
-`--name`을 생략하면 기존 호환으로 `create-winning-proposal`을 설치합니다. `AI_SKILLS_DIR` 또는 `CODEX_HOME`이 있으면 `--dest`를 생략할 수 있습니다. 기존 설치는 덮어쓰지 않습니다.
+`--name` 기본값은 `create-best-proposal`입니다. `--with-deps`는 document·winning 게이트를
+함께 설치합니다(이미 있으면 Skip). `AI_SKILLS_DIR` 또는 `CODEX_HOME`이 있으면 `--dest`를
+생략할 수 있습니다. 기존 설치는 덮어쓰지 않습니다.
+
+비판적 선정·반영 기록: [critical-selection-2026-08.md](references/critical-selection-2026-08.md)
 
 Grok 사용자 스킬 예:
 ```bash

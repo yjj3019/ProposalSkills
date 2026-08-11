@@ -8,11 +8,22 @@
 사용자 요청
  ├─ "참여할까 / bid 판단"만? ──────────────→ Decision
  ├─ "이 문서 검토해"만? ──────────────────→ Review-only
+ ├─ 골격·theme·조견표만 / 초안 초기? ─────→ Pink (~30%, 본문 전량 금지)
+ ├─ 평가자 시점 전수 비판 / ~70% 초안? ───→ Red (전면 재작성 금지)
+ ├─ 제출 직전 승인? ─────────────────────→ Gold (5항목 + unified_gate)
  ├─ XLSX·보안질의·조견표 대량? ───────────→ Matrix (+ bulk_matrix.py)
  ├─ "발표용 / PT" ? ──────────────────────→ PT (본문 동기화 필수)
  ├─ RFP 없이 공동사업·아이디어? ──────────→ Discovery (제출 프레임 금지)
  └─ 그 외 제안서 작성 ────────────────────→ Full
 ```
+
+### Pink / Red / Gold 계약 (S1)
+
+| 경로 | 시점 | 필수 산출 | 금지 |
+|---|---|---|---|
+| **Pink** | 본문 전 | 유형·목차·리드문 맵·조견표 뼈대·win_themes(req_ids)·bid 판정 | 장표 전량 작성, 미검증 실적 채움 |
+| **Red** | 초안 후 | 평가표 항목별 예상 점수·Critical/Major·미링크 theme·미기입 매트릭스 행 | 원본 통째 재작성(최소 수정) |
+| **Gold** | 제출 전 | pre-submission 5항목 + `unified_gate` READY/CONDITIONAL-GO | 미검사 패키지를 pass로 추정 |
 
 ## 2. Full 차단 조건 (작성 시작 전)
 
@@ -38,10 +49,10 @@
 | 상태 | 의미 | 외부 제출 |
 |---|---|---|
 | DECISION_MEMO_ONLY | no-bid / intake-incomplete | 불가 |
-| DRAFT / DISCOVERY | 초안·탐색 | 불가 |
+| DRAFT / DISCOVERY | 초안·탐색·Pink | 불가 |
 | NO-GO / BLOCKED | BLOCKING 잔존 또는 게이트 실패 | 불가 |
 | CONDITIONAL-GO | 조건 전부 owner·기한·accepted | **내부만** |
-| SUBMISSION-READY / READY | 게이트 통과 + 리허설·접수계획 | 가능(실제 제출 후 증적) |
+| SUBMISSION-READY / READY | 게이트 통과 + 리허설·접수계획 (**동일 의미**) | 가능(실제 제출 후 증적) |
 
 품질 점수와 상태를 혼동하지 않는다. **상태는 게이트가 결정**한다.
 

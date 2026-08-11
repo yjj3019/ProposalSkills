@@ -18,7 +18,23 @@
 | SI-C1 | `scripts/bulk_matrix.py` 전수 조견표 |
 | SI-C3 | `references/pre-submission-card.md` 제출 직전 5항목 |
 
-선택 가이드 갱신: 실전 원패스 → **create-best-proposal** (`--all` 설치 권장).
+## 2026-08-08 비판적 선정 반영 (S1–S9)
+
+외부·내부 리뷰 합의 후 **채택만** 반영. 상세: [critical-selection-2026-08.md](critical-selection-2026-08.md).
+
+| ID | 반영 |
+|---|---|
+| S1 | Pink/Red/Gold 경로 (SKILL + master-playbook) |
+| S2 | bulk_matrix fit/eval_weight/win_theme_id/risk 열 |
+| S3 | win_themes req_ids 검증 (build_audit_from_meta) |
+| S4 | unified_gate 기본 --explain 조치표 |
+| S5 | proposal_gate no-bid → DECISION_MEMO (기본 CLI) |
+| S6 | install 기본=flagship + `--with-deps` |
+| S7 | quality_gate AI-slop 최소 패턴 |
+| S8 | READY ≡ SUBMISSION-READY 별칭 |
+| S9 | sibling-map 환경변수 정합 |
+
+선택 가이드: 실전 원패스 → **create-best-proposal --with-deps** (또는 `--all`).
 
 ## 역할 비교
 

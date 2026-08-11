@@ -24,9 +24,12 @@ description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공
 | 요청 | 경로 | 산출 |
 |---|---|---|
 | 새 제안서 작성 | **Full** | 제안서 + 조견표 + audit + 게이트 결과 |
+| 골격·Win Theme·조견표만 (초안 ~30%) | **Pink** | 목차·리드문 맵·매트릭스·theme↔req 링크 — 본문 전량 작성 금지 |
+| 평가자 시뮬레이션 (초안 ~70%) | **Red** | 평가기준 채점표 + 미충족 Critical/Major — 전면 재작성 금지 |
+| 제출 직전 승인 점검 | **Gold** | 제출 직전 5항목 + unified_gate --explain |
 | 기존 문서 검토만 | **Review-only** | 심각도순 지적 + 최소 수정안 (원본 비재작성) |
 | bid 판단만 | **Decision** | 참여/조건부/불참/정보부족 메모 |
-| 보안질의·XLSX | **Matrix** | 원본 시트 보존 + 행 단위 응답 |
+| 보안질의·XLSX | **Matrix** | 원본 시트 보존 + 행 단위 응답(fit/배점/theme 열) |
 | 발표 요약본 | **PT** | 본제안서와 수치 동기화된 PT 덱 |
 | 비RFP·공동사업 초안 | **Discovery** | 사실/가설/질문/결정 분리 초안 (제출 프레임 금지) |
 
@@ -57,10 +60,11 @@ description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공
 1. 요구사항 원자 추출 → 조견표 뼈대
    (`ID | 원문 | 근거유형 명시/해석/자체제안 | 필수 | 배점 | 응답위치 | 증빙 | 상태`).
 2. 유형 판별: **A 구축 / B 유지보수·기술지원 / C 기술답변서** (+ 변형 매핑).
-3. Win Theme ≤3: `고객문제 → 차별화 → 근거 → 고객효과` + 평가항목 연결.
+3. Win Theme ≤3: `고객문제 → 차별화 → 근거 → 고객효과`. 각 theme에 **req_ids ≥1**
+   (미링크 theme = 장식 → 경고/`--strict` 시 빌드 실패). meta `win_themes[]`에 기록.
 4. 목차 확정 후 **페이지별 리드문 1줄** 선작성 → 리드문만으로 논리 성립 여부 검증.
-5. 유형 C·대량 항목: `scripts/bulk_matrix.py`로 조견표/응답 매트릭스 생성
-   (요약 슬라이드 N행 + 전체 별첨).
+5. 조견표: `scripts/bulk_matrix.py` — 지원여부 + optional **fit**(STRONG/PARTIAL/GAP)·
+   **eval_weight**·**win_theme_id**·**risk** 열. 요약 슬라이드 N행 + 전체 별첨.
 
 형제 상세: `proposal-structure.md`, `content-patterns.md`, `structure-and-design.md`
 
@@ -98,12 +102,13 @@ description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공
    python ../create-proposal-document/scripts/quality_gate.py 제안서.pptx \
      --stage draft|submission [--names 금지명.txt] [--lang ko|en|both]
    ```
-3. 통합 게이트 (audit + 선택적 문서 + 완성도):
+3. 통합 게이트 (audit + 선택적 문서 + 조치표, 기본 --explain):
    ```bash
    python scripts/unified_gate.py audit.json [--doc 제안서.pptx] [--stage submission]
+   python scripts/unified_gate.py audit.json --no-explain   # 라벨만
    ```
-   - `READY` / `CONDITIONAL-GO` / `BLOCKED` / `DECISION_MEMO_ONLY` / `INVALID`
-   - no-bid·intake-incomplete → **DECISION_MEMO_ONLY** (작성 실패와 구분, SI-B3)
+   - `SUBMISSION-READY`(≡READY) / `CONDITIONAL-GO` / `BLOCKED` / `DECISION_MEMO_ONLY` / `INVALID`
+   - no-bid·intake-incomplete → **DECISION_MEMO_ONLY** (작성 실패와 구분)
 4. 제출 직전 5항목 카드: [references/pre-submission-card.md](references/pre-submission-card.md)
 5. 리허설·접수 증적 계획 확인 전 `SUBMISSION NOT CLEARED`.
 
@@ -152,12 +157,12 @@ python ../../score_completeness.py audit.json [quality.json]
 권장 설치(저장소 루트):
 ```bash
 python install_skill.py --dest <AI_SKILLS_DIR> --all
-# 또는 플래그십만
-python install_skill.py --dest <AI_SKILLS_DIR> --name create-best-proposal
+# 플래그십 + sibling 게이트(권장)
+python install_skill.py --dest <AI_SKILLS_DIR> --name create-best-proposal --with-deps
 ```
 
-`create-best-proposal`만 설치해도 통합 스크립트는 동작한다.
-한국어 내용 패턴 뱅크·영문 거버넌스 원문 전문은 형제 스킬 동시 설치를 권장한다.
+기본 `--name`은 `create-best-proposal`. 형제 게이트 없이 설치하면 `unified_gate`가
+`PROPOSAL_GATE_PATH` / `QUALITY_GATE_PATH` 또는 `--with-deps`를 요구한다.
 
 ## 6. 완료 선언 조건
 

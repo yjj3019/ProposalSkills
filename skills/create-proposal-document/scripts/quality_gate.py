@@ -33,6 +33,15 @@ PLACEHOLDERS = ["lorem", "xxxx", "TBD", "샘플텍스트", "placeholder", "OOO",
 # 초안 단계 사실 슬롯 마커. 제출 단계에서는 차단(placeholder), 초안 단계에서는 경고(비차단).
 # 스킬 권장 마커([NEEDS INPUT]·［입력요망］)를 게이트가 스스로 차단하던 자기충돌을 해소한다.
 DRAFT_MARKERS = ["needs input", "입력요망"]
+# S7: AI-slop 최소 패턴(빈 수사·템플릿 티). 과장어와 별도. 부분 문자열 매칭.
+AI_SLOP_KO = [
+    "다양한 측면에서", "종합적인 솔루션", "시너지를 창출", "최적의 방안을 제시",
+    "고객 맞춤형 서비스 제공", "차별화된 경쟁력", "원스톱",
+]
+AI_SLOP_EN = [
+    "in today's fast-paced", "leverage synergies", "holistic solution",
+    "delve into", "it is important to note", "game-changer", "unlock the potential",
+]
 # 아래 접두사로 시작하는 항목은 '비차단 경고'다(종료코드에 반영하지 않는다).
 WARNING_PREFIXES = ("[NOT INSPECTED]", "[검토필요]")
 
@@ -94,6 +103,7 @@ def run(path: Path, names: list[str], palette: set[str], lang: str,
     '비차단 경고'이며 종료코드에 반영되지 않는다(차단 여부는 blocking()이 판정)."""
     raw = {"ko": BANNED_KO, "en": BANNED_EN, "both": BANNED_KO + BANNED_EN}[lang]
     banned = list(dict.fromkeys(raw))  # 중복 제거(both의 '100%' 이중 리포트 방지), 순서 유지
+    slop = {"ko": AI_SLOP_KO, "en": AI_SLOP_EN, "both": AI_SLOP_KO + AI_SLOP_EN}[lang]
     is_pptx = path.suffix.lower() == ".pptx"
     fails: list[str] = []
     blocks = extract_blocks(path)
@@ -103,6 +113,9 @@ def run(path: Path, names: list[str], palette: set[str], lang: str,
         for w in banned:
             if banned_hits(block, w):
                 fails.append(f"[과장어] {loc}: '{w}' — 근거가 있어도 사람 승인 필요")
+        for phrase in slop:
+            if phrase.lower() in low:
+                fails.append(f"[AI문체] {loc}: '{phrase}' — 구체 근거·수치로 대체")
         for p in PLACEHOLDERS:
             if p.lower() in low:
                 fails.append(f"[플레이스홀더] {loc}: '{p}' 잔존")

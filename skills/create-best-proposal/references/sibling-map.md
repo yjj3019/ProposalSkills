@@ -43,6 +43,8 @@
 
 형제 파일이 없으면:
 1. 본 스킬 `references/master-playbook.md` + `unified-gates.md`로 최소 경로 수행
-2. audit는 `build_audit_from_meta.py` + 형제 저장소/설치 권고를 사용자에게 고지
-3. quality_gate/proposal_gate 경로를 `--doc-skill-root` / 환경변수로 지정 가능
-   (`unified_gate.py` 참조)
+2. audit는 `build_audit_from_meta.py` + 형제 설치를 사용자에게 고지
+3. 게이트 스크립트 경로 환경변수 (코드와 일치):
+   - `PROPOSAL_GATE_PATH` — `proposal_gate.py` 절대 경로
+   - `QUALITY_GATE_PATH` — `quality_gate.py` 절대 경로
+4. 권장: `python install_skill.py --dest <dir> --name create-best-proposal --with-deps`

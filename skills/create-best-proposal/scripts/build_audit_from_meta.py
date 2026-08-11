@@ -60,6 +60,37 @@ def _req_conflicts(meta: dict) -> list[str]:
     return conflicts
 
 
+def _normalize_win_themes(meta: dict, strict: bool, warnings: list[str]) -> list[dict]:
+    """S3: win themes must link to ≥1 requirement id (decorative themes rejected)."""
+    reqs = {r.get("id") for r in _as_list(meta.get("requirements")) if isinstance(r, dict)}
+    out: list[dict] = []
+    for theme in _as_list(meta.get("win_themes")):
+        if not isinstance(theme, dict):
+            continue
+        tid = theme.get("id") or "WT?"
+        linked = [x for x in _as_list(theme.get("req_ids")) if isinstance(x, str) and x]
+        unknown = [x for x in linked if x not in reqs]
+        if unknown:
+            msg = f"win theme {tid} references unknown requirements: {', '.join(unknown)}"
+            if strict:
+                raise ValueError(msg)
+            warnings.append(msg)
+        if not linked:
+            msg = f"win theme {tid} has no req_ids (decorative theme)"
+            if strict:
+                raise ValueError(msg)
+            warnings.append(msg)
+        item = {
+            "id": tid,
+            "statement": theme.get("statement") or theme.get("text") or "",
+            "req_ids": linked,
+        }
+        if theme.get("proof"):
+            item["proof"] = theme["proof"]
+        out.append(item)
+    return out
+
+
 def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> list[dict]:
     out: list[dict] = []
     for req in _as_list(meta.get("requirements")):
@@ -89,6 +120,10 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
             if strict:
                 raise ValueError(msg)
             warnings.append(msg)
+        # Optional S2 matrix fields passthrough
+        for key in ("fit", "eval_weight", "win_theme_id", "risk", "support", "text", "basis"):
+            if key in req and key not in item:
+                item[key] = req[key]
         out.append(item)
     return out
 
@@ -133,6 +168,7 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
 
     conflicts = list(meta.get("source_conflicts") or [])
     conflicts.extend(_req_conflicts(meta))
+    win_themes = _normalize_win_themes(meta, strict, warnings)
 
     audit: dict[str, Any] = {
         "mode": mode,
@@ -156,6 +192,7 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "flags": meta.get("flags") if isinstance(meta.get("flags"), dict) else {},
         "regulatory_checks": _as_list(meta.get("regulatory_checks")),
         "vendor_confirmations": _as_list(meta.get("vendor_confirmations")),
+        "win_themes": win_themes,
     }
     if meta.get("artifact_mode"):
         audit["artifact_mode"] = meta["artifact_mode"]

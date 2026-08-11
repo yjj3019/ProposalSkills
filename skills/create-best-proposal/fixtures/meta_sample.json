@@ -32,6 +32,14 @@
       "evidence_refs": []
     }
   ],
+  "win_themes": [
+    {
+      "id": "WT1",
+      "statement": "관리 노드 이중화로 운영 연속성을 확보한다",
+      "req_ids": ["R1"],
+      "proof": "구성도 slide:12"
+    }
+  ],
   "claims": [
     {
       "id": "C1",

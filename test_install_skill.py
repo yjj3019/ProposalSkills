@@ -53,9 +53,18 @@ class InstallSkillSimulations(unittest.TestCase):
         self.assertTrue(target.is_dir())
 
     def test_09_skill_package_is_copied_completely(self):
-        target = install_skill.install(self.root)
-        source_files = {p.relative_to(install_skill.SOURCE) for p in install_skill.SOURCE.rglob("*") if p.is_file()}
-        target_files = {p.relative_to(target) for p in target.rglob("*") if p.is_file()}
+        # Full package integrity check against governance skill tree (SOURCE).
+        target = install_skill.install(self.root, install_skill.SOURCE.name)
+        source_files = {
+            p.relative_to(install_skill.SOURCE)
+            for p in install_skill.SOURCE.rglob("*")
+            if p.is_file() and "__pycache__" not in p.parts
+        }
+        target_files = {
+            p.relative_to(target)
+            for p in target.rglob("*")
+            if p.is_file() and "__pycache__" not in p.parts
+        }
         self.assertEqual(source_files, target_files)
         for document in target.rglob("*.md"):
             for link in re.findall(r"]\((?!https?://|#)([^)]+)\)", document.read_text(encoding="utf-8")):
@@ -69,6 +78,16 @@ class InstallSkillSimulations(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Installed:", result.stdout)
+        self.assertTrue((self.root / "create-best-proposal" / "SKILL.md").is_file())
+
+    def test_11_with_deps_installs_siblings(self):
+        names = install_skill.resolve_names("create-best-proposal", False, True)
+        self.assertIn("create-best-proposal", names)
+        self.assertIn("create-proposal-document", names)
+        self.assertIn("create-winning-proposal", names)
+
+    def test_12_default_name_is_flagship(self):
+        self.assertEqual(install_skill.DEFAULT_NAME, "create-best-proposal")
 
 
 if __name__ == "__main__":
