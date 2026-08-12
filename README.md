@@ -69,6 +69,33 @@ python skills/create-winning-proposal/scripts/test_proposal_gate.py -q
 python skills/create-best-proposal/scripts/test_best_proposal.py -q
 ```
 
+## 문서 검토 실행 환경
+
+공통 검토 환경에는 Python 문서 라이브러리, LibreOffice, Poppler, 한글 폰트가 포함됩니다.
+
+```bash
+docker build -t proposal-skills .
+docker run --rm proposal-skills
+```
+
+문서를 처리할 때 작업 폴더를 `/workspace`로 마운트하고 필요한 스킬의 검사기를 실행합니다.
+
+```bash
+docker run --rm -v "$PWD:/workspace" proposal-skills \
+  python skills/create-proposal-document/scripts/quality_gate.py /workspace/proposal.pptx
+```
+
+Windows PowerShell에서는 마운트 인수를 `-v "${PWD}:/workspace"`로 사용합니다. 거버넌스 감사 JSON과 LibreOffice 변환 예시는 다음과 같습니다.
+
+```bash
+docker run --rm -v "$PWD:/workspace" proposal-skills \
+  python skills/create-winning-proposal/scripts/proposal_gate.py /workspace/audit.json
+docker run --rm -v "$PWD:/workspace" proposal-skills \
+  libreoffice --headless --convert-to pdf --outdir /workspace/output /workspace/proposal.docx
+```
+
+Docker 없이 Python 라이브러리만 설치하려면 `python -m pip install -r requirements.txt` 후 `python runtime_check.py --python-only`로 확인합니다. 최종 제출본의 기준 렌더러가 Microsoft Word 또는 PowerPoint라면 해당 애플리케이션에서 별도 최종 검수를 수행합니다.
+
 ## 자료
 
 - [스킬 대조 분석과 상호 개선 반영](references/skill-comparison-and-improvements.md)
