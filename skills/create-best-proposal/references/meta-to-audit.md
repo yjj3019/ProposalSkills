@@ -64,10 +64,16 @@ python scripts/build_audit_from_meta.py meta.json --strict
 - requirement.state=approved 인데 evidence_refs 비면 `--strict`에서 실패, 기본은 경고 필드
 - slides[].req_ids ↔ requirements 양방향 불일치 시 `source_conflicts`에 기록
 - render/package가 미검증이면 그대로 두어 게이트가 NO-GO (거짓 READY 방지)
+- `artifact_required`·`package.required`는 **mode=submission일 때만 기본 true**. draft/review는 기본 false이므로
+  리드문 맵 단계 audit이 `DRAFT-READY`에 도달할 수 있다(명시하면 그 값을 따른다).
 
 ## 사용 시점
 
-1. 리드문 맵·조견표 초안 직후 → draft audit (mode=draft)
+1. 리드문 맵·조견표 초안 직후 → draft audit (mode=draft). **Pink 체크포인트 레시피**:
+   요구 원장은 `state: drafted`가 아니라 검수 완료된 항목만 `approved`로 두면 "not approved"가 나온다 —
+   Pink 단계는 `mode: "draft"`, 필수 요구 전부 `state: "approved"`가 아니어도 되도록 `bid_decision`·
+   `eligibility`·`checks`만 채우고, 게이트의 "requirement … is not approved" 목록을 **작업 목록**으로 읽는다.
+   DRAFT-READY는 본문 1차 완료(2단계) 후 evidence_refs를 채웠을 때 도달하는 것이 정상이다.
 2. 본문 1차 완료 후 → evidence_refs 보강
 3. 렌더·패키지 검사 후 → verified/inspected 갱신 → unified_gate
 

@@ -31,10 +31,11 @@ BANNED_EN = ["best-in-class", "best", "world-class", "industry-leading", "market
              "seamless", "effortless", "guarantee", "guaranteed", "guarantees",
              "guaranteeing", "bulletproof", "future-proof",
              "unlimited", "significant savings"]
-PLACEHOLDERS = ["lorem", "xxxx", "TBD", "샘플텍스트", "placeholder", "OOO", "○○○"]
+PLACEHOLDERS = ["lorem", "xxxx", "TBD", "샘플텍스트", "placeholder", "OOO", "○○○", "p.__", "p. __", "p.XX"]
 # 초안 단계 사실 슬롯 마커. 제출 단계에서는 차단(placeholder), 초안 단계에서는 경고(비차단).
 # 스킬 권장 마커([NEEDS INPUT]·［입력요망］)를 게이트가 스스로 차단하던 자기충돌을 해소한다.
-DRAFT_MARKERS = ["needs input", "입력요망"]
+# '○○공사'류 익명 발주처 표기는 초안 관례이므로 draft=경고, submission=차단.
+DRAFT_MARKERS = ["needs input", "입력요망", "○○", "[unverified]", "미정"]
 # S7: AI-slop 최소 패턴(빈 수사·템플릿 티). 과장어와 별도. 부분 문자열 매칭.
 AI_SLOP_KO = [
     "다양한 측면에서", "종합적인 솔루션", "시너지를 창출", "최적의 방안을 제시",

@@ -197,7 +197,7 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
     if isinstance(package_in.get("checks"), dict):
         checks.update(package_in["checks"])
     package = {
-        "required": _bool(package_in, "required", True, "package"),
+        "required": _bool(package_in, "required", mode == "submission", "package"),
         "inspected": _bool(package_in, "inspected", False, "package"),
         "artifact_hash": package_in.get("artifact_hash") or "",
         "tool": package_in.get("tool") or "",
@@ -221,7 +221,9 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "inputs": _as_list(meta.get("inputs")),
         "defects": _as_list(meta.get("defects")),
         "checks": _normalize_checks(meta),
-        "artifact_required": _bool(meta, "artifact_required", True, "meta"),
+        # 제출 후보(submission)만 렌더·패키지 검증을 기본 요구한다. draft/review/analysis는
+        # 명시하지 않으면 false — 리드문 맵 단계(Pink)에서 DRAFT-READY 체크포인트에 도달할 수 있게 한다.
+        "artifact_required": _bool(meta, "artifact_required", mode == "submission", "meta"),
         "render": render,
         "package": package,
         "submission": submission,

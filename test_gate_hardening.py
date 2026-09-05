@@ -174,11 +174,13 @@ class QualityGateMatchingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             bad = Path(tmp) / "bad.pptx"
             bad.write_bytes(b"not a zip")
-            proc = subprocess.run([sys.executable, str(QG), str(bad)], capture_output=True, text=True)
+            proc = subprocess.run([sys.executable, str(QG), str(bad)], capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace")
             self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
             txt = Path(tmp) / "x.txt"
             txt.write_text("x")
-            proc = subprocess.run([sys.executable, str(QG), str(txt)], capture_output=True, text=True)
+            proc = subprocess.run([sys.executable, str(QG), str(txt)], capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace")
             self.assertEqual(proc.returncode, 2)
 
     def test_cp949_console_does_not_crash(self):

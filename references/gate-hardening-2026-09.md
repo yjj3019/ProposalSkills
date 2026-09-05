@@ -46,3 +46,23 @@
 
 `unified-gates.md` §3·§4·§6, `audit-schema.md`(엄격 불리언·조건부 범위), `create-best-proposal/SKILL.md`
 Phase D·E, `create-proposal-document/SKILL.md` 자료 위치, README 테스트 절, `.github/workflows/ci.yml`.
+
+## 2차 (2026-09-05) — 장표 생산 레이어 추가
+
+미니 RFP로 스킬을 그대로 따라간 드라이런 결과, Phase D(시각·산출)가 텍스트 지침만 있고 도구가
+없어 100% 모델 재발명이었고(슬라이드 1장 전 1,583줄 열람), 렌더·레이아웃 검사가 없어 페이지 제한·
+리드문·REQ-ID·폰트 축소를 어떤 게이트도 잡지 못했다. 반영:
+
+- `build_deck.py`: slides.json → PPTX. 레이아웃 12종, 좌표·토큰 고정, 도형 역할명(TITLE/LEAD/REQID…)
+  부여, 조견표 자동 분할, `--strict`(리드문 누락·페이지 제한), `--template` 사내 양식.
+- `deck_check.py`: 리드문·REQ-ID·페이지 수·최소 폰트·밀도·표 헤더 린트 + LibreOffice 렌더 대조·PNG
+  썸네일 + audit `render` 블록 출력(렌더 성공+차단 0 → verified). soffice 없으면 NOT INSPECTED.
+- 골든 `fixtures/e2e-mini-rfp/`(rfp.md·slides.json·meta.json)와 `test_deck_pipeline.py` 14건.
+- 게이트 조정: draft/review 모드는 `artifact_required`·`package.required`·`checks.submission`을 요구하지
+  않는다(Pink/Red 체크포인트 도달 가능). submission 모드는 변경 없음.
+- 어휘 통일: 수용여부 6코드(`O/부분/조건부/X/N/A/확인필요`, 한글 라벨은 표시형), 요구 상태는 게이트
+  어휘(`pending→drafted→needs-review→approved`), 사람 검토 판정 `CONDITIONAL GO`→`FIX-AND-RECHECK`
+  (게이트 `CONDITIONAL-GO`와 이름 충돌 제거) + 게이트 라벨 대응표.
+- `score_completeness.py`를 create-best-proposal/scripts로 이동(설치 트리에서 동작), 루트는 진입점 유지.
+- quality_gate 마커: `○○`·`[unverified]`·`미정`(초안 경고/제출 차단), `p.__`(차단).
+- 3 스킬 frontmatter를 "단일 진입점 + 형제는 로드 전용"으로 재작성(라우터 중복 트리거 제거).

@@ -36,7 +36,7 @@
 
 | 주제 | 파일 |
 |---|---|
-| 완성도 2축 점수 | `../../score_completeness.py` |
+| 완성도 2축 점수 | `scripts/score_completeness.py` |
 | 설치기 | `../../install_skill.py` |
 
 ## 단독 설치 시

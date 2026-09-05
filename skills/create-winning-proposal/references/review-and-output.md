@@ -14,9 +14,11 @@ For page-based proposals, also review the page-message map: every scored evaluat
 Use review decisions consistently:
 
 - **NO-GO**: a Critical defect or open blocking input exists; do not advance the gate or submit, though assigned correction work may continue.
-- **CONDITIONAL GO**: no Critical/blocking item remains, but a Major defect is open; internal correction may continue, external submission is prohibited.
+- **FIX-AND-RECHECK**: no Critical/blocking item remains, but a Major defect is open; internal correction may continue, external submission is prohibited. (Not to be confused with the gate label `CONDITIONAL-GO`, which means an accepted conditional-bid.)
 - **GO WITH MINOR**: only Minor defects remain; submit only after the accountable approver accepts the residual risk.
 - **GO**: all mandatory content, production, package, and submission gates passed and the submission authority approved.
+
+Mapping to deterministic gate labels: NO-GO / FIX-AND-RECHECK ≙ `BLOCKED`; GO WITH MINOR / GO ≙ `READY` (Minor defects do not block the gate).
 
 Every minimal correction should name the changed fact, owner/role, decision deadline, approval, and downstream calculations/sections to update.
 
