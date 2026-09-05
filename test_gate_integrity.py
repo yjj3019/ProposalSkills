@@ -35,8 +35,15 @@ def run(*args: object, **kw) -> subprocess.CompletedProcess:
                           encoding="utf-8", errors="replace", cwd=str(REPO), **kw)
 
 
-def make_pptx(path: Path, text: str = "정상 문서") -> Path:
-    """정상 패키지. 열리지 않는 파일을 양성 대조군으로 쓰지 않는다."""
+LEDGER_TEXT = "총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"
+
+
+def make_pptx(path: Path, text: str = "정상 문서 " + LEDGER_TEXT) -> Path:
+    """정상 패키지. 열리지 않는 파일을 양성 대조군으로 쓰지 않는다.
+
+    통합 게이트가 원장 수치를 문서와 대조하므로, 양성 대조군은 audit의 원장과 같은
+    금액을 담아야 한다 — 원장과 어긋난 문서를 '정상'이라고 부르면 대조 자체가 무의미하다.
+    """
     return fixtures.pptx(path, raw={"ppt/slides/slide1.xml":
                                     f"<a:p><a:r><a:t>{text}</a:t></a:r></a:p>"})
 
@@ -85,7 +92,7 @@ class ArtifactBindingTests(unittest.TestCase):
         doc = make_pptx(self.dir / "final.pptx")
         data = ready_audit()
         data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest_of(doc)
-        changed = make_pptx(self.dir / "changed.pptx", "가격이 바뀐 문서")
+        changed = make_pptx(self.dir / "changed.pptx", "가격이 바뀐 문서 " + LEDGER_TEXT)
         proc = self._gate(data, "--doc", str(changed))
         self.assertEqual(proc.returncode, 1)
         self.assertIn("전달된 문서와 다르다", proc.stdout)

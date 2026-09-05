@@ -219,7 +219,7 @@ class UnifiedGateModeTests(unittest.TestCase):
     def test_submission_ready_requires_the_matching_document(self):
         with tempfile.TemporaryDirectory() as tmp:
             doc = Path(tmp) / "final.pptx"
-            pptx(doc, {"ppt/slides/slide1.xml": "정상 문서"})
+            pptx(doc, {"ppt/slides/slide1.xml": "정상 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"})  # 원장과 같은 금액
             audit = self._audit_bound_to(doc, tmp)
             ok = self._run(audit, "--doc", str(doc), "--no-explain")
             self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
@@ -259,7 +259,7 @@ class UnifiedGateModeTests(unittest.TestCase):
     def test_document_gate_runs_under_cp949_child(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "d.pptx"
-            pptx(p, {"ppt/slides/slide1.xml": "정상 — 문서"})
+            pptx(p, {"ppt/slides/slide1.xml": "정상 — 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"})
             env = {**os.environ, "PYTHONIOENCODING": "cp949"}
             audit = self._audit_bound_to(p, tmp)
             proc = subprocess.run([sys.executable, str(UG), str(audit),
