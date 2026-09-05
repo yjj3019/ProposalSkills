@@ -35,16 +35,27 @@ def available_skills() -> list[str]:
     return sorted(p.parent.name for p in SKILLS_ROOT.glob("*/SKILL.md"))
 
 
-def install(root: Path, name: str = DEFAULT_NAME) -> Path:
-    source = SKILLS_ROOT / name
-    if not (source / "SKILL.md").is_file():
+# 배포본에서 제외할 캐시(스킬 내 test_*.py는 설치 후 자가검증용으로 유지한다).
+COPY_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache")
+
+
+def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
+    # 경로 구성요소 1개만 허용 — '../..' 같은 이름으로 dest 밖에 설치되는 것을 막는다.
+    if name not in available_skills() or Path(name).name != name:
         raise SystemExit(
             f"Unknown skill '{name}'. Available: {', '.join(available_skills())}")
-    target = root.resolve() / name
+    source = SKILLS_ROOT / name
+    root = root.resolve()
+    if root.exists() and not root.is_dir():
+        raise SystemExit(f"--dest is not a directory: {root}")
+    target = root / name
     if target.exists():
-        raise SystemExit(f"Already exists: {target}")
+        if (target / "SKILL.md").is_file() and not force:
+            raise SystemExit(f"Already exists: {target}")
+        # --force 또는 SKILL.md 없는 빈/불완전 디렉터리 → 교체 설치
+        shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, target)
+    shutil.copytree(source, target, ignore=COPY_IGNORE)
     if not (target / "SKILL.md").is_file():
         shutil.rmtree(target, ignore_errors=True)
         raise SystemExit("Installation verification failed.")
@@ -71,6 +82,9 @@ def main() -> None:
              f"Available: {', '.join(available_skills())}")
     parser.add_argument("--all", action="store_true", help="Install every skill")
     parser.add_argument(
+        "--force", action="store_true",
+        help="Replace an existing installation (default: skip if SKILL.md exists)")
+    parser.add_argument(
         "--with-deps", action="store_true",
         help="Also install sibling skills required by the named skill "
              "(create-best-proposal → document + winning gates)")
@@ -79,7 +93,7 @@ def main() -> None:
     names = resolve_names(args.name, args.all, args.with_deps)
     for name in names:
         try:
-            print(f"Installed: {install(root, name)}")
+            print(f"Installed: {install(root, name, force=args.force)}")
         except SystemExit as exc:
             msg = str(exc)
             if msg.startswith("Already exists:"):

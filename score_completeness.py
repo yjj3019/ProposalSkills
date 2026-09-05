@@ -48,17 +48,39 @@ def readiness_dimensions(d: dict) -> list[tuple[str, bool]]:
     ]
 
 
+QUALITY_METRICS = ("compliance_coverage", "claim_support_rate", "defect_penalty", "rehearsal_score")
+
+
+def validate_quality_metrics(metrics: object) -> list[str]:
+    """지표는 4개 모두 필수, 숫자(bool 제외), 0~1 범위. 범위 밖·문자열은 INVALID."""
+    if not isinstance(metrics, dict):
+        return ["quality metrics root must be an object"]
+    errors = []
+    for name in QUALITY_METRICS:
+        if name not in metrics:
+            errors.append(f"missing quality metric: {name}")
+            continue
+        v = metrics[name]
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            errors.append(f"quality metric {name} must be a number in [0,1] (got {v!r})")
+        elif not 0.0 <= float(v) <= 1.0:
+            errors.append(f"quality metric {name} out of range [0,1]: {v}")
+    return errors
+
+
 def quality_score(metrics: dict) -> float:
-    """제안 품질(0~100). 지표는 0~1. 가중치는 audit-schema.md와 일치."""
-    c = float(metrics.get("compliance_coverage", 0.0))
-    s = float(metrics.get("claim_support_rate", 0.0))
-    dp = float(metrics.get("defect_penalty", 0.0))
-    r = float(metrics.get("rehearsal_score", 0.0))
+    """제안 품질(0~100). 지표는 0~1(검증 후 호출). 가중치는 audit-schema.md와 일치."""
+    c = float(metrics["compliance_coverage"])
+    s = float(metrics["claim_support_rate"])
+    dp = float(metrics["defect_penalty"])
+    r = float(metrics["rehearsal_score"])
     return round(100 * (0.4 * c + 0.3 * s + 0.2 * (1 - dp) + 0.1 * r), 1)
 
 
 def score(audit: dict, metrics: dict | None) -> dict:
     schema_failures = validate_schema(audit)
+    if metrics is not None:
+        schema_failures = schema_failures + validate_quality_metrics(metrics)
     if schema_failures:
         return {"status": "INVALID", "blocking": schema_failures}
     dims = readiness_dimensions(audit)
@@ -98,14 +120,25 @@ def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("usage: score_completeness.py AUDIT.json [QUALITY.json]", file=sys.stderr)
         return 2
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     try:
-        audit = json.loads(Path(argv[1]).read_text(encoding="utf-8"))
-        metrics = json.loads(Path(argv[2]).read_text(encoding="utf-8")) if len(argv) > 2 else None
-    except (OSError, json.JSONDecodeError) as exc:
+        audit = json.loads(Path(argv[1]).read_text(encoding="utf-8-sig"))
+        metrics = json.loads(Path(argv[2]).read_text(encoding="utf-8-sig")) if len(argv) > 2 else None
+    except (OSError, ValueError) as exc:  # JSONDecodeError·UnicodeDecodeError 포함
         print(f"invalid input: {exc}", file=sys.stderr)
         return 2
-    out = score(audit, metrics)
+    try:
+        out = score(audit, metrics)
+    except Exception as exc:  # 게이트 환경 오류 등
+        print(f"invalid input: {exc}", file=sys.stderr)
+        return 2
     print(json.dumps(out, ensure_ascii=False, indent=2))
+    if out.get("status") == "INVALID":
+        return 2
     return 0 if out.get("status") in {"SUBMISSION-READY", "CONDITIONAL-GO", "DRAFT"} else 1
 
 

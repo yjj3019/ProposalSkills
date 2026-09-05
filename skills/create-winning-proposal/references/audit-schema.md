@@ -64,6 +64,18 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 - **마감일 검증(deadline)**: `submission.deadline`은 timezone 포함 ISO-8601. submission
   모드는 필수이며, 기준 현재시각(`PROPOSAL_GATE_NOW`로 주입 가능, 기본 UTC now)보다
   과거이면 차단한다. 만료된 RFP를 `cleared: true`로 통과시킬 수 없다.
+- **플레이스홀더는 근거가 아니다**: `evidence_refs`, `render.artifact_hash/tool/evidence`,
+  `package.artifact_hash/tool/reviewer`, `submission.rehearsal_evidence/receipt_plan`,
+  `regulatory_checks[].evidence`, `defects[].closure_evidence`에 `TBD`, `TODO`, `???`,
+  `[NEEDS INPUT]`, `입력요망`, `미정` 등이 있으면 비어 있는 것으로 취급해 차단한다.
+- **엄격 불리언(strict boolean)**: `accepted`, `present`, `cleared`, `verified`, `inspected`,
+  `owner_approved`, `met`, `curable`, `mandatory`, `required`는 JSON `true`/`false`만 허용한다.
+  `"yes"`/`"pending"`/`"no"` 같은 문자열은 INVALID AUDIT(exit 2)다. `mandatory`·`required`를
+  생략하면 필수로, claim `kind`를 생략하면 `material`로 취급한다(fail-closed). `kind`는
+  `material | commitment | informational` 중 하나여야 한다.
+- **조건부 입찰의 범위**: `conditional-bid`는 `mode: draft|review|analysis`에서만 CONDITIONAL-GO가
+  된다. `mode: submission`이면 차단된다 — 조건부는 내부 계속 진행 상태이지 외부 제출 클리어가
+  아니다. 각 `bid_conditions[].deadline`은 현재시각 이후여야 한다.
 - **자격 일관성(eligibility)**: `eligibility[] = {id, criterion, mandatory, met, curable}`.
   submission 모드는 원장 필수. 미충족(`met:false`)이면서 `curable:false`면 `bid`/
   `conditional-bid` 불가(no-bid만 허용); 미충족+`curable:true`면 단독 `bid` 불가
@@ -85,11 +97,13 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 게이트 상태가 달라진다 — 작성자가 의도에 맞게 선택해야 한다.
 
 - **CONDITIONAL-GO를 원하면**: 치유 항목을 `eligibility`(met:false, curable:true) + **accepted `bid_condition`**
-  으로 모델링하고 `bid_decision:"conditional-bid"`. 제출물에 지금 당장 있어야 하는 서류로 만들지 않는다.
+  으로 모델링하고 `bid_decision:"conditional-bid"`, `mode`는 `draft` 또는 `review`. 제출물에 지금 당장
+  있어야 하는 서류로 만들지 않는다. 조건 기한은 미래 시각이어야 한다.
   ```json
+  "mode": "draft",
   "bid_decision": "conditional-bid",
   "bid_conditions": [
-    {"id": "B1", "owner": "사업총괄", "deadline": "2026-08-30T17:00:00+09:00", "accepted": true,
+    {"id": "B1", "owner": "사업총괄", "deadline": "2099-08-30T17:00:00+09:00", "accepted": true,
      "note": "컨소시엄 실적 보강으로 E-실적 기준 충족"}
   ],
   "eligibility": [{"id": "E1", "criterion": "실적 2건", "mandatory": true, "met": false, "curable": true}]

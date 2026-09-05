@@ -52,11 +52,30 @@ class ScoreCompletenessTests(unittest.TestCase):
 
     def test_conditional_bid_is_conditional_go(self):
         d = ready_data()
+        d["mode"] = "draft"  # conditional-bid는 내부 진행 상태 — submission 모드에서는 NO-GO
         d["bid_decision"] = "conditional-bid"
         d["bid_conditions"] = [{"id": "B1", "owner": "Legal",
                                 "deadline": "2099-08-20T17:00:00+09:00", "accepted": True}]
         out = score(d, None)
         self.assertEqual(out["status"], "CONDITIONAL-GO")
+
+    def test_conditional_bid_in_submission_mode_is_no_go(self):
+        d = ready_data()
+        d["bid_decision"] = "conditional-bid"
+        d["bid_conditions"] = [{"id": "B1", "owner": "Legal",
+                                "deadline": "2099-08-20T17:00:00+09:00", "accepted": True}]
+        out = score(d, None)
+        self.assertEqual(out["status"], "NO-GO")
+        self.assertEqual(out.get("downgraded_from"), "CONDITIONAL-GO")
+
+    def test_quality_metrics_are_validated(self):
+        d = ready_data()
+        self.assertEqual(score(d, {"compliance_coverage": 1.5, "claim_support_rate": "0.9",
+                                   "defect_penalty": -2, "rehearsal_score": 1})["status"], "INVALID")
+        self.assertEqual(score(d, {})["status"], "INVALID")
+        ok = score(d, {"compliance_coverage": 1, "claim_support_rate": 1,
+                       "defect_penalty": 0, "rehearsal_score": 1})
+        self.assertEqual(ok["quality_score"], 100.0)
 
 
 if __name__ == "__main__":
