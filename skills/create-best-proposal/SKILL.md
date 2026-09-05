@@ -131,6 +131,9 @@ description: "제안서(PPTX 장표형 기본, DOCX·XLSX 지원) 작성·검토
      sha256이 audit의 `render/package.artifact_hash`와 다르면 차단된다 — 검토 이후 가격·기간이
      바뀐 파일에 과거 판정을 재사용할 수 없다. 해시는 `deck_check.py --emit-render`가 만든다.
    - 전달 파일은 실제로 열리는 OOXML 패키지여야 한다(필수 파트·XML 파싱 확인, 아니면 exit 2).
+   - **수치는 자기선언이 아니라 계산이다.** 금액·기간·수량을 `numbers[]` 원장에 적으면 게이트가
+     합계·비율을 다시 계산한다. 제출 모드는 원장이 없으면 차단된다. 원장 값이 장표에 실제로
+     있는지는 `../create-proposal-document/scripts/check_numbers.py`로 대조한다.
    - **렌더 성공 ≠ 육안 승인.** 제출 모드는 `render.visual_review_approved: true`와
      `visual_reviewer`(실명)를 요구한다. `deck_check.py`는 항상 false로 기록하므로, PNG 썸네일을
      전 장 확인한 사람이 직접 바꾼다.
@@ -172,6 +175,7 @@ python scripts/score_completeness.py audit.json [quality.json]
 | `scripts/build_audit_from_meta.py` | 슬라이드/요구 meta → audit JSON (SI-B1) |
 | `scripts/bulk_matrix.py` | 유형 C 대량 조견표·응답 매트릭스 (SI-C1) |
 | `scripts/unified_gate.py` | proposal_gate + quality_gate + 상태 UX |
+| `../create-proposal-document/scripts/check_numbers.py` | 원장 수치 ↔ 문서 대조(표기 변형 인식) |
 | `fixtures/audit_ready_financial.json` | 금융 submission-ready 골든 (SI-B4) |
 | `fixtures/audit_decision_memo.json` | no-bid DECISION_MEMO_ONLY 골든 |
 | `fixtures/meta_sample.json` | meta 입력 예제 |

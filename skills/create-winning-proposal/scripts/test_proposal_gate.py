@@ -26,6 +26,12 @@ def ready_data():
         "inputs": [],
         "defects": [],
         "checks": {"consistency": True, "arithmetic": True, "submission": True},
+        "numbers": [
+            {"id": "N1", "label": "총 사업비", "value": 300, "unit": "KRW",
+             "source": "견적서", "components": ["N2", "N3"]},
+            {"id": "N2", "label": "구축비", "value": 200, "unit": "KRW", "source": "견적서"},
+            {"id": "N3", "label": "운영비", "value": 100, "unit": "KRW", "source": "견적서"},
+        ],
         "artifact_required": True,
         "render": {
             "verified": True, "render_succeeded": True, "layout_checked": True,

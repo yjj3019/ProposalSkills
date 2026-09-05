@@ -90,6 +90,9 @@ python skills/create-best-proposal/scripts/bulk_matrix.py requirements.json -o m
 python skills/create-best-proposal/scripts/unified_gate.py audit.json --doc 제안서.pptx --stage submission
 python skills/create-best-proposal/scripts/unified_gate.py audit.json --audit-only   # 문서 없이 audit만 → AUDIT-VALID
 
+# 원장 수치 ↔ 문서 대조 (37억 / 3,700,000,000 표기 변형 인식)
+python skills/create-proposal-document/scripts/check_numbers.py 제안서.pptx --audit audit.json
+
 # 완성도 2축
 python skills/create-best-proposal/scripts/score_completeness.py audit.json   # 루트 score_completeness.py도 동일
 ```
@@ -126,6 +129,11 @@ python .../unified_gate.py audit.json --doc 제안서.pptx --stage submission
 - 전달한 파일이 **실제로 열리는 OOXML 패키지**여야 합니다. `[Content_Types].xml`·`_rels/.rels`·
   본문 파트가 없거나 XML이 깨지면 사용 오류(exit 2)입니다 — 확장자만 `.pptx`인 ZIP은 통과하지
   못합니다.
+- **수치는 게이트가 다시 계산합니다.** 금액·기간·수량을 `numbers[]` 원장에 적으면 합계
+  (`components`)와 비율(`percent_of`)을 게이트가 재계산합니다. 제출 모드에서는 원장 없이
+  `checks.arithmetic: true` 자기선언만으로 통과하지 못합니다 — 무엇을 검산했는지 보이지 않는
+  '검산 완료'는 검증이 아닙니다. 원장 값이 실제 장표에 있는지는 `check_numbers.py`가 대조합니다
+  (`37억` / `3,700,000,000` 같은 한글·숫자 표기 변형까지).
 - **렌더 성공과 육안 승인은 다른 사실입니다.** 제출 모드는 `render.visual_review_approved`와
   `visual_reviewer`를 요구합니다. `deck_check.py`는 이 값을 항상 `false`로 기록하고, 썸네일을
   본 사람이 직접 바꿉니다. PDF 변환이 됐다는 것은 디자인 승인이 아닙니다.
@@ -164,6 +172,8 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
   audit→unified_gate 전 구간 고정.
 - `test_gate_integrity.py` — 산출물 해시 결속, 판정 단일화, 스키마 유실, 근거·준수 분리,
   차트 범주값 추출. 정상 대조군을 함께 둬서 과민 차단도 잡는다.
+- `test_numbers_ledger.py` — 합계·비율 재계산, 원장 없는 arithmetic 자기선언 차단,
+  문서 대조(한글 표기 변형·숫자 경계).
 - `test_gate_integrity2.py` — 검증 의무 우회(`artifact_required:false`), 열리지 않는 패키지,
   설명문 모순(`--explain` 경로 포함), 미수용 별칭, 템플릿 잔존 슬라이드, 조견표 행 유실,
   화면 밖 배치, enum 타입 오류.
@@ -181,8 +191,8 @@ ZIP은 "텍스트 없음" 통과가 아니라 사용 오류로 거절한다.
 통과를 "제출해도 된다"로 읽으면 안 됩니다. 자동 게이트는 **구조적 완결성**만 봅니다.
 
 - **주장의 진위** — 근거가 첨부됐는지는 보지만 그 근거가 사실인지는 사람이 판단합니다.
-- **산술 일관성** — `checks.arithmetic`은 사람이 기록하는 값이고, 게이트가 본문 숫자를 다시
-  계산해 대조하지는 않습니다.
+- **원장에 없는 수치** — 게이트는 `numbers[]`에 적힌 값만 계산하고 대조합니다. 원장에 올리지
+  않은 본문 숫자의 오류는 잡지 못하므로, 금액·기간·수량은 원장에 올려야 검증됩니다.
 - **표 셀 넘침·가림** — `deck_check.py`가 화면 밖 배치와 큰 잘림은 잡지만, 셀 안에서 글자가
   넘치거나 도형끼리 겹쳐 가리는 것은 PNG 썸네일로 사람이 확인해야 합니다.
 - **렌더 차이** — LibreOffice와 PowerPoint는 줄바꿈·폰트 대체가 다릅니다. 최종본은 발주처가

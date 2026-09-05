@@ -34,7 +34,7 @@ REQUIRED_PACKAGE_CHECKS = {
     "external-links", "macros", "stale-customer-data", "price-leakage",
 }
 # 선택 필드(후방호환): 존재할 때만 검증한다.
-OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibility"}
+OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibility", "numbers"}
 REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
 VENDOR_KINDS = {"support", "supply"}
 CLAIM_KINDS = {"material", "commitment", "informational"}
@@ -255,6 +255,86 @@ def _exception_granted(item: object) -> bool:
     return not _is_placeholder(item.get("granted_by")) and _evidence_ok(item.get("evidence"))
 
 
+def _is_number(value: object) -> bool:
+    """JSON 숫자만 참(bool 제외). 문자열 "3,700,000,000"은 계산 대상이 아니다."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def check_numbers(entries: object) -> list[str]:
+    """수치 원장의 산술을 실제로 계산해 검증한다.
+
+    `checks.arithmetic: true`는 사람이 기록하는 자기선언이라, 본문에 100+200=900이
+    적혀 있어도 게이트가 알 수 없었다. 원장에 값을 적고 구성 요소를 연결하면
+    합계·비율을 여기서 다시 계산한다.
+
+    entry = {id, label, value, unit, source?, components?[ids], percent_of?, tolerance?}
+    """
+    failures: list[str] = []
+    if not isinstance(entries, list):
+        return ["numbers must be an array"]
+    by_id: dict[str, dict] = {}
+    for i, item in enumerate(entries):
+        if not isinstance(item, dict):
+            failures.append(f"numbers[{i}] must be an object")
+            continue
+        nid = item.get("id")
+        if not isinstance(nid, str) or not nid.strip():
+            failures.append(f"numbers[{i}] lacks a non-empty id")
+            continue
+        if nid in by_id:
+            failures.append(f"duplicate id in numbers: {nid}")
+            continue
+        by_id[nid] = item
+        if not _is_number(item.get("value")):
+            failures.append(f"number {nid} value must be a JSON number (got {item.get('value')!r})")
+        if not isinstance(item.get("unit"), str) or not item["unit"].strip():
+            failures.append(f"number {nid} lacks a unit")
+        if _is_placeholder(item.get("label")):
+            failures.append(f"number {nid} lacks a label")
+    for nid, item in by_id.items():
+        tol = item.get("tolerance", 0.005)
+        if not _is_number(tol) or tol < 0:
+            failures.append(f"number {nid} tolerance must be a non-negative number")
+            tol = 0.005
+        parts = item.get("components")
+        if parts is not None:
+            if not isinstance(parts, list) or not parts:
+                failures.append(f"number {nid} components must be a non-empty array")
+                continue
+            missing = [p for p in parts if not isinstance(p, str) or p not in by_id]
+            if missing:
+                failures.append(f"number {nid} references unknown components: {missing}")
+                continue
+            units = {by_id[p].get("unit") for p in parts} | {item.get("unit")}
+            if len(units) > 1:
+                failures.append(f"number {nid} mixes units in a sum: {sorted(str(u) for u in units)}")
+                continue
+            if not all(_is_number(by_id[p].get("value")) for p in parts) or not _is_number(item.get("value")):
+                continue
+            total = sum(by_id[p]["value"] for p in parts)
+            if abs(total - item["value"]) > max(tol * max(abs(item["value"]), 1), 1e-9):
+                failures.append(
+                    f"number {nid} ({item.get('label', '')}) is {item['value']} but its components "
+                    f"sum to {total} — 합계가 맞지 않는다")
+        base = item.get("percent_of")
+        if base is not None:
+            if not isinstance(base, str) or base not in by_id:
+                failures.append(f"number {nid} references unknown percent_of: {base!r}")
+                continue
+            if item.get("unit") != "%":
+                failures.append(f"number {nid} uses percent_of but its unit is not '%'")
+                continue
+            share, whole = item.get("value"), by_id[base].get("value")
+            amount = item.get("amount")
+            if _is_number(share) and _is_number(whole) and _is_number(amount) and whole:
+                expected = amount / whole * 100
+                if abs(expected - share) > max(tol * max(abs(share), 1), 1e-9):
+                    failures.append(
+                        f"number {nid} ({item.get('label', '')}) says {share}% but "
+                        f"{amount}/{whole} = {expected:.4g}% — 비율이 맞지 않는다")
+    return failures
+
+
 UNSUPPORTED_CODES = {"X", "미지원", "NO", "N", "불가", "미수용", "부적합"}
 
 
@@ -379,6 +459,17 @@ def evaluate(data: dict) -> list[str]:
     for name in required_checks:
         if data["checks"].get(name) is not True:
             failures.append(f"check failed or missing: {name}")
+
+    # 수치 원장이 있으면 산술을 게이트가 직접 계산한다. 제출 모드에서는 원장 없이
+    # checks.arithmetic=true 자기선언만으로 통과하지 못한다 — 무엇을 검산했는지
+    # 보이지 않는 '검산 완료'는 검증이 아니다.
+    numbers = data.get("numbers")
+    if numbers is not None:
+        failures.extend(check_numbers(numbers))
+    elif mode == "submission":
+        failures.append(
+            "checks.arithmetic is self-declared without a numbers ledger — "
+            "금액·기간·수량을 numbers[]에 적으면 게이트가 합계·비율을 다시 계산한다")
 
     # 시뮬레이션 산출물은 내부 확인용이다 — 외부 제출 준비 상태로 승격하지 않는다.
     if mode == "submission" and data.get("artifact_mode") == "simulation-only":
