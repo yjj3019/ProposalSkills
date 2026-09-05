@@ -61,11 +61,16 @@ class ProfileSpecTests(unittest.TestCase):
             self.assertLess(ex["sizes"][key], pres["sizes"][key], key)
 
     def test_min_font_is_derived_not_hardcoded(self):
-        """검사 하한이 생성기의 최소 크기에서 나와야 프로파일을 바꿔도 어긋나지 않는다."""
+        """검사 하한이 생성기의 크기에서 나와야 프로파일을 바꿔도 어긋나지 않는다.
+
+        본문과 소형 텍스트(표·도형 주석)의 하한은 서로 다르다 — 하나로 합치면 표 하한이
+        본문에도 적용돼 본문을 표 크기까지 줄인 장표가 통과한다.
+        """
         for name, spec in dp.PROFILES.items():
             with self.subTest(profile=name):
-                smallest = min(spec["sizes"]["table"], spec["sizes"]["body"])
-                self.assertEqual(dp.min_body_font(name), smallest - 1)
+                self.assertEqual(dp.min_body_font(name), spec["sizes"]["body"] - 1)
+                self.assertEqual(dp.min_table_font(name), spec["sizes"]["table"] - 1)
+                self.assertLess(dp.min_table_font(name), dp.min_body_font(name), name)
 
     def test_unknown_profile_is_an_error(self):
         with self.assertRaises(ValueError):
@@ -102,7 +107,7 @@ class BuilderProfileTests(unittest.TestCase):
         """검사기가 실제로 보는 본문 최소 폰트(캡션·헤더·푸터 제외)."""
         import deck_check
         prs = Presentation(str(path))
-        found = [deck_check.min_font_pt(s) for s in prs.slides]
+        found = [deck_check.min_font_pt(s)[0] for s in prs.slides]
         return min(v for v in found if v is not None)
 
     def test_profile_changes_actual_font_sizes(self):
@@ -280,9 +285,14 @@ class CheckerSubstanceTests(unittest.TestCase):
              "zones": [{"title": "관리", "items": [{"title": "Control Plane"}]}]}]})
         prs = Presentation(str(deck))
         for slide in prs.slides:
-            mf = deck_check.min_font_pt(slide)
-            if mf is not None:
-                self.assertGreaterEqual(mf, dp.min_body_font(dp.DEFAULT_PROFILE))
+            body_pt, table_pt = deck_check.min_font_pt(slide)
+            # 범례는 소형 텍스트로 분류되므로 표 하한으로 잰다. 어느 쪽이든 검사 대상이며,
+            # 하한 미만이면 차단된다(면제가 아니다).
+            self.assertTrue(body_pt is not None or table_pt is not None)
+            if body_pt is not None:
+                self.assertGreaterEqual(body_pt, dp.min_body_font(dp.DEFAULT_PROFILE))
+            if table_pt is not None:
+                self.assertGreaterEqual(table_pt, dp.min_table_font(dp.DEFAULT_PROFILE))
         self.assertEqual(run(DC, deck).returncode, 0)
 
     def test_derived_floor_matches_what_the_builder_emits(self):
@@ -294,9 +304,14 @@ class CheckerSubstanceTests(unittest.TestCase):
                 proc = run(BD, FIX, "-o", out, "--profile", name)
                 self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
                 prs = Presentation(str(out))
-                actual = min(v for v in (deck_check.min_font_pt(s) for s in prs.slides) if v is not None)
-                self.assertGreaterEqual(actual, dp.min_body_font(name),
-                                        f"{name}: 생성물이 자기 하한보다 작은 본문을 낸다")
+                measured = [deck_check.min_font_pt(s) for s in prs.slides]
+                body = [v[0] for v in measured if v[0] is not None]
+                small = [v[1] for v in measured if v[1] is not None]
+                self.assertGreaterEqual(min(body), dp.min_body_font(name),
+                                        f"{name}: 생성물이 자기 본문 하한보다 작은 본문을 낸다")
+                if small:
+                    self.assertGreaterEqual(min(small), dp.min_table_font(name),
+                                            f"{name}: 생성물이 자기 표 하한보다 작은 소형 텍스트를 낸다")
 
 
 @unittest.skipUnless(HAS_PPTX, "python-pptx 없음")

@@ -57,7 +57,10 @@ def _package(path: Path, main: str, parts: dict[str, str]) -> Path:
         z.writestr("[Content_Types].xml", CONTENT_TYPES)
         z.writestr("_rels/.rels", ROOT_RELS.format(main=main))
         for name, xml in parts.items():
-            z.writestr(name, with_namespaces(xml) if name == main else xml)
+            # 모든 XML 파트에 선언을 채운다. 실제 OOXML은 파트마다 선언을 갖고,
+            # 검사기가 본문 파트까지 파싱하므로 main만 채우면 픽스처가 실제 파일과
+            # 다르게 동작한다.
+            z.writestr(name, with_namespaces(xml) if name.endswith(".xml") else xml)
     return path
 
 

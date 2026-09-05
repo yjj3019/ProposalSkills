@@ -1,7 +1,7 @@
 # Architecture Review Report — ProposalSkills ×10
 
 - Generated: `2026-08-08T06:35:31.569148+09:00`
-- Root: `D:\AI-Codding\Grok\ProposalSkills`
+- Root: 저장소 루트
 - Skills: `create-best-proposal`, `create-proposal-document`, `create-winning-proposal`
 - Method: 10 persona-weighted architecture reviews over shared evidence scores + deterministic jitter
 

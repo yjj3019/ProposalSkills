@@ -22,6 +22,15 @@ DEFAULT_PROFILE = "detailed-submission"
 # 어떤 규격으로 만들어졌는지 말해야 한다(파일명·인자 전달에 기대지 않는다).
 STAMP_PREFIX = "proposal-deck:"
 
+# 도형 안 주석 — 범례와 간트 차트(BODY_G*)의 모든 텍스트. 본문 산문이 아니라 표 셀과 같은
+# 소형 텍스트이며, 생성기는 이들을 sizes["table"] - 1로 그린다. 검사기도 같은 정의를
+# 읽어 표 하한으로 재야 한다(본문 하한을 적용하면 정상 구성도·일정표가 차단된다).
+SMALL_TEXT_PREFIXES = ("BODY_LEGEND", "BODY_G")
+
+
+def is_small_text(shape_name: object) -> bool:
+    return isinstance(shape_name, str) and shape_name.startswith(SMALL_TEXT_PREFIXES)
+
 PROFILES: dict[str, dict] = {
     "detailed-submission": {
         "label": "평가용 상세본",
@@ -70,13 +79,17 @@ def get(name: str | None) -> dict:
 
 
 def min_body_font(name: str | None) -> float:
-    """검사기의 최소 폰트 기준. 생성기가 실제로 쓰는 가장 작은 본문 크기에서 유도한다.
+    """본문 텍스트의 최소 폰트 기준. 생성기의 본문 크기에서 유도한다.
 
-    상수로 따로 두면 프로파일을 바꿀 때 검사기만 남아 정상 산출물을 차단한다
-    (기존 9.0 하한은 생성기의 최소 크기와 정확히 같아 여유가 0이었다).
+    상수로 따로 두면 프로파일을 바꿀 때 검사기만 남아 정상 산출물을 차단한다.
+    표 하한(더 작다)과 합쳐 쓰면 본문을 표 크기까지 줄인 장표가 통과하므로 나눈다.
     """
-    sizes = get(name)["sizes"]
-    return min(sizes["table"], sizes["body"]) - 1
+    return get(name)["sizes"]["body"] - 1
+
+
+def min_table_font(name: str | None) -> float:
+    """표 셀의 최소 폰트 기준. 표는 본문보다 작게 쓰는 것이 정상이다."""
+    return get(name)["sizes"]["table"] - 1
 
 
 def stamp(name: str) -> str:

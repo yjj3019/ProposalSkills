@@ -43,7 +43,7 @@ class BuildAuditTests(unittest.TestCase):
             "mode": "draft",
             "bid_decision": "bid",
             "requirements": [
-                {"id": "R1", "mandatory": True, "state": "approved", "evidence_refs": []},
+                {"id": "R1", "text": "표준 이미지", "mandatory": True, "state": "approved", "evidence_refs": []},
             ],
         }
         with self.assertRaises(ValueError):
@@ -53,7 +53,7 @@ class BuildAuditTests(unittest.TestCase):
         meta = {
             "mode": "draft",
             "bid_decision": "bid",
-            "requirements": [{"id": "R1", "mandatory": True, "state": "pending"}],
+            "requirements": [{"id": "R1", "text": "표준 이미지", "mandatory": True, "state": "pending"}],
             "win_themes": [{"id": "WT1", "statement": "we are great", "req_ids": []}],
         }
         with self.assertRaises(ValueError):

@@ -90,14 +90,25 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   요소의 합과 같아야 하고(단위가 섞이면 차단), `percent_of`+`amount`가 있으면 비율을 다시
   계산한다. **제출 모드는 원장 없이 `checks.arithmetic: true`만으로 통과하지 못한다.** 원장
   값이 실제 문서에 있는지는 `check_numbers.py`가 대조하며, 중간 계산값은
-  `must_appear: false`로 제외한다.
+  `must_appear: false`로 제외한다. 값은 유한한 JSON 숫자여야 하고(`Infinity`·`NaN` 차단),
+  자기 자신을 `components`나 `percent_of`로 참조할 수 없으며, `percent_of`에는 유한한
+  `amount`와 0이 아닌 모수가 있어야 한다(계산 불가는 통과가 아니라 미검증이다). 단위가
+  통화(`KRW`·`원`·`USD` 등)이면 합계 검산에 상대 오차가 아니라 **1원 단위 절대 오차**를 쓴다.
+  제출 모드에서 원장이 비어 있으면 `numbers_not_applicable`에 사유를 적어야 한다.
+  문서 대조는 **평가위원이 보는 본문**만 인정하며(노트·레이아웃·마스터에만 있으면 차단),
+  소수·단위·부호를 구분한다 — `37.5개월`은 `37`의 근거가 아니고 `37개월`은 `37원`의 근거가
+  아니며 `-37`은 `37`의 근거가 아니다.
 - **검증 의무는 취소되지 않는다**: `mode: submission`이면 `artifact_required` 값과 무관하게
   렌더 검증·해시 형식·패키지 검사를 요구한다. `artifact_required: false`는 draft/review에서만
   의미가 있다 — 입력값 하나로 제출 검사를 끄지 못한다.
 - **렌더 성공 ≠ 육안 승인**: 제출 모드는 `render.visual_review_approved: true`와
   `render.visual_reviewer`(실명)를 요구한다. `deck_check.py`는 이 값을 항상 false로 기록하며,
-  PNG 썸네일을 확인한 사람이 직접 바꾼다. `render.layout_checked`가 false이면 차단한다.
-  PDF 변환 성공은 디자인 승인이 아니다.
+  PNG 썸네일을 확인한 사람이 직접 바꾼다. PDF 변환 성공은 디자인 승인이 아니다.
+- **검사 기록의 누락 = 미검사**: `render.layout_checked`는 **필수**다. false이면 물론이고,
+  **필드를 생략해도 차단**한다 — 지우면 요구가 사라지던 구멍을 막았다. `verified: true`인데
+  `render_succeeded: false`처럼 서로 모순되는 기록도 차단한다. `build_audit_from_meta.py`는
+  입력 meta에 있는 `render_succeeded`·`layout_checked`·`visual_review_approved`·
+  `visual_reviewer`·`output_profile`을 그대로 옮긴다(없는 승인을 만들어내지는 않는다).
 - **산출물 해시 결속(artifact binding)**: submission 모드에서 `artifact_required: true`이면
   `render.artifact_hash`와 `package.artifact_hash`는 실제 sha256 값(`sha256:<64 hex>`)이어야
   하고 서로 같아야 한다. 문자열 라벨(`sha256:proposal`)은 차단된다. 판정은
@@ -111,6 +122,12 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   없다 — 내부 확인용 산출물은 외부 제출 준비 상태로 승격되지 않는다.
 - **ID 무결성**: `requirements[]`·`claims[]`의 각 항목에는 비어 있지 않은 고유 `id`가 있어야
   한다. ID를 지워 원장을 익명화하거나 중복 ID로 근거를 뒤섞을 수 없다.
+- **원장 항목의 내용**: 제출 모드에서 `requirements[]`·`claims[]`의 각 항목에는 사람이 읽을 수
+  있는 내용이 있어야 한다 — `text`, `label`, `title`, `summary`, `description` 중 하나. ID만 있는
+  껍데기 원장은 "R1 승인"이 무엇을 승인한 기록인지 확인할 수 없다(초안 단계의 부분 원장은 허용).
+- **informational 주장의 면제 사유**: `kind: informational`은 근거(`evidence_refs`) 검사를
+  면제받는 유일한 유형이므로, 제출 모드에서는 `rationale`(왜 근거가 필요 없는지)을 요구한다.
+  근거 없는 성능·실적 주장을 informational로 재분류해 빠져나가는 경로를 막는다.
 - **마감일 검증(deadline)**: `submission.deadline`은 timezone 포함 ISO-8601. submission
   모드는 필수이며, 기준 현재시각(`PROPOSAL_GATE_NOW`로 주입 가능, 기본 UTC now)보다
   과거이면 차단한다. 만료된 RFP를 `cleared: true`로 통과시킬 수 없다.

@@ -35,7 +35,8 @@ class ScoreCompletenessTests(unittest.TestCase):
 
     def test_antigravity_audit_is_no_go(self):
         d = ready_data()
-        d["requirements"] = [{"id": "R%d" % i, "mandatory": True, "state": "approved"}
+        d["requirements"] = [{"id": "R%d" % i, "text": "요구 %d" % i,
+                              "mandatory": True, "state": "approved"}
                              for i in range(1, 6)]
         d["submission"]["deadline"] = "2021-05-20T17:00:00+09:00"
         d.pop("eligibility")

@@ -92,7 +92,12 @@ def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
     if target.exists():
         if (target / "SKILL.md").is_file() and not force:
             raise SystemExit(f"Already exists: {target}")
-        # --force 또는 SKILL.md 없는 빈/불완전 디렉터리 → 교체 설치
+        if not force and any(target.iterdir()):
+            # SKILL.md가 없다고 사용자 자료를 지우지 않는다. 설치 중단으로 남은
+            # 디렉터리인지 사용자가 만든 폴더인지 설치기는 구분할 수 없다.
+            raise SystemExit(
+                f"Not empty and not a skill install: {target} — "
+                "내용을 확인한 뒤 옮기거나 --force로 교체한다(교체는 이 폴더를 지운다)")
         shutil.rmtree(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, target, ignore=COPY_IGNORE)

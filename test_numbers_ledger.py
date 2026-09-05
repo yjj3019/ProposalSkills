@@ -69,7 +69,7 @@ class ArithmeticTests(unittest.TestCase):
 
     def test_structural_errors_are_reported_with_position(self):
         cases = [
-            ([{"id": "N1", "label": "x", "value": "3,700", "unit": "KRW"}], "must be a JSON number"),
+            ([{"id": "N1", "label": "x", "value": "3,700", "unit": "KRW"}], "must be a finite JSON number"),
             ([{"id": "N1", "label": "x", "value": 1}], "lacks a unit"),
             ([{"label": "x", "value": 1, "unit": "KRW"}], "lacks a non-empty id"),
             ([{"id": "N1", "label": "x", "value": 1, "unit": "KRW"},

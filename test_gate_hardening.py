@@ -56,11 +56,15 @@ class QualityGateScanScopeTests(unittest.TestCase):
     def test_split_runs_and_nbsp_are_detected(self):
         p = self.dir / "d.pptx"
         fixtures.pptx(p, raw={
+            # 실제 슬라이드는 루트가 하나다 — 문단만 나열한 조각은 XML 문서가 아니며
+            # 실제 로더도 열지 못한다(픽스처가 실제 파일과 달라지면 안 된다).
             "ppt/slides/slide1.xml":
+                "<p:sld>"
                 "<a:p><a:r><a:t>업계 최</a:t></a:r><a:r><a:t>고 수준</a:t></a:r></a:p>"
                 "<a:p><a:r><a:t>[NEEDS INPUT: PM]</a:t></a:r></a:p>"
                 "<a:p><a:r><a:t>10</a:t></a:r><a:r><a:t>0% 무중</a:t></a:r>"
-                "<a:r><a:t>단</a:t></a:r></a:p>"})
+                "<a:r><a:t>단</a:t></a:r></a:p>"
+                "</p:sld>"})
         found = " ".join(blockers(p))
         for needle in ("'최고'", "'100%'", "'무중단'", "needs input"):
             self.assertIn(needle, found)
@@ -286,7 +290,7 @@ class BuildAuditTests(unittest.TestCase):
 
     def test_slide_number_is_not_fabricated_into_evidence(self):
         meta = self._meta()
-        meta["requirements"] = [{"id": "R1", "mandatory": True, "state": "approved", "slide": 7}]
+        meta["requirements"] = [{"id": "R1", "text": "표준 이미지", "mandatory": True, "state": "approved", "slide": 7}]
         meta["win_themes"] = []
         audit = bam.build_audit(meta)
         self.assertEqual(audit["requirements"][0]["evidence_refs"], [])

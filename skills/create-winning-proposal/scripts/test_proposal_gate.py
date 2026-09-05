@@ -14,11 +14,12 @@ def ready_data():
         "mode": "submission",
         "bid_decision": "bid",
         "bid_conditions": [],
-        "requirements": [{"id": "R1", "mandatory": True, "state": "approved",
-                          "evidence_refs": ["proposal.md#3.1"]}],
+        "requirements": [{"id": "R1", "text": "RHEL 9 표준 이미지 제공", "mandatory": True,
+                          "state": "approved", "evidence_refs": ["proposal.md#3.1"]}],
         "eligibility": [{"id": "E1", "criterion": "3억 실적", "mandatory": True,
                          "met": True, "curable": True}],
-        "claims": [{"id": "C1", "kind": "commitment", "status": "supported", "owner_approved": True,
+        "claims": [{"id": "C1", "text": "장애 대응 4시간 이내 착수", "kind": "commitment",
+                    "status": "supported", "owner_approved": True,
                     "evidence_refs": ["성능시험 보고서 2026-04"]}],
         "unresolved_tokens": [],
         "attachments": [{"name": "form", "required": True, "present": True}],
@@ -97,17 +98,17 @@ class ProposalGateTests(unittest.TestCase):
 
     def test_claim_without_kind_is_material(self):
         data = ready_data()
-        data["claims"] = [{"id": "C9", "status": "unsupported"}]
+        data["claims"] = [{"id": "C9", "text": "성능 2배", "status": "unsupported"}]
         self.assertIn("claim C9 is unsupported", evaluate(data))
 
     def test_unknown_claim_kind_is_schema_error(self):
         data = ready_data()
-        data["claims"] = [{"id": "C9", "kind": "Material", "status": "unsupported"}]
+        data["claims"] = [{"id": "C9", "text": "성능 2배", "kind": "Material", "status": "unsupported"}]
         self.assertTrue(any("unsupported kind" in f for f in validate_schema(data)))
 
     def test_requirement_without_mandatory_is_treated_mandatory(self):
         data = ready_data()
-        data["requirements"] = [{"id": "R9", "state": "drafted"}]
+        data["requirements"] = [{"id": "R9", "text": "백업 요건", "state": "drafted"}]
         self.assertIn("requirement R9 is not approved", evaluate(data))
 
     def test_submission_with_empty_requirements_blocks(self):
@@ -257,8 +258,8 @@ class ProposalGateTests(unittest.TestCase):
         data = ready_data()
         data.update(
             bid_decision="no-bid",
-            requirements=[{"id": "R1", "mandatory": True, "state": "drafted"}],
-            claims=[{"id": "C1", "kind": "commitment", "status": "unsupported", "owner_approved": False}],
+            requirements=[{"id": "R1", "text": "표준 이미지", "mandatory": True, "state": "drafted"}],
+            claims=[{"id": "C1", "text": "4시간 내 착수", "kind": "commitment", "status": "unsupported", "owner_approved": False}],
             unresolved_tokens=["[NEEDS INPUT: legal]"],
             attachments=[{"name": "signature", "required": True, "present": False}],
             source_conflicts=["schedule 12 vs 16 weeks"],
@@ -266,8 +267,9 @@ class ProposalGateTests(unittest.TestCase):
             render={"verified": False},
         )
         failures = evaluate(data)
-        self.assertEqual(len(failures), 12)
+        self.assertEqual(len(failures), 13)
         self.assertIn("requirement R1 is not approved", failures)
+        self.assertTrue(any("layout check is missing" in f for f in failures))
         self.assertIn("render.artifact_hash must be a sha256 digest for submission (got None)", failures)
         self.assertTrue(any("visual review is not approved" in f for f in failures))
 
@@ -315,7 +317,7 @@ class ProposalGateTests(unittest.TestCase):
     # --- P0 반낙관 하드닝: 3종 가드 (자기선언 낙관 통과 차단) ---
     def test_approved_without_evidence_refs_blocks(self):
         d = ready_data()
-        d["requirements"] = [{"id": "R1", "mandatory": True, "state": "approved"}]
+        d["requirements"] = [{"id": "R1", "text": "표준 이미지", "mandatory": True, "state": "approved"}]
         self.assertIn("requirement R1 approved without evidence_refs", evaluate(d))
 
     def test_approved_with_evidence_refs_passes(self):
@@ -379,7 +381,7 @@ class ProposalGateTests(unittest.TestCase):
 
     def test_evidence_refs_empty_string_blocks(self):
         d = ready_data()
-        d["requirements"] = [{"id": "R1", "mandatory": True, "state": "approved",
+        d["requirements"] = [{"id": "R1", "text": "표준 이미지", "mandatory": True, "state": "approved",
                               "evidence_refs": ["", None]}]
         self.assertIn("requirement R1 approved without evidence_refs", evaluate(d))
 
@@ -387,7 +389,8 @@ class ProposalGateTests(unittest.TestCase):
         """Antigravity false-pass 재현: approved(무증빙)+만료마감+자격원장부재→반드시 차단."""
         d = ready_data()
         d["requirements"] = [
-            {"id": "RFP-REQ-0%d" % i, "mandatory": True, "state": "approved"} for i in range(1, 6)
+            {"id": "RFP-REQ-0%d" % i, "text": "요구 %d" % i, "mandatory": True,
+             "state": "approved"} for i in range(1, 6)
         ]
         d["submission"]["deadline"] = "2021-05-20T17:00:00+09:00"
         d.pop("eligibility")
@@ -403,7 +406,7 @@ class ProposalGateTests(unittest.TestCase):
 
     def test_explain_blocked_has_remediation_table(self):
         d = ready_data()
-        d["requirements"] = [{"id": "R1", "mandatory": True, "state": "approved"}]
+        d["requirements"] = [{"id": "R1", "text": "표준 이미지", "mandatory": True, "state": "approved"}]
         md = explain_markdown(d, [], evaluate(d))
         self.assertIn("BLOCKED", md)
         self.assertIn("조치", md)

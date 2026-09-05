@@ -167,6 +167,22 @@ jobs:
           (tmp / "stale_numbers.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           if python "$CHECK" "${RUNNER_TEMP}/draft.pptx" --audit "${RUNNER_TEMP}/stale_numbers.json"; then exit 1; fi
+          # 음성 대조군: 본문 파트나 관계 파트가 깨진 패키지는 검사 대상이 아니다(exit 2)
+          python - "${RUNNER_TEMP}" <<'PY'
+          import io, sys, zipfile
+          from pathlib import Path
+          tmp = Path(sys.argv[1])
+          src = zipfile.ZipFile(tmp / "draft.pptx")
+          for part, out_name in (("slide1.xml", "broken_slide.pptx"), ("_rels/.rels", "broken_rels.pptx")):
+              buf = io.BytesIO()
+              with zipfile.ZipFile(buf, "w") as out:
+                  for name in src.namelist():
+                      out.writestr(name, b"<p:sld><broken" if name.endswith(part) else src.read(name))
+              (tmp / out_name).write_bytes(buf.getvalue())
+          PY
+          for BAD in broken_slide broken_rels; do
+            if python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/$BAD.pptx"; then exit 1; fi
+          done
       - name: Auto-install smoke test
         shell: bash
         env:
@@ -181,6 +197,11 @@ jobs:
           test -f "${RUNNER_TEMP}/fakehome/.claude/skills/create-best-proposal/SKILL.md"
           test -f "${RUNNER_TEMP}/fakehome/.claude/skills/create-winning-proposal/scripts/proposal_gate.py"
           python install_skill.py --auto | grep -q "Skip (exists)"   # 재실행 안전
+          # 음성 대조군: 스킬이 아닌 비어 있지 않은 폴더는 지우지 않는다
+          mkdir -p "${RUNNER_TEMP}/dest/create-best-proposal"
+          echo "user data" > "${RUNNER_TEMP}/dest/create-best-proposal/notes.md"
+          if python install_skill.py --dest "${RUNNER_TEMP}/dest"; then exit 1; fi
+          test -f "${RUNNER_TEMP}/dest/create-best-proposal/notes.md"
       - name: Install smoke test
         shell: bash
         run: |
