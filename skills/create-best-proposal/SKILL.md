@@ -87,7 +87,9 @@ description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공
 2. 기본 산출: 한국어 **PPTX 장표**. 발주처 A4 문서형이면 DOCX 동일 규칙.
 3. XLSX 질의: 행·수식·숨김시트 보존, 지정 열만 기입.
 4. 렌더 검사와 **원본 패키지** 검사 분리(메타·노트·숨김·매크로·잔존 고객/가격).
-   못 본 항목 = `NOT INSPECTED` (통과 추정 금지).
+   못 본 항목 = `NOT INSPECTED` (통과 추정 금지). quality_gate는 노트·레이아웃·마스터·
+   머리말/바닥글·주석·문서속성까지 텍스트 검사하지만, 매크로·외부링크·임베디드 파일은
+   사람이 패키지 검사로 확인한다.
 
 ### Phase E — 감사·게이트·제출 (거버넌스 종결)
 
@@ -107,8 +109,10 @@ description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공
    python scripts/unified_gate.py audit.json [--doc 제안서.pptx] [--stage submission]
    python scripts/unified_gate.py audit.json --no-explain   # 라벨만
    ```
-   - `SUBMISSION-READY`(≡READY) / `CONDITIONAL-GO` / `BLOCKED` / `DECISION_MEMO_ONLY` / `INVALID`
+   - `SUBMISSION-READY`(≡READY, **mode=submission audit만**) / `DRAFT-READY` / `CONDITIONAL-GO`
+     (draft·review만, submission이면 BLOCKED) / `BLOCKED` / `DECISION_MEMO_ONLY` / `INVALID`
    - no-bid·intake-incomplete → **DECISION_MEMO_ONLY** (작성 실패와 구분)
+   - audit 불리언은 JSON true/false만 유효 — `"yes"`/`"pending"` 문자열은 INVALID
 4. 제출 직전 5항목 카드: [references/pre-submission-card.md](references/pre-submission-card.md)
 5. 리허설·접수 증적 계획 확인 전 `SUBMISSION NOT CLEARED`.
 

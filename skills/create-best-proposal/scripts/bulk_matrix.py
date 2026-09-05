@@ -17,7 +17,39 @@ from pathlib import Path
 from typing import Any
 
 
-SUPPORT_CODES = {"O", "부분", "조건부", "X", "N/A", "확인필요", "", None}
+SUPPORT_CODES = {"O", "부분", "조건부", "X", "N/A", "확인필요", ""}
+# 입력 표기 정규화(대소문자·동의어). 목록 밖 코드는 오류로 거절한다 — 'o'/'Y' 같은
+# 미정규화 값이 '미기입'으로 분류돼 위험 행에서 빠지던 fail-open 방지.
+SUPPORT_ALIASES = {
+    "O": "O", "0": "O", "○": "O", "Y": "O", "YES": "O", "지원": "O", "수용": "O", "FULL": "O",
+    "부분": "부분", "PARTIAL": "부분", "P": "부분", "△": "부분", "부분지원": "부분", "부분수용": "부분",
+    "조건부": "조건부", "CONDITIONAL": "조건부", "C": "조건부",
+    "X": "X", "×": "X", "N": "X", "NO": "X", "미지원": "X", "불가": "X",
+    "N/A": "N/A", "NA": "N/A", "해당없음": "N/A", "-": "N/A",
+    "확인필요": "확인필요", "TBD": "확인필요", "?": "확인필요", "검토": "확인필요",
+    "": "",
+}
+
+
+def normalize_support(value: Any, rid: str) -> str:
+    raw = str(value if value is not None else "").strip()
+    code = SUPPORT_ALIASES.get(raw.upper(), SUPPORT_ALIASES.get(raw))
+    if code is None:
+        raise ValueError(
+            f"row {rid}: unknown support code {raw!r} (allowed: {sorted(c for c in SUPPORT_CODES if c)})")
+    return code
+
+
+def normalize_mandatory(value: Any) -> bool:
+    """미기입·공란은 필수(True)로 취급한다(fail-closed)."""
+    if isinstance(value, bool):
+        return value
+    text = str(value if value is not None else "").strip().lower()
+    if text in {"", "1", "true", "yes", "y", "필수", "m", "mandatory", "o"}:
+        return True
+    if text in {"0", "false", "no", "n", "선택", "optional", "권고", "x"}:
+        return False
+    raise ValueError(f"unknown mandatory value {value!r}")
 
 
 def load_rows(path: Path) -> list[dict[str, Any]]:
@@ -34,8 +66,9 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"row {i} must be an object")
             rows.append(item)
         return rows
-    # CSV
-    reader = csv.DictReader(text.splitlines())
+    # CSV — 따옴표 안 줄바꿈(다중행 셀)을 보존하기 위해 splitlines 대신 io.StringIO 사용
+    import io
+    reader = csv.DictReader(io.StringIO(text, newline=""))
     if not reader.fieldnames:
         raise ValueError("CSV has no header")
     return [dict(row) for row in reader]
@@ -43,7 +76,7 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
 
 def normalize(row: dict[str, Any], index: int) -> dict[str, str]:
     rid = str(row.get("id") or row.get("ID") or f"R{index:03d}")
-    support = str(row.get("support") or row.get("지원여부") or "").strip()
+    support = normalize_support(row.get("support", row.get("지원여부")), rid)
     # S2: optional industry matrix columns (fit / eval weight / win theme / risk)
     fit = str(row.get("fit") or row.get("적합") or "").strip().upper()
     if fit in {"STRONG", "S", "강"}:
@@ -57,7 +90,7 @@ def normalize(row: dict[str, Any], index: int) -> dict[str, str]:
         "section": str(row.get("section") or row.get("구분") or ""),
         "item": str(row.get("item") or row.get("항목") or ""),
         "text": str(row.get("text") or row.get("내용") or row.get("question") or ""),
-        "mandatory": str(row.get("mandatory", "true")).lower() in {"1", "true", "yes", "y", "필수"},
+        "mandatory": normalize_mandatory(row.get("mandatory", row.get("필수"))),
         "support": support,
         "fit": fit,
         "eval_weight": str(row.get("eval_weight") or row.get("배점") or ""),

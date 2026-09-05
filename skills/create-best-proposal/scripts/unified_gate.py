@@ -2,7 +2,8 @@
 """Unified proposal gate: audit + optional document quality (SI-B2/B3, S4).
 
 Exit codes:
-  0 READY or CONDITIONAL-GO (internal)  — alias SUBMISSION-READY for READY
+  0 READY or CONDITIONAL-GO (internal)  — SUBMISSION-READY only when audit.mode=submission,
+    otherwise <MODE>-READY (e.g. DRAFT-READY)
   1 BLOCKED or DECISION_MEMO_ONLY
   2 INVALID / usage / missing dependency
 """
@@ -57,6 +58,9 @@ def _load_gate_module(path: Path):
         raise ImportError(f"cannot load {path}")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    for attr in ("validate_schema", "evaluate"):
+        if not hasattr(mod, attr):
+            raise ImportError(f"{path} is not proposal_gate.py (missing {attr})")
     return mod
 
 
@@ -85,25 +89,31 @@ def run_quality_gate(doc: Path, stage: str, lang: str, names: Path | None,
         cmd += ["--names", str(names)]
     if palette:
         cmd += ["--palette", palette]
-    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", env=env)
     out = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, out
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("audit", type=Path, help="Audit JSON path")
     ap.add_argument("--doc", type=Path, help="Optional PPTX/DOCX for quality_gate")
     ap.add_argument("--stage", choices=["draft", "submission"], default="submission")
     ap.add_argument("--lang", choices=["ko", "en", "both"], default="ko")
     ap.add_argument("--names", type=Path, help="Banned residual names file")
     ap.add_argument("--palette", help="Allowed hex palette comma-list")
-    ap.add_argument("--explain", action="store_true", default=True,
-                    help="Print remediation markdown (default: on)")
-    ap.add_argument("--no-explain", action="store_true",
-                    help="Status labels only, no remediation table")
+    ap.add_argument("--explain", action=argparse.BooleanOptionalAction, default=True,
+                    help="Print remediation markdown (default: on; --no-explain = labels only)")
     args = ap.parse_args(argv)
-    explain = not args.no_explain
+    explain = args.explain
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
 
     if args.doc:
         code, qout = run_quality_gate(args.doc, args.stage, args.lang, args.names, args.palette)
@@ -125,12 +135,19 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        data = json.loads(args.audit.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        data = json.loads(args.audit.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
         print(f"INVALID: {exc}")
         return 2
+    if not isinstance(data, dict):
+        print("INVALID: audit root must be an object")
+        return 2
 
-    mod = _load_gate_module(gate_path)
+    try:
+        mod = _load_gate_module(gate_path)
+    except (ImportError, SyntaxError, OSError) as exc:
+        print(f"INVALID: cannot load proposal_gate: {exc}", file=sys.stderr)
+        return 2
     schema_failures = mod.validate_schema(data)
     if schema_failures:
         if explain and hasattr(mod, "explain_markdown"):
@@ -141,7 +158,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"- {f}")
         return 2
 
-    failures = mod.evaluate(data)
+    try:
+        failures = mod.evaluate(data)
+    except Exception as exc:  # GateEnvironmentError 등 — 게이트 판정이 아닌 환경 오류
+        print(f"INVALID: gate error: {exc}", file=sys.stderr)
+        return 2
     decision = data.get("bid_decision", "")
     if decision in {"no-bid", "intake-incomplete"}:
         enriched = []
@@ -155,8 +176,17 @@ def main(argv: list[str] | None = None) -> int:
         failures = enriched
 
     label, exit_code = classify(str(decision), failures)
-    # S8: READY ≡ SUBMISSION-READY
-    display = "SUBMISSION-READY" if label == "READY" else label
+    # S8: READY ≡ SUBMISSION-READY — 단, audit.mode가 submission일 때만.
+    # draft/review/analysis 모드 audit은 제출 검사(cleared·리허설·패키지)를 거치지
+    # 않았으므로 SUBMISSION-READY를 표시하지 않는다(P0 허위 라벨 차단).
+    audit_mode = str(data.get("mode", ""))
+    if label == "READY" and audit_mode != "submission":
+        display = f"{audit_mode.upper() or 'DRAFT'}-READY"
+    else:
+        display = "SUBMISSION-READY" if label == "READY" else label
+    if args.stage == "submission" and audit_mode != "submission":
+        print(f"NOTE: audit.mode={audit_mode!r} — 제출 판정이 아니다. "
+              "제출 게이트는 mode=submission audit으로 다시 실행한다.")
     print(f"=== proposal_gate → {display} ===")
     if explain and hasattr(mod, "explain_markdown"):
         # Rebuild failures list for explain: restore raw evaluate for clean table
@@ -171,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("all deterministic checks passed")
     print(f"STATUS: {display}")
-    if label == "READY":
+    if display == "SUBMISSION-READY":
         print("ALIAS: READY ≡ SUBMISSION-READY")
     return exit_code
 

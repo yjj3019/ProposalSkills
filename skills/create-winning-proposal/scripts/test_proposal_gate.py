@@ -55,9 +55,102 @@ class ProposalGateTests(unittest.TestCase):
 
     def test_accepted_conditional_bid(self):
         data = ready_data()
+        data["mode"] = "draft"
         data["bid_decision"] = "conditional-bid"
-        data["bid_conditions"] = [{"id": "B1", "owner": "Legal", "deadline": "2026-08-20T17:00:00+09:00", "accepted": True}]
+        data["bid_conditions"] = [{"id": "B1", "owner": "Legal", "deadline": "2099-08-20T17:00:00+09:00", "accepted": True}]
         self.assertEqual(evaluate(data), [])
+
+    def test_conditional_bid_is_not_submission_clearance(self):
+        data = ready_data()
+        data["bid_decision"] = "conditional-bid"
+        data["bid_conditions"] = [{"id": "B1", "owner": "Legal", "deadline": "2099-08-20T17:00:00+09:00", "accepted": True}]
+        self.assertTrue(any("conditional-bid is internal only" in f for f in evaluate(data)))
+
+    def test_conditional_bid_past_condition_deadline_blocks(self):
+        data = ready_data()
+        data["mode"] = "draft"
+        data["bid_decision"] = "conditional-bid"
+        data["bid_conditions"] = [{"id": "B1", "owner": "Legal", "deadline": "2020-01-01T00:00:00+00:00", "accepted": True}]
+        self.assertTrue(any("deadline has passed" in f for f in evaluate(data)))
+
+    def test_string_booleans_are_schema_errors(self):
+        for mutate, needle in (
+            (lambda d: d["attachments"][0].update(present="no"), "attachment form.present"),
+            (lambda d: d["submission"].update(cleared="no"), "submission.cleared"),
+            (lambda d: d["render"].update(verified="failed"), "render.verified"),
+            (lambda d: d["claims"][0].update(owner_approved="pending"), "claim C1.owner_approved"),
+            (lambda d: d["eligibility"][0].update(met="yes"), "eligibility E1.met"),
+        ):
+            data = ready_data()
+            mutate(data)
+            failures = validate_schema(data)
+            self.assertTrue(any(needle in f and "must be a boolean" in f for f in failures), failures)
+
+    def test_claim_without_kind_is_material(self):
+        data = ready_data()
+        data["claims"] = [{"id": "C9", "status": "unsupported"}]
+        self.assertIn("claim C9 is unsupported", evaluate(data))
+
+    def test_unknown_claim_kind_is_schema_error(self):
+        data = ready_data()
+        data["claims"] = [{"id": "C9", "kind": "Material", "status": "unsupported"}]
+        self.assertTrue(any("unsupported kind" in f for f in validate_schema(data)))
+
+    def test_requirement_without_mandatory_is_treated_mandatory(self):
+        data = ready_data()
+        data["requirements"] = [{"id": "R9", "state": "drafted"}]
+        self.assertIn("requirement R9 is not approved", evaluate(data))
+
+    def test_submission_with_empty_requirements_blocks(self):
+        data = ready_data()
+        data["requirements"] = []
+        self.assertTrue(any("at least one mandatory requirement" in f for f in evaluate(data)))
+
+    def test_invalid_gate_now_is_usage_error(self):
+        import os
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.json"
+            path.write_text(json.dumps(ready_data()), encoding="utf-8")
+            os.environ["PROPOSAL_GATE_NOW"] = "yesterday"
+            try:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(main(["proposal_gate.py", str(path)]), 2)
+            finally:
+                del os.environ["PROPOSAL_GATE_NOW"]
+
+    def test_non_utf8_audit_is_usage_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "audit.json"
+            path.write_bytes(json.dumps({"mode": "draft", "note": "한글"}, ensure_ascii=False).encode("cp949"))
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main(["proposal_gate.py", str(path)]), 2)
+
+    def test_placeholder_evidence_is_not_evidence(self):
+        cases = (
+            (lambda d: d["requirements"][0].update(evidence_refs=["[NEEDS INPUT: PM]"]), "approved without evidence_refs"),
+            (lambda d: d["render"].update(artifact_hash="TBD"), "render verification lacks artifact_hash"),
+            (lambda d: d["render"].update(evidence=["???"]), "render verification lacks evidence"),
+            (lambda d: d["package"].update(reviewer="입력요망"), "package inspection lacks reviewer"),
+            (lambda d: d["submission"].update(rehearsal_evidence=["todo"]), "rehearsal evidence is missing"),
+            (lambda d: d["submission"].update(receipt_plan="TBD"), "receipt plan is missing"),
+            (lambda d: d.update(regulatory_checks=[{"id": "G1", "status": "met", "evidence": "TBD"}]),
+             "claims met without evidence"),
+        )
+        for mutate, needle in cases:
+            data = ready_data()
+            mutate(data)
+            self.assertTrue(any(needle in f for f in evaluate(data)), (needle, evaluate(data)))
+
+    def test_real_evidence_containing_na_word_is_fine(self):
+        data = ready_data()
+        data["requirements"][0]["evidence_refs"] = ["proposal.pptx#slide12 (SLA table, sha256:ab12)"]
+        data["render"]["artifact_hash"] = "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        self.assertEqual(evaluate(data), [])
+
+    def test_help_and_unknown_flag(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(main(["proposal_gate.py", "-h"]), 0)
+            self.assertEqual(main(["proposal_gate.py", "--bogus", "x.json"]), 2)
 
     def test_analysis_does_not_require_render(self):
         data = ready_data()

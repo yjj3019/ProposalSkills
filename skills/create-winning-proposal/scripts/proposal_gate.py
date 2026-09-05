@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,52 @@ REQUIRED_PACKAGE_CHECKS = {
 OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibility"}
 REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
 VENDOR_KINDS = {"support", "supply"}
+CLAIM_KINDS = {"material", "commitment", "informational"}
+# 엄격 불리언 필드: JSON true만 참. "yes"/"pending"/"no" 같은 문자열은 스키마 오류로
+# 거절한다(진리값 평가로 비어있지 않은 문자열이 통과하던 P0 허위 통과 차단).
+STRICT_BOOL_FIELDS = {
+    "bid_conditions": ("accepted",),
+    "requirements": ("mandatory",),
+    "claims": ("owner_approved",),
+    "attachments": ("required", "present"),
+    "vendor_confirmations": ("required", "present"),
+    "eligibility": ("met", "curable", "mandatory"),
+}
+STRICT_BOOL_OBJECT_FIELDS = {
+    "render": ("verified",),
+    "package": ("required", "inspected"),
+    "submission": ("cleared",),
+}
+
+
+def _true(value: object) -> bool:
+    return value is True
+
+
+# 근거·해시 자리에 들어온 플레이스홀더. 'TBD'나 '[NEEDS INPUT]'은 근거가 아니다.
+_PLACEHOLDER_RE = re.compile(
+    r"(?:^|[^A-Za-z])(?:tbd|tba|todo|n/?a|xxx+|\?\?+|lorem|placeholder|dummy)(?:$|[^A-Za-z])"
+    r"|needs\s*input|입력\s*요망|미정|추후|확인\s*필요|○○○|OOO",
+    re.IGNORECASE)
+
+
+def _is_placeholder(value: object) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return True
+    return _PLACEHOLDER_RE.search(value) is not None
+
+
+def _evidence_ok(values: object) -> bool:
+    """비어 있지 않고, 플레이스홀더가 아닌 문자열 근거가 1개 이상."""
+    if isinstance(values, str):
+        values = [values]
+    if not isinstance(values, list):
+        return False
+    return any(isinstance(v, str) and not _is_placeholder(v) for v in values)
+
+
+class GateEnvironmentError(RuntimeError):
+    """실행 환경 오류(PROPOSAL_GATE_NOW 형식 등) — 게이트 판정이 아닌 사용 오류."""
 
 
 def reference_now() -> datetime:
@@ -42,9 +89,10 @@ def reference_now() -> datetime:
     if override:
         try:
             dt = datetime.fromisoformat(override.replace("Z", "+00:00"))
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            # 조용히 벽시계로 폴백하면 테스트가 실제 시각으로 통과해 버린다 → 명시 오류.
+            raise GateEnvironmentError(f"PROPOSAL_GATE_NOW is not ISO datetime: {override!r}") from exc
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     return datetime.now(timezone.utc)
 
 
@@ -103,7 +151,7 @@ def validate_schema(data: object) -> list[str]:
         if defect.get("status") not in ITEM_STATUSES:
             failures.append(f"defect {defect.get('id', '?')} has unsupported status: {defect.get('status')}")
         if defect.get("severity") in {"critical", "major"} and defect.get("status") == "closed":
-            if not isinstance(defect.get("closure_evidence"), list) or not defect["closure_evidence"]:
+            if not _evidence_ok(defect.get("closure_evidence")):
                 failures.append(f"defect {defect.get('id', '?')} lacks closure evidence")
             if not defect.get("reviewer"):
                 failures.append(f"defect {defect.get('id', '?')} lacks closure reviewer")
@@ -130,17 +178,34 @@ def validate_schema(data: object) -> list[str]:
     for vc in data.get("vendor_confirmations", []) if isinstance(data.get("vendor_confirmations"), list) else []:
         if isinstance(vc, dict) and vc.get("kind") not in VENDOR_KINDS:
             failures.append(f"vendor confirmation {vc.get('id', '?')} has unsupported kind: {vc.get('kind')}")
-    for e in data.get("eligibility", []) if isinstance(data.get("eligibility"), list) else []:
-        if not isinstance(e, dict):
-            continue
-        if "met" in e and not isinstance(e["met"], bool):
-            failures.append(f"eligibility {e.get('id', '?')} met must be a boolean")
-        if "curable" in e and not isinstance(e["curable"], bool):
-            failures.append(f"eligibility {e.get('id', '?')} curable must be a boolean")
+    # eligibility met/curable 불리언 검증은 STRICT_BOOL_FIELDS에서 일괄 수행한다.
     sub = data.get("submission")
     if isinstance(sub, dict) and "deadline" in sub and not is_iso_datetime(sub["deadline"]):
         failures.append("submission deadline must be ISO datetime with timezone")
-    return failures
+    for list_name, keys in STRICT_BOOL_FIELDS.items():
+        items = data.get(list_name)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            for key in keys:
+                if key in item and not isinstance(item[key], bool):
+                    label = {"eligibility": "eligibility"}.get(list_name, list_name[:-1])
+                    failures.append(
+                        f"{label} {item.get('id', item.get('name', '?'))}."
+                        f"{key} must be a boolean (got {item[key]!r})")
+    for obj_name, keys in STRICT_BOOL_OBJECT_FIELDS.items():
+        obj = data.get(obj_name)
+        if not isinstance(obj, dict):
+            continue
+        for key in keys:
+            if key in obj and not isinstance(obj[key], bool):
+                failures.append(f"{obj_name}.{key} must be a boolean (got {obj[key]!r})")
+    for claim in data.get("claims", []) if isinstance(data.get("claims"), list) else []:
+        if isinstance(claim, dict) and "kind" in claim and claim["kind"] not in CLAIM_KINDS:
+            failures.append(f"claim {claim.get('id', '?')} has unsupported kind: {claim['kind']}")
+    return sorted(set(failures), key=failures.index)
 
 
 def evaluate(data: dict) -> list[str]:
@@ -149,35 +214,48 @@ def evaluate(data: dict) -> list[str]:
         return failures
 
     decision = data["bid_decision"]
+    mode = data["mode"]
     if decision == "conditional-bid":
         if not data["bid_conditions"]:
             failures.append("conditional-bid requires conditions")
         for condition in data["bid_conditions"]:
-            if not all((condition.get("owner"), condition.get("deadline"), condition.get("accepted"))):
+            if not condition.get("owner") or not condition.get("deadline") \
+                    or not _true(condition.get("accepted")):
                 failures.append(f"bid condition {condition.get('id', '?')} is not accepted")
+            elif not deadline_in_future(condition["deadline"]):
+                failures.append(
+                    f"bid condition {condition.get('id', '?')} deadline has passed: {condition['deadline']}")
+        if mode == "submission":
+            # 조건부는 내부 계속 진행 상태일 뿐, 외부 제출 클리어가 아니다.
+            failures.append("submission mode requires bid_decision 'bid' (conditional-bid is internal only)")
     elif decision != "bid":
         failures.append("bid_decision must be 'bid' or accepted 'conditional-bid'")
 
+    mandatory_count = 0
     for item in data["requirements"]:
-        if not item.get("mandatory"):
+        # fail-closed: mandatory 미기재는 필수로 취급한다(생략으로 우회 방지).
+        if item.get("mandatory", True) is False:
             continue
+        mandatory_count += 1
         if item.get("state") == "approved":
             # 반낙관: approved 자기선언만으로는 통과 불가. 비어있지 않은 문자열 근거 필수.
-            refs = item.get("evidence_refs")
-            if not isinstance(refs, list) or not any(
-                    isinstance(r, str) and r.strip() for r in refs):
+            if not _evidence_ok(item.get("evidence_refs")):
                 failures.append(f"requirement {item.get('id', '?')} approved without evidence_refs")
             continue
         if item.get("state") == "not-applicable" and item.get("rationale") and item.get("reviewer"):
             continue
         failures.append(f"requirement {item.get('id', '?')} is not approved")
+    if mode == "submission" and mandatory_count == 0:
+        failures.append("submission requires at least one mandatory requirement in the ledger")
 
     for claim in data["claims"]:
-        if claim.get("kind") not in {"material", "commitment"}:
+        # kind 미기재는 material로 취급한다(생략으로 우회 방지).
+        kind = claim.get("kind", "material")
+        if kind not in {"material", "commitment"}:
             continue
         if claim.get("status") not in {"supported", "qualified", "removed"}:
             failures.append(f"claim {claim.get('id', '?')} is unsupported")
-        if claim.get("kind") == "commitment" and not claim.get("owner_approved"):
+        if kind == "commitment" and not _true(claim.get("owner_approved")):
             failures.append(f"commitment {claim.get('id', '?')} lacks owner approval")
 
     failures.extend(f"unresolved token: {token}" for token in data["unresolved_tokens"])
@@ -192,25 +270,30 @@ def evaluate(data: dict) -> list[str]:
             failures.append(f"{defect.get('severity')} defect {defect.get('id', '?')} is open")
 
     for attachment in data["attachments"]:
-        if attachment.get("required") and not attachment.get("present"):
+        if attachment.get("required", True) is not False and not _true(attachment.get("present")):
             failures.append(f"missing attachment: {attachment.get('name', '?')}")
 
     for name in ("consistency", "arithmetic", "submission"):
         if data["checks"].get(name) is not True:
             failures.append(f"check failed or missing: {name}")
 
-    if data["artifact_required"] and not data["render"].get("verified"):
+    if data["artifact_required"] and not _true(data["render"].get("verified")):
         failures.append("render verification is missing or failed")
-    if data["artifact_required"] and data["render"].get("verified"):
-        for field in ("artifact_hash", "tool", "evidence"):
-            if not data["render"].get(field):
+    if data["artifact_required"] and _true(data["render"].get("verified")):
+        for field in ("artifact_hash", "tool"):
+            if _is_placeholder(data["render"].get(field)):
                 failures.append(f"render verification lacks {field}")
-    if data["package"].get("required") and not data["package"].get("inspected"):
+        if not _evidence_ok(data["render"].get("evidence")):
+            failures.append("render verification lacks evidence")
+    package_required = _true(data["package"].get("required")) or mode == "submission"
+    if package_required and not _true(data["package"].get("inspected")):
         failures.append("package inspection is missing or failed")
-    if data["package"].get("required") and data["package"].get("inspected"):
-        for field in ("artifact_hash", "tool", "checks", "reviewer"):
-            if not data["package"].get(field):
+    if package_required and _true(data["package"].get("inspected")):
+        for field in ("artifact_hash", "tool", "reviewer"):
+            if _is_placeholder(data["package"].get(field)):
                 failures.append(f"package inspection lacks {field}")
+        if not data["package"].get("checks"):
+            failures.append("package inspection lacks checks")
         for name, status in data["package"].get("checks", {}).items():
             if status not in {"pass", "fail", "not-inspected", "not-applicable"}:
                 failures.append(f"package check {name} has unsupported status: {status}")
@@ -220,11 +303,11 @@ def evaluate(data: dict) -> list[str]:
             for name in sorted(REQUIRED_PACKAGE_CHECKS - data["package"].get("checks", {}).keys()):
                 failures.append(f"missing required package check: {name}")
     if data["mode"] == "submission":
-        if not data["submission"].get("cleared"):
+        if not _true(data["submission"].get("cleared")):
             failures.append("submission is not cleared")
-        if not data["submission"].get("rehearsal_evidence"):
+        if not _evidence_ok(data["submission"].get("rehearsal_evidence")):
             failures.append("submission rehearsal evidence is missing")
-        if not data["submission"].get("receipt_plan"):
+        if _is_placeholder(data["submission"].get("receipt_plan")):
             failures.append("submission receipt plan is missing")
 
     # 반낙관 가드 1: 마감일 vs 현재일. 제출 모드는 마감일 필수이며 과거이면 차단.
@@ -238,10 +321,10 @@ def evaluate(data: dict) -> list[str]:
     # 미충족+치유가능이면 단독 bid 금지(조건부입찰/불참만 허용). 제출 모드는 원장 필수.
     eligibility = data.get("eligibility", [])
     for e in eligibility:
-        if not e.get("mandatory", True) or e.get("met"):
+        if e.get("mandatory", True) is False or _true(e.get("met")):
             continue
         # fail-closed: curable 미지정은 보수적으로 '치유불가'로 취급(생략으로 우회 방지).
-        if not e.get("curable", False):
+        if not _true(e.get("curable")):
             if decision != "no-bid":
                 failures.append(
                     f"eligibility {e.get('id', '?')} unmet and incurable; bid not permitted")
@@ -253,7 +336,7 @@ def evaluate(data: dict) -> list[str]:
 
     # 제조사 확약(vendor_confirmations): 필수인데 미제출이면 차단(계약 전 독소조항 대응).
     for vc in data.get("vendor_confirmations", []):
-        if vc.get("required") and not vc.get("present"):
+        if vc.get("required", True) is not False and not _true(vc.get("present")):
             failures.append(f"vendor confirmation {vc.get('id', '?')} ({vc.get('kind', '?')}) is missing")
 
     # 금융 등 규제 완료증거(regulatory_checks): 명시적 gap/in-progress는 차단,
@@ -263,7 +346,7 @@ def evaluate(data: dict) -> list[str]:
         status = check.get("status")
         if status in {"gap", "in-progress"}:
             failures.append(f"regulatory check {check.get('id', '?')} is {status}")
-        elif status == "met" and not check.get("evidence"):
+        elif status == "met" and not _evidence_ok(check.get("evidence")):
             failures.append(f"regulatory check {check.get('id', '?')} claims met without evidence")
     if data.get("flags", {}).get("financial") and data["mode"] == "submission" and not reg_checks:
         failures.append("financial submission requires regulatory_checks")
@@ -297,6 +380,9 @@ def remediation_hint(failure: str) -> str:
         ("defect", "미해결 Critical/Major 결함을 조치·재검증한다"),
         ("owner approval", "커밋먼트(약속) 항목에 책임 owner 승인을 받는다"),
         ("must be 'bid'", "no-bid/intake-incomplete는 제출 대상이 아니다 — 결정 메모로 종료한다"),
+        ("conditional-bid is internal only", "조건을 모두 해소한 뒤 bid_decision=bid로 정정하거나 mode=draft로 내부 진행한다"),
+        ("at least one mandatory requirement", "요구 원장이 비었다 — RFP 필수 요구를 추출해 requirements에 채운다"),
+        ("bid condition", "조건 owner·ISO 기한(미래)·accepted=true를 채우거나 기한을 재협의한다"),
     ]
     for key, hint in table:
         if key in f:
@@ -335,19 +421,39 @@ def explain_markdown(data: dict, schema_failures: list[str], failures: list[str]
     return "\n".join(lines)
 
 
+def _utf8_console() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: list[str]) -> int:
-    args = [a for a in argv[1:] if not a.startswith("--")]
-    explain = "--explain" in argv
-    if len(args) != 1:
-        print("usage: proposal_gate.py [--explain] AUDIT.json", file=sys.stderr)
-        return 2
+    import argparse
+    _utf8_console()
+    ap = argparse.ArgumentParser(
+        prog="proposal_gate.py",
+        description="Deterministic proposal submission gate. exit 0=READY/CONDITIONAL-GO, "
+                    "1=BLOCKED/DECISION_MEMO, 2=invalid audit or usage error.")
+    ap.add_argument("audit", type=Path, help="audit JSON (see references/audit-schema.md)")
+    ap.add_argument("--explain", action="store_true", help="print Markdown remediation table")
     try:
-        data = json.loads(Path(args[0]).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        ns = ap.parse_args(argv[1:])
+    except SystemExit as exc:
+        return 0 if exc.code == 0 else 2
+    explain = ns.explain
+    try:
+        data = json.loads(ns.audit.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:  # JSONDecodeError·UnicodeDecodeError 포함
         print(f"invalid audit file: {exc}", file=sys.stderr)
         return 2
     schema_failures = validate_schema(data)
-    failures = [] if schema_failures else evaluate(data)
+    try:
+        failures = [] if schema_failures else evaluate(data)
+    except GateEnvironmentError as exc:
+        print(f"gate environment error: {exc}", file=sys.stderr)
+        return 2
     if explain:
         print(explain_markdown(data, schema_failures, failures))
         return 2 if schema_failures else (1 if failures else 0)

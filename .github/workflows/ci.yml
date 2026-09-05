@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit tests (repo root)
+        run: python -m unittest discover -s . -p "test_*.py" -v
+      - name: proposal_gate tests
+        run: python skills/create-winning-proposal/scripts/test_proposal_gate.py -v
+      - name: create-best-proposal tests
+        run: python skills/create-best-proposal/scripts/test_best_proposal.py -v
+      - name: Golden fixtures through unified_gate
+        shell: bash
+        run: |
+          set -e
+          python skills/create-best-proposal/scripts/unified_gate.py skills/create-best-proposal/fixtures/audit_ready_financial.json --no-explain | grep -q "STATUS: SUBMISSION-READY"
+          if python skills/create-best-proposal/scripts/unified_gate.py skills/create-best-proposal/fixtures/audit_decision_memo.json --no-explain; then exit 1; fi
+          python skills/create-best-proposal/scripts/build_audit_from_meta.py skills/create-best-proposal/fixtures/meta_sample.json -o "${RUNNER_TEMP}/audit.json"
+          python score_completeness.py skills/create-best-proposal/fixtures/audit_ready_financial.json | grep -q '"status": "SUBMISSION-READY"'
+      - name: Install smoke test
+        shell: bash
+        run: |
+          python install_skill.py --dest "${RUNNER_TEMP}/skills" --all
+          python "${RUNNER_TEMP}/skills/create-best-proposal/scripts/unified_gate.py" skills/create-best-proposal/fixtures/audit_ready_financial.json --no-explain
+      - name: Markdown link check
+        shell: bash
+        run: |
+          python - <<'PY'
+          import re, pathlib, sys
+          bad = []
+          for md in pathlib.Path('.').rglob('*.md'):
+              if '.git' in md.parts: continue
+              for m in re.finditer(r'\]\(([^)#\s]+)(#[^)]*)?\)', md.read_text(encoding='utf-8')):
+                  t = m.group(1)
+                  if t.startswith(('http://', 'https://', 'mailto:')): continue
+                  if not (md.parent / t).exists(): bad.append(f"{md}: {t}")
+          print("\n".join(bad) or "all local links resolve")
+          sys.exit(1 if bad else 0)
+          PY

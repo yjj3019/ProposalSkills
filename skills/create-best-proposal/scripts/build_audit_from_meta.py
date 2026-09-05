@@ -28,8 +28,32 @@ REQUIRED_PACKAGE_CHECKS = {
 }
 
 
+LIST_FIELDS = ("requirements", "slides", "win_themes", "claims", "bid_conditions",
+               "unresolved_tokens", "attachments", "inputs", "defects", "eligibility",
+               "regulatory_checks", "vendor_confirmations", "source_conflicts")
+
+
 def _as_list(value: Any) -> list:
     return value if isinstance(value, list) else []
+
+
+def _validate_meta_types(meta: dict) -> None:
+    """리스트여야 할 필드가 문자열 등으로 오면 조용히 버리지 않고 오류를 낸다.
+    ("requirements": "R1 R2 all approved" → requirements=[] → READY 허위 통과 차단)"""
+    bad = [k for k in LIST_FIELDS if k in meta and meta[k] is not None and not isinstance(meta[k], list)]
+    if bad:
+        raise ValueError(f"meta fields must be arrays: {', '.join(bad)}")
+    for k in ("submission", "render", "package", "checks", "flags"):
+        if k in meta and meta[k] is not None and not isinstance(meta[k], dict):
+            raise ValueError(f"meta field must be an object: {k}")
+
+
+def _bool(container: dict, key: str, default: bool, where: str) -> bool:
+    """JSON true/false만 허용. 'yes'/'no'/'pending' 등 문자열은 오류(bool('no')==True 방지)."""
+    value = container.get(key, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"{where}.{key} must be true/false (got {value!r})")
+    return value
 
 
 def _req_conflicts(meta: dict) -> list[str]:
@@ -98,7 +122,7 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
             continue
         item = {
             "id": req.get("id") or "R?",
-            "mandatory": bool(req.get("mandatory", True)),
+            "mandatory": _bool(req, "mandatory", True, f"requirement {req.get('id', '?')}"),
             "state": req.get("state") or "pending",
             "rationale": req.get("rationale") or "",
             "reviewer": req.get("reviewer") or "",
@@ -110,10 +134,14 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
         refs = req.get("evidence_refs")
         if isinstance(refs, list):
             item["evidence_refs"] = refs
-        elif req.get("slide") is not None:
-            item["evidence_refs"] = [f"slide:{req['slide']}"]
         else:
+            # 슬라이드 번호만으로 근거를 만들어 주지 않는다 — 'approved 무증빙' 반낙관
+            # 검사를 빌더가 우회시키던 결함. 근거는 작성자가 명시해야 한다.
             item["evidence_refs"] = []
+            if req.get("slide") is not None and req.get("state") == "approved":
+                warnings.append(
+                    f"requirement {item['id']}: slide={req['slide']} is a location, not evidence — "
+                    "set evidence_refs explicitly")
         if item["state"] == "approved" and not any(
                 isinstance(r, str) and r.strip() for r in item["evidence_refs"]):
             msg = f"requirement {item['id']} approved without evidence_refs"
@@ -128,16 +156,27 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
     return out
 
 
+def _normalize_checks(meta: dict) -> dict:
+    checks_in = meta.get("checks") if isinstance(meta.get("checks"), dict) else {}
+    out = {}
+    for name in ("consistency", "arithmetic", "submission"):
+        out[name] = _bool(checks_in, name, False, "checks")
+    for name, value in checks_in.items():
+        out.setdefault(name, value)
+    return out
+
+
 def build_audit(meta: dict, strict: bool = False) -> dict:
     if not isinstance(meta, dict):
         raise ValueError("meta root must be an object")
+    _validate_meta_types(meta)
     warnings: list[str] = []
     mode = meta.get("mode") or "draft"
     bid = meta.get("bid_decision") or "intake-incomplete"
     submission_in = meta.get("submission") if isinstance(meta.get("submission"), dict) else {}
     deadline = submission_in.get("deadline") or meta.get("deadline")
     submission = {
-        "cleared": bool(submission_in.get("cleared", False)),
+        "cleared": _bool(submission_in, "cleared", False, "submission"),
         "rehearsal_evidence": list(submission_in.get("rehearsal_evidence") or []),
         "receipt_plan": submission_in.get("receipt_plan") or "",
         "receipt_evidence": list(submission_in.get("receipt_evidence") or []),
@@ -147,7 +186,7 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
 
     render_in = meta.get("render") if isinstance(meta.get("render"), dict) else {}
     render = {
-        "verified": bool(render_in.get("verified", False)),
+        "verified": _bool(render_in, "verified", False, "render"),
         "artifact_hash": render_in.get("artifact_hash") or "",
         "tool": render_in.get("tool") or "",
         "evidence": list(render_in.get("evidence") or []),
@@ -158,8 +197,8 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
     if isinstance(package_in.get("checks"), dict):
         checks.update(package_in["checks"])
     package = {
-        "required": bool(package_in.get("required", True)),
-        "inspected": bool(package_in.get("inspected", False)),
+        "required": _bool(package_in, "required", True, "package"),
+        "inspected": _bool(package_in, "inspected", False, "package"),
         "artifact_hash": package_in.get("artifact_hash") or "",
         "tool": package_in.get("tool") or "",
         "checks": checks,
@@ -181,10 +220,8 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "source_conflicts": conflicts,
         "inputs": _as_list(meta.get("inputs")),
         "defects": _as_list(meta.get("defects")),
-        "checks": meta.get("checks") if isinstance(meta.get("checks"), dict) else {
-            "consistency": False, "arithmetic": False, "submission": False,
-        },
-        "artifact_required": bool(meta.get("artifact_required", True)),
+        "checks": _normalize_checks(meta),
+        "artifact_required": _bool(meta, "artifact_required", True, "meta"),
         "render": render,
         "package": package,
         "submission": submission,
@@ -212,15 +249,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--strict", action="store_true",
                         help="Fail if approved requirements lack evidence_refs")
     args = parser.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     try:
-        meta = json.loads(args.meta.read_text(encoding="utf-8"))
+        meta = json.loads(args.meta.read_text(encoding="utf-8-sig"))
         audit = build_audit(meta, strict=args.strict)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
+    except (OSError, ValueError) as exc:  # JSONDecodeError·UnicodeDecodeError 포함
         print(f"error: {exc}", file=sys.stderr)
         return 2
     text = json.dumps(audit, ensure_ascii=False, indent=2)
     if args.output:
-        args.output.write_text(text + "\n", encoding="utf-8")
+        try:
+            args.output.write_text(text + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"error: cannot write {args.output}: {exc}", file=sys.stderr)
+            return 2
         print(f"wrote {args.output}")
     else:
         print(text)

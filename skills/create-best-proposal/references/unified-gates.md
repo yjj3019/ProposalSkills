@@ -37,8 +37,8 @@ python ../create-proposal-document/scripts/quality_gate.py final.pptx --stage su
 
 | 출력 | exit | 의미 |
 |---|---:|---|
-| READY | 0 | 제출 게이트 통과 |
-| CONDITIONAL-GO | 0* | accepted conditional-bid + 그 외 통과 (*unified는 0, 내부 전용 고지) |
+| READY | 0 | 게이트 통과. unified 표시는 audit `mode`에 따라 `SUBMISSION-READY`(mode=submission) 또는 `DRAFT-READY`·`REVIEW-READY`(그 외) |
+| CONDITIONAL-GO | 0* | accepted conditional-bid + 그 외 통과 (*unified는 0, 내부 전용 고지). **mode=submission에서는 BLOCKED** — 조건부는 제출 클리어가 아니다 |
 | DECISION_MEMO_ONLY | 1 | no-bid / intake-incomplete — 본문 작성 대상 아님 |
 | BLOCKED | 1 | 제출 차단 (증빙·결함·패키지 등) |
 | INVALID | 2 | audit 스키마 오류 |
@@ -48,9 +48,17 @@ no-bid를 "must be bid" 일반 오류와 섞지 않는다. 메시지는
 
 ## 4. 반낙관 3가드 (필수)
 
-1. **evidence_refs**: mandatory+approved → 비어 있지 않은 근거 목록
-2. **deadline**: submission 모드 ISO+타임존, 현재시각 이후
+1. **evidence_refs**: mandatory+approved → 비어 있지 않은 근거 목록.
+   빌더는 `slide` 번호를 근거로 바꿔 주지 않는다(위치 ≠ 근거) — 작성자가 명시한다.
+2. **deadline**: submission 모드 ISO+타임존, 현재시각 이후. conditional-bid의
+   `bid_conditions[].deadline`도 미래여야 한다.
 3. **eligibility**: submission 원장 필수; 미충족+치유불가 → bid 금지
+
+**엄격 불리언**: `accepted`·`present`·`cleared`·`verified`·`inspected`·`owner_approved`·
+`met`·`curable`·`mandatory`·`required`는 JSON `true`/`false`만 유효하다. `"yes"`, `"pending"`,
+`"no"` 같은 문자열은 스키마 오류(INVALID)다 — 진리값 평가로 비어있지 않은 문자열이 통과하던
+허위 통과를 막는다. `mandatory`·`required`·claim `kind` 미기재는 각각 필수·필수·material로
+취급한다(생략으로 우회 불가). submission 모드는 필수 요구 원장이 1건 이상 있어야 한다.
 
 ## 5. 금융 제출 (SI-B4)
 
@@ -68,7 +76,11 @@ python scripts/unified_gate.py audit.json --no-explain   # 조치표 생략
 ```
 
 - 기본 **--explain on**: proposal_gate remediation 마크다운을 함께 출력 (S4).
-- `STATUS: SUBMISSION-READY` ≡ `READY` (S8 별칭).
+- `STATUS: SUBMISSION-READY` ≡ `READY` (S8 별칭) — **audit.mode=submission일 때만**.
+  draft/review/analysis audit이 통과하면 `DRAFT-READY` 등으로 표시하고, `--stage submission`
+  이었다면 "제출 판정이 아니다" NOTE를 함께 출력한다.
 - 문서 경로를 주면 quality_gate를 먼저 실행하고, 실패 시 audit 평가 전 BLOCKED.
+  quality_gate exit 2(손상·미지원 파일)는 INVALID(exit 2)로 구분한다.
+- 자식 프로세스는 UTF-8로 실행한다(한국어 Windows cp949 콘솔에서도 크래시 없음).
 - 형제 스크립트를 못 찾으면 `PROPOSAL_GATE_PATH` / `QUALITY_GATE_PATH` 또는
   `install_skill.py --with-deps` 안내 후 exit 2.

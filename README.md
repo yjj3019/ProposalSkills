@@ -34,7 +34,8 @@ python install_skill.py --dest <AI의 스킬 상위 디렉터리> --name create-
 함께 설치합니다(이미 있으면 Skip). `AI_SKILLS_DIR` 또는 `CODEX_HOME`이 있으면 `--dest`를
 생략할 수 있습니다. 기존 설치는 덮어쓰지 않습니다.
 
-비판적 선정·반영 기록: [critical-selection-2026-08.md](references/critical-selection-2026-08.md)
+비판적 선정·반영 기록: [critical-selection-2026-08.md](references/critical-selection-2026-08.md) ·
+게이트 신뢰성 감사·수정(2026-09): [gate-hardening-2026-09.md](references/gate-hardening-2026-09.md)
 
 Grok 사용자 스킬 예:
 ```bash
@@ -69,6 +70,13 @@ python skills/create-winning-proposal/scripts/test_proposal_gate.py -q
 python skills/create-best-proposal/scripts/test_best_proposal.py -q
 ```
 
+GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.12에서 같은
+스위트를 실행한다. `test_gate_hardening.py`는 게이트 허위 통과 회귀 테스트(노트·마스터·머리말
+미검사, run 분할 과장어, 문자열 불리언, draft audit의 SUBMISSION-READY 표시, cp949 콘솔 크래시 등)다.
+
+게이트 스크립트 공통 규약: exit 0=통과, 1=차단, 2=사용 오류·손상 파일·스키마 오류. audit JSON의
+불리언은 `true`/`false`만 유효하며 `"yes"` 같은 문자열은 INVALID다.
+
 ## 자료
 
 - [스킬 대조 분석과 상호 개선 반영](references/skill-comparison-and-improvements.md)
@@ -76,4 +84,4 @@ python skills/create-best-proposal/scripts/test_best_proposal.py -q
 - [관련 공개 Git 저장소](references/proposal-related-git-repositories.md)
 - [39개 저장소·Gist 정밀 분석](references/repository-deep-audit.md)
 - [10회 시뮬레이션과 개선 결과](references/simulation-report-10-runs.md)
-- [종류별 시뮬레이션 리포트](simulation/output/SIMULATION_REPORT.md)
+- 종류별 시뮬레이션 리포트: 로컬 `simulation/output/SIMULATION_REPORT.md`(저장소 미포함, `.gitignore`)

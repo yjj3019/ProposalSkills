@@ -1,5 +1,12 @@
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
-# Local simulation fixtures and generated proposal outputs
-simulation/
+# Local simulation fixtures and generated proposal outputs (repo root only)
+/simulation/
+/audit.json
+/quality.json
+/matrix.md
+/*.pptx
+/*.docx
+/*.xlsx
