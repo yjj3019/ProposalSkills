@@ -110,6 +110,25 @@ def xml_text(xml: str) -> str:
     return "\n".join(normalize_text(line) for line in text.split("\n") if line.strip())
 
 
+_CV_RE = re.compile(r"<c:v>(.*?)</c:v>", re.DOTALL)
+
+
+def chart_text(xml: str) -> str:
+    """차트 파트 전용 추출 — run(a:t)에 더해 캐시된 범주·계열 값(c:v)까지 읽는다.
+
+    차트에 제목이 있으면 a:t run이 존재해 xml_text가 run 경로만 타고, 범주·계열에
+    남은 이전 고객명(c:v)을 놓쳤다. 제목 유무와 무관하게 값까지 읽는다.
+    """
+    parts = [xml_text(xml)]
+    parts += [v for v in (normalize_text(m.group(1)) for m in _CV_RE.finditer(xml)) if v]
+    return "\n".join(p for p in parts if p.strip())
+
+
+# 확장자별 필수 파트 — 이름만 .pptx인 일반 ZIP을 "텍스트 없음"으로 통과시키지 않는다.
+REQUIRED_PARTS = {".pptx": "ppt/presentation.xml", ".docx": "word/document.xml",
+                  ".xlsx": "xl/workbook.xml"}
+
+
 def _num(name: str) -> str:
     m = re.search(r"(\d+)\.xml$", name)
     return m.group(1) if m else "?"
@@ -152,8 +171,13 @@ def extract_labeled_blocks(path: Path) -> list[tuple[str, str]]:
     suffix = path.suffix.lower()
     blocks: list[tuple[str, str]] = []
     with zipfile.ZipFile(path) as z:
-        def add(label: str, name: str) -> None:
-            text = xml_text(z.read(name).decode("utf-8", "ignore"))
+        required = REQUIRED_PARTS.get(suffix)
+        if required and required not in z.namelist():
+            raise KeyError(f"{required} 없음 — 유효한 {suffix} 패키지가 아니다"
+                           " (확장자만 바꾼 ZIP은 검사 대상이 아니다)")
+
+        def add(label: str, name: str, extract=xml_text) -> None:
+            text = extract(z.read(name).decode("utf-8", "ignore"))
             if text.strip():
                 blocks.append((label, text))
 
@@ -167,7 +191,7 @@ def extract_labeled_blocks(path: Path) -> list[tuple[str, str]]:
             for n in _sorted_parts(z, r"ppt/slideMasters/slideMaster\d+\.xml$"):
                 add(f"마스터 {_num(n)}", n)
             for n in _sorted_parts(z, r"ppt/charts/chart\d+\.xml$"):
-                add(f"차트 {_num(n)}", n)
+                add(f"차트 {_num(n)}", n, chart_text)
             for n in sorted(n for n in z.namelist() if re.match(r"ppt/comments/.*\.xml$", n)):
                 add("주석", n)
             core = "docProps/core.xml"

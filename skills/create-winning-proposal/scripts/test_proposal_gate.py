@@ -18,7 +18,8 @@ def ready_data():
                           "evidence_refs": ["proposal.md#3.1"]}],
         "eligibility": [{"id": "E1", "criterion": "3억 실적", "mandatory": True,
                          "met": True, "curable": True}],
-        "claims": [{"id": "C1", "kind": "commitment", "status": "supported", "owner_approved": True}],
+        "claims": [{"id": "C1", "kind": "commitment", "status": "supported", "owner_approved": True,
+                    "evidence_refs": ["성능시험 보고서 2026-04"]}],
         "unresolved_tokens": [],
         "attachments": [{"name": "form", "required": True, "present": True}],
         "source_conflicts": [],
@@ -27,11 +28,11 @@ def ready_data():
         "checks": {"consistency": True, "arithmetic": True, "submission": True},
         "artifact_required": True,
         "render": {
-            "verified": True, "artifact_hash": "sha256:test", "tool": "renderer-v1",
+            "verified": True, "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tool": "renderer-v1",
             "evidence": ["all pages reviewed"],
         },
         "package": {
-            "required": True, "inspected": True, "artifact_hash": "sha256:test",
+            "required": True, "inspected": True, "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "tool": "ooxml-check-v1", "checks": {
                 "metadata": "pass", "notes": "pass", "comments": "pass",
                 "hidden-content": "pass", "embedded-files": "not-applicable",
@@ -144,7 +145,9 @@ class ProposalGateTests(unittest.TestCase):
     def test_real_evidence_containing_na_word_is_fine(self):
         data = ready_data()
         data["requirements"][0]["evidence_refs"] = ["proposal.pptx#slide12 (SLA table, sha256:ab12)"]
-        data["render"]["artifact_hash"] = "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        digest = "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        data["render"]["artifact_hash"] = digest
+        data["package"]["artifact_hash"] = digest
         self.assertEqual(evaluate(data), [])
 
     def test_help_and_unknown_flag(self):
@@ -255,8 +258,9 @@ class ProposalGateTests(unittest.TestCase):
             render={"verified": False},
         )
         failures = evaluate(data)
-        self.assertEqual(len(failures), 10)
+        self.assertEqual(len(failures), 11)
         self.assertIn("requirement R1 is not approved", failures)
+        self.assertIn("render.artifact_hash must be a sha256 digest for submission (got None)", failures)
 
 
     # --- #6 종합 개선: 규제/제조사 확약 게이트 (후방호환) ---

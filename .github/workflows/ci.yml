@@ -34,10 +34,34 @@ jobs:
         shell: bash
         run: |
           set -e
-          python skills/create-best-proposal/scripts/unified_gate.py skills/create-best-proposal/fixtures/audit_ready_financial.json --no-explain | grep -q "STATUS: SUBMISSION-READY"
-          if python skills/create-best-proposal/scripts/unified_gate.py skills/create-best-proposal/fixtures/audit_decision_memo.json --no-explain; then exit 1; fi
+          GATE=skills/create-best-proposal/scripts/unified_gate.py
+          READY=skills/create-best-proposal/fixtures/audit_ready_financial.json
+          # 문서 없이 audit만 → AUDIT-VALID (제출 준비로 승격하지 않는다)
+          python "$GATE" "$READY" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
+          # 제출 모드인데 문서를 주지 않으면 차단
+          if python "$GATE" "$READY" --no-explain; then exit 1; fi
+          # 실제 파일과 해시가 일치할 때만 SUBMISSION-READY
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import hashlib, json, sys, zipfile
+          from pathlib import Path
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          doc = tmp / "final.pptx"
+          with zipfile.ZipFile(doc, "w") as z:
+              z.writestr("ppt/presentation.xml", "<p:presentation/>")
+              z.writestr("ppt/slides/slide1.xml", "<a:p><a:r><a:t>정상 문서</a:t></a:r></a:p>")
+          data = json.loads(audit_path.read_text(encoding="utf-8"))
+          digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
+          data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest
+          (tmp / "bound.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          PY
+          python "$GATE" "${RUNNER_TEMP}/bound.json" --doc "${RUNNER_TEMP}/final.pptx" --no-explain | grep -q "STATUS: SUBMISSION-READY"
+          # 검토 이후 바뀐 파일에는 과거 판정을 재사용하지 못한다
+          printf 'drift' >> "${RUNNER_TEMP}/final.pptx"
+          if python "$GATE" "${RUNNER_TEMP}/bound.json" --doc "${RUNNER_TEMP}/final.pptx" --no-explain; then exit 1; fi
+          if python "$GATE" "${RUNNER_TEMP}/bound.json" --stage draft --no-explain; then exit 1; fi
+          if python "$GATE" skills/create-best-proposal/fixtures/audit_decision_memo.json --no-explain; then exit 1; fi
           python skills/create-best-proposal/scripts/build_audit_from_meta.py skills/create-best-proposal/fixtures/meta_sample.json -o "${RUNNER_TEMP}/audit.json"
-          python score_completeness.py skills/create-best-proposal/fixtures/audit_ready_financial.json | grep -q '"status": "SUBMISSION-READY"'
+          python score_completeness.py "$READY" | grep -q '"status": "AUDIT-VALID"'
       - name: Deck pipeline golden
         shell: bash
         run: |
@@ -48,7 +72,8 @@ jobs:
         shell: bash
         run: |
           python install_skill.py --dest "${RUNNER_TEMP}/skills" --all
-          python "${RUNNER_TEMP}/skills/create-best-proposal/scripts/unified_gate.py" skills/create-best-proposal/fixtures/audit_ready_financial.json --no-explain
+          python "${RUNNER_TEMP}/skills/create-best-proposal/scripts/unified_gate.py" skills/create-best-proposal/fixtures/audit_ready_financial.json --audit-only --no-explain
+          python "${RUNNER_TEMP}/skills/create-best-proposal/scripts/score_completeness.py" skills/create-best-proposal/fixtures/audit_ready_financial.json > /dev/null
       - name: Markdown link check
         shell: bash
         run: |

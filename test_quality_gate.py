@@ -10,6 +10,8 @@ from quality_gate import read_names, run, blocking  # noqa: E402
 
 def pptx(path: Path, texts: dict[int, str], extra: str = "") -> None:
     with zipfile.ZipFile(path, "w") as z:
+        # 유효한 PPTX 패키지의 최소 요건(없으면 quality_gate가 사용 오류로 거절한다).
+        z.writestr("ppt/presentation.xml", "<p:presentation/>")
         for number, text in texts.items():
             z.writestr(f"ppt/slides/slide{number}.xml", f"<p><t>{text}</t>{extra}</p>")
 

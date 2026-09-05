@@ -17,8 +17,8 @@ Create every top-level field; do not omit empty arrays.
   "defects": [{"id": "D1", "severity": "major", "status": "closed", "closure_evidence": ["sha256:fixed", "page 12 rechecked"], "reviewer": "QA lead", "closed_at": "2026-07-19T12:00:00+09:00", "reverified_scope": ["R1", "page 12"]}],
   "checks": {"consistency": true, "arithmetic": true, "submission": true},
   "artifact_required": true,
-  "render": {"verified": true, "artifact_hash": "sha256:proposal", "tool": "renderer version", "evidence": ["all pages reviewed"]},
-  "package": {"required": true, "inspected": true, "artifact_hash": "sha256:proposal", "tool": "package inspector version", "checks": {"metadata": "pass", "notes": "pass", "comments": "pass", "hidden-content": "pass", "embedded-files": "not-applicable", "external-links": "pass", "macros": "not-applicable", "stale-customer-data": "pass", "price-leakage": "pass"}, "reviewer": "QA lead"},
+  "render": {"verified": true, "artifact_hash": "sha256:<64 hex>", "tool": "renderer version", "evidence": ["all pages reviewed"]},
+  "package": {"required": true, "inspected": true, "artifact_hash": "sha256:<64 hex>", "tool": "package inspector version", "checks": {"metadata": "pass", "notes": "pass", "comments": "pass", "hidden-content": "pass", "embedded-files": "not-applicable", "external-links": "pass", "macros": "not-applicable", "stale-customer-data": "pass", "price-leakage": "pass"}, "reviewer": "QA lead"},
   "submission": {"cleared": true, "rehearsal_evidence": ["test upload opened"], "receipt_plan": "save portal confirmation", "receipt_evidence": []},
   "flags": {"financial": false},
   "regulatory_checks": [{"id": "REG1", "requirement": "전자금융 감독규정(망분리)", "status": "met", "evidence": ["점검 확인서"], "owner": "보안담당"}],
@@ -60,7 +60,29 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 
 - **근거 필수(evidence)**: 필수 requirement가 `state: approved`이면 비어있지 않은
   `evidence_refs: []`(제안서 위치·산출물 해시 등)가 반드시 있어야 한다. 근거 없는
-  승인 자기선언은 차단된다.
+  승인 자기선언은 차단된다. submission 모드에서는 `claims[]`도 같다 —
+  `status: supported|qualified`인 material·commitment 주장에 `evidence_refs`가 없으면 차단.
+- **검토 상태 ≠ 준수 상태**: `state`(검토가 어디까지 왔는가)와 `support`/`fit`(요구를
+  충족하는가)은 다른 축이다. `support: X`(또는 `미지원`)이거나 `fit: GAP`인 항목을
+  `state: approved`로 두면 차단된다 — "미지원임을 검토자가 확인했다"가 "충족했다"로
+  승격되지 않는다. 발주처가 허용한 예외만 인정하며, 그때는
+  `exception: {granted_by, evidence: []}`를 기록한다.
+- **응답 위치 ≠ 근거**: 조견표의 응답 위치는 `response_refs`에 넣는다. `evidence_refs`는
+  주장을 뒷받침하는 출처(확인서·시험성적서·제조사 회신)다. `bulk_matrix.py`도 두 필드를
+  분리해 생성한다 — `slide:99`가 사실의 증거로 승격되지 않는다.
+- **산출물 해시 결속(artifact binding)**: submission 모드에서 `artifact_required: true`이면
+  `render.artifact_hash`와 `package.artifact_hash`는 실제 sha256 값(`sha256:<64 hex>`)이어야
+  하고 서로 같아야 한다. 문자열 라벨(`sha256:proposal`)은 차단된다. 판정은
+  `unified_gate.py --doc <최종파일>`로 받으며, 전달한 파일의 해시가 audit의 해시와 다르면
+  차단된다(검토 이후 바뀐 파일에 과거 판정을 재사용할 수 없다). 문서 없이 audit만
+  점검하려면 `--audit-only`를 쓰고, 이때 최선의 결과는 `SUBMISSION-READY`가 아니라
+  `AUDIT-VALID`다.
+- **단계 강제(stage)**: `mode: submission` audit은 `--stage submission`으로만 검사한다.
+  `--stage draft`로 낮춰 `[NEEDS INPUT]`을 경고로 만드는 우회는 사용 오류(exit 2)다.
+- **시뮬레이션 산출물**: `artifact_mode: simulation-only`는 `mode: submission`과 함께 쓸 수
+  없다 — 내부 확인용 산출물은 외부 제출 준비 상태로 승격되지 않는다.
+- **ID 무결성**: `requirements[]`·`claims[]`의 각 항목에는 비어 있지 않은 고유 `id`가 있어야
+  한다. ID를 지워 원장을 익명화하거나 중복 ID로 근거를 뒤섞을 수 없다.
 - **마감일 검증(deadline)**: `submission.deadline`은 timezone 포함 ISO-8601. submission
   모드는 필수이며, 기준 현재시각(`PROPOSAL_GATE_NOW`로 주입 가능, 기본 UTC now)보다
   과거이면 차단한다. 만료된 RFP를 `cleared: true`로 통과시킬 수 없다.

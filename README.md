@@ -68,9 +68,9 @@ python skills/create-best-proposal/scripts/build_audit_from_meta.py meta.json -o
 # 유형 C 대량 조견표
 python skills/create-best-proposal/scripts/bulk_matrix.py requirements.json -o matrix.md
 
-# 통합 게이트 (audit + 선택 문서)
-python skills/create-best-proposal/scripts/unified_gate.py audit.json
+# 통합 게이트 (audit + 실제 문서 해시 대조)
 python skills/create-best-proposal/scripts/unified_gate.py audit.json --doc 제안서.pptx --stage submission
+python skills/create-best-proposal/scripts/unified_gate.py audit.json --audit-only   # 문서 없이 audit만 → AUDIT-VALID
 
 # 완성도 2축
 python skills/create-best-proposal/scripts/score_completeness.py audit.json   # 루트 score_completeness.py도 동일

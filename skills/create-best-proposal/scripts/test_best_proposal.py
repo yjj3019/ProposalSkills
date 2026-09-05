@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import zipfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -101,21 +102,18 @@ class BulkMatrixTests(unittest.TestCase):
 
 
 class UnifiedGateTests(unittest.TestCase):
-    def _run_unified(self, audit: Path, extra: list[str] | None = None) -> subprocess.CompletedProcess:
-        cmd = [sys.executable, str(SCRIPT_DIR / "unified_gate.py"), str(audit)]
-        if extra:
-            cmd.extend(extra)
+    def _run_unified(self, audit: Path, *extra: str) -> subprocess.CompletedProcess:
+        cmd = [sys.executable, str(SCRIPT_DIR / "unified_gate.py"), str(audit), *extra]
         return subprocess.run(
             cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
             cwd=str(REPO_ROOT),
         )
 
     def test_financial_ready_fixture(self):
-        proc = self._run_unified(FIXTURES / "audit_ready_financial.json")
+        # 문서 없이 제출 판정을 받을 수 없다 — audit만 볼 때는 AUDIT-VALID다.
+        proc = self._run_unified(FIXTURES / "audit_ready_financial.json", "--audit-only")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        self.assertTrue(
-            "STATUS: READY" in proc.stdout or "STATUS: SUBMISSION-READY" in proc.stdout,
-            proc.stdout)
+        self.assertIn("STATUS: AUDIT-VALID", proc.stdout)
 
     def test_decision_memo_no_bid(self):
         proc = self._run_unified(FIXTURES / "audit_decision_memo.json")
@@ -124,12 +122,23 @@ class UnifiedGateTests(unittest.TestCase):
             "DECISION_MEMO" in proc.stdout or "DECISION_MEMO_ONLY" in proc.stdout,
             proc.stdout)
 
-    def test_financial_ready_shows_submission_ready_alias(self):
-        proc = self._run_unified(FIXTURES / "audit_ready_financial.json")
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        self.assertTrue(
-            "SUBMISSION-READY" in proc.stdout or "STATUS: READY" in proc.stdout,
-            proc.stdout)
+    def test_submission_ready_needs_the_bound_document(self):
+        """SUBMISSION-READY는 실제 파일과 해시가 일치할 때만 나온다."""
+        import hashlib
+        data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as tmp:
+            doc = Path(tmp) / "final.pptx"
+            with zipfile.ZipFile(doc, "w") as z:
+                z.writestr("ppt/presentation.xml", "<p:presentation/>")
+                z.writestr("ppt/slides/slide1.xml", "<a:p><a:r><a:t>정상 문서</a:t></a:r></a:p>")
+            digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
+            data["render"]["artifact_hash"] = digest
+            data["package"]["artifact_hash"] = digest
+            audit = Path(tmp) / "bound.json"
+            audit.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            proc = self._run_unified(audit, "--doc", str(doc))
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertIn("SUBMISSION-READY", proc.stdout)
 
     def test_proposal_gate_financial_direct(self):
         gate = SKILLS_ROOT / "create-winning-proposal" / "scripts" / "proposal_gate.py"

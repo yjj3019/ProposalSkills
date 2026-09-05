@@ -190,7 +190,10 @@ def to_audit_requirements(rows: list[dict[str, str]]) -> list[dict]:
             "state": state,
             "text": r["text"] or r["item"],
             "support": r["support"],
-            "evidence_refs": [r["response_loc"]] if r["response_loc"] else [],
+            # 응답 위치(어디에 썼는지)는 근거(무엇으로 뒷받침하는지)가 아니다. 같은
+            # 필드에 넣으면 승격할 때 'slide:99'가 사실의 증거로 오인된다.
+            "response_refs": [r["response_loc"]] if r["response_loc"] else [],
+            "evidence_refs": [],
             "rationale": r["note"],
         }
         if r.get("fit"):
