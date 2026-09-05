@@ -64,7 +64,24 @@ python skills/create-proposal-document/scripts/build_deck.py slides.json -o 제�
 # 레이아웃 린트(리드문·REQ-ID·페이지 수·최소 폰트) + LibreOffice 렌더 + audit용 render 블록
 python skills/create-proposal-document/scripts/deck_check.py 제안서.pptx --max-pages 40 \
   --exclude-cover-toc --require-req-ids --render --png-dir out/png --emit-render render.json
+# 발표본은 같은 내용으로 규격만 바꿔 생성한다(폰트·밀도·분할이 함께 바뀐다)
+python skills/create-proposal-document/scripts/build_deck.py slides.json -o 발표본.pptx --profile presentation
 ```
+
+산출물 종류에 따라 규격이 달라집니다. `--profile presentation|executive-summary|detailed-submission`
+(또는 `meta.output_profile`)로 고르면 폰트·밀도·표 행 수·조견표 분할이 함께 바뀝니다.
+
+| 프로파일 | 용도 | 본문 | 장표당 텍스트 | 조견표 |
+|---|---|---|---|---|
+| `detailed-submission`(기본) | 인쇄·PDF 채점용 상세본 | 11pt | 600자 | 12행 |
+| `presentation` | 회의실 스크린 발표본 | 18pt | 250자 | 6행 |
+| `executive-summary` | 임원 의사결정 요약본 | 14pt | 400자 | 9행 |
+
+규격은 `deck_profiles.py` 한 곳에만 있고 생성기와 검사기가 같이 읽습니다(폰트·밀도·행 수가
+두 도구에서 갈리지 않습니다). 생성된 PPTX에는 어떤 규격으로 만들었는지 표시가 남아
+`deck_check.py`가 인자 없이도 같은 기준으로 검사합니다. **표시가 없거나 이 버전이 모르는
+값이면 제출 단계에서 차단합니다** — 외부에서 만든 덱은 `--profile`로 기준을 명시해야 합니다
+(가장 느슨한 기본값으로 조용히 통과시키지 않습니다). 발주처 양식이 있으면 그 규격이 우선합니다.
 
 제작기 안전장치: 슬라이드가 남아 있는 템플릿은 **거부**합니다(이전 고객명·금액이 그대로 남고
 페이지 수가 어긋납니다 — 마스터·레이아웃만 있는 빈 템플릿을 씁니다). `rows_per_slide`는 양의
@@ -172,6 +189,8 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
   audit→unified_gate 전 구간 고정.
 - `test_gate_integrity.py` — 산출물 해시 결속, 판정 단일화, 스키마 유실, 근거·준수 분리,
   차트 범주값 추출. 정상 대조군을 함께 둬서 과민 차단도 잡는다.
+- `test_output_profiles.py` — 프로파일별 폰트·밀도 차이, 파일 표시 왕복, 생성기·검사기가
+  같은 정의를 읽는지(드리프트 재발 방지).
 - `test_numbers_ledger.py` — 합계·비율 재계산, 원장 없는 arithmetic 자기선언 차단,
   문서 대조(한글 표기 변형·숫자 경계).
 - `test_gate_integrity2.py` — 검증 의무 우회(`artifact_required:false`), 열리지 않는 패키지,

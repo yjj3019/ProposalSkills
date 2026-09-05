@@ -131,6 +131,13 @@ jobs:
           SPEC=skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json
           if python "$BUILD" "$SPEC" -o "${RUNNER_TEMP}/x.pptx" --template "${RUNNER_TEMP}/dirty_template.pptx"; then exit 1; fi
           if python "$BUILD" "${RUNNER_TEMP}/bad_rows.json" -o "${RUNNER_TEMP}/y.pptx"; then exit 1; fi
+          # 산출물 프로파일: 각자 자기 기준으로는 통과, 상세본을 발표 기준으로 재면 차단
+          for P in detailed-submission presentation executive-summary; do
+            python "$BUILD" "$SPEC" -o "${RUNNER_TEMP}/deck_$P.pptx" --profile "$P"
+            python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/deck_$P.pptx"
+          done
+          if python skills/create-proposal-document/scripts/deck_check.py \
+               "${RUNNER_TEMP}/deck_detailed-submission.pptx" --profile presentation; then exit 1; fi
           # 원장 수치가 장표에 실제로 있는지 대조한다(골든은 일치, 낡은 값은 차단)
           CHECK=skills/create-proposal-document/scripts/check_numbers.py
           META=skills/create-proposal-document/fixtures/e2e-mini-rfp/meta.json
