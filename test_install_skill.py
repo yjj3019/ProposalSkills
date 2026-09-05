@@ -75,6 +75,8 @@ class InstallSkillSimulations(unittest.TestCase):
             [sys.executable, str(Path(__file__).with_name("install_skill.py")), "--dest", str(self.root)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Installed:", result.stdout)

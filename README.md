@@ -78,6 +78,9 @@ python skills/create-best-proposal/scripts/score_completeness.py audit.json   # 
 
 ## 테스트
 
+로컬 실행 전 `pip install python-pptx`(CI는 자동 설치). 없으면 `test_deck_pipeline.py`가
+`ModuleNotFoundError: No module named 'pptx'`로 실패한다 — 코드 결함이 아니라 의존성 누락이다.
+
 ```bash
 cd ProposalSkills
 python -m unittest discover -s . -p "test_*.py" -q

@@ -193,7 +193,7 @@ def render(pptx: Path, png_dir: Path | None) -> tuple[list[str], dict]:
     with tempfile.TemporaryDirectory() as tmp:
         try:
             proc = subprocess.run([soffice, "--headless", "--convert-to", "pdf", "--outdir", tmp, str(pptx)],
-                                  capture_output=True, text=True, timeout=240)
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240)
         except (subprocess.TimeoutExpired, OSError) as exc:
             items.append(f"[차단] 렌더 실패: {exc}")
             return items, evidence
@@ -201,12 +201,14 @@ def render(pptx: Path, png_dir: Path | None) -> tuple[list[str], dict]:
         if proc.returncode != 0 or not pdf.is_file():
             items.append(f"[차단] 렌더 실패(soffice exit {proc.returncode}): {(proc.stderr or proc.stdout).strip()[:200]}")
             return items, evidence
-        ver = subprocess.run([soffice, "--version"], capture_output=True, text=True).stdout.strip()
+        ver = subprocess.run([soffice, "--version"], capture_output=True, text=True,
+                             encoding="utf-8", errors="replace").stdout.strip()
         evidence["tool"] = ver or "libreoffice"
         pages = None
         pdfinfo = shutil.which("pdfinfo")
         if pdfinfo:
-            out = subprocess.run([pdfinfo, str(pdf)], capture_output=True, text=True).stdout
+            out = subprocess.run([pdfinfo, str(pdf)], capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace").stdout
             m = re.search(r"Pages:\s+(\d+)", out)
             pages = int(m.group(1)) if m else None
         if pages is None:
