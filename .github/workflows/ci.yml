@@ -90,6 +90,22 @@ jobs:
           (tmp / "bad_sum.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           if python "$GATE" "${RUNNER_TEMP}/bad_sum.json" --audit-only --no-explain; then exit 1; fi
+          # 공공 제안: 평가표가 없거나 대응 요구 없는 배점이 있으면 차단된다
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          data = json.loads(audit_path.read_text(encoding="utf-8"))
+          data["context"] = {"buyer_types": ["public"], "stage": "final-submission"}
+          (tmp / "public_no_criteria.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          data["evaluation_criteria"] = [{"id": "C1", "label": "기술", "weight": 100}]
+          (tmp / "public_orphan_criterion.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          data["requirements"][0]["criterion_ids"] = ["C1"]
+          (tmp / "public_ok.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          PY
+          if python "$GATE" "${RUNNER_TEMP}/public_no_criteria.json" --audit-only --no-explain; then exit 1; fi
+          if python "$GATE" "${RUNNER_TEMP}/public_orphan_criterion.json" --audit-only --no-explain; then exit 1; fi
+          python "$GATE" "${RUNNER_TEMP}/public_ok.json" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
           # 원장이 없으면 제출 모드에서 arithmetic 자기선언만으로 통과하지 못한다
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import json, sys
