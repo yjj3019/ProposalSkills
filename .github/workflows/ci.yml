@@ -51,7 +51,9 @@ jobs:
           doc = tmp / "final.pptx"
           prs = Presentation()
           slide = prs.slides.add_slide(prs.slide_layouts[6])
-          slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(1)).text_frame.text = "정상 문서"
+          # 양성 대조군은 audit 원장(37억)과 같은 금액을 담아야 한다 — 통합 게이트가 수치를 대조한다.
+          slide.shapes.add_textbox(Inches(1), Inches(1), Inches(9), Inches(1)).text_frame.text = (
+              "정상 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
           prs.save(str(doc))
           data = json.loads(audit_path.read_text(encoding="utf-8"))
           digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
@@ -140,6 +142,64 @@ jobs:
           for BAD in no_context no_profile rfi_commitment; do
             if python "$GATE" "${RUNNER_TEMP}/$BAD.json" --audit-only --no-explain; then exit 1; fi
           done
+          # 제출 묶음: 익명본 미검사·가격 별책 해시 불일치는 대표 파일이 정상이어도 차단된다
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          from pptx import Presentation
+          from pptx.util import Inches
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          bundle = tmp / "bundle"; bundle.mkdir(exist_ok=True)
+          def deck(path, text):
+              prs = Presentation()
+              s = prs.slides.add_slide(prs.slide_layouts[6])
+              s.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(1)).text_frame.text = text
+              prs.save(str(path)); return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+          named = deck(bundle / "named.pptx", "기명본 총 사업비 37억원")
+          price = deck(bundle / "price.xlsx.pptx", "가격서 37억원")
+          base = json.loads(audit_path.read_text(encoding="utf-8"))
+          ok = json.loads(json.dumps(base))
+          ok["attachments"] = [
+              {"name": "named.pptx", "present": True, "role": "proposal",
+               "sha256": named, "price_screened": True},
+              {"name": "price.xlsx.pptx", "present": True, "role": "price", "sha256": price}]
+          (tmp / "bundle_ok.json").write_text(json.dumps(ok, ensure_ascii=False), encoding="utf-8")
+          bad = json.loads(json.dumps(ok))
+          bad["attachments"].append({"name": "anon.pptx", "present": True,
+                                     "role": "proposal-anonymous", "sha256": named})
+          (tmp / "bundle_anon.json").write_text(json.dumps(bad, ensure_ascii=False), encoding="utf-8")
+          drift = json.loads(json.dumps(ok))
+          drift["attachments"][1]["sha256"] = "sha256:" + "c" * 64
+          (tmp / "bundle_drift.json").write_text(json.dumps(drift, ensure_ascii=False), encoding="utf-8")
+          PY
+          python "$GATE" "${RUNNER_TEMP}/bundle_ok.json" --audit-only --bundle "${RUNNER_TEMP}/bundle" --no-explain | grep -q "STATUS: AUDIT-VALID"
+          for BAD in bundle_anon bundle_drift; do
+            if python "$GATE" "${RUNNER_TEMP}/$BAD.json" --audit-only --bundle "${RUNNER_TEMP}/bundle" --no-explain; then exit 1; fi
+          done
+          # 원장 수치가 장표와 다르면 해시가 맞아도 제출 판정이 아니다(통합 게이트가 직접 대조)
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          from pptx import Presentation
+          from pptx.util import Inches
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          def deck(path, text):
+              prs = Presentation()
+              s = prs.slides.add_slide(prs.slide_layouts[6])
+              s.shapes.add_textbox(Inches(1), Inches(1), Inches(9), Inches(1)).text_frame.text = text
+              prs.save(str(path)); return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+          LEDGER = "총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"
+          good = deck(tmp / "numbers_ok.pptx", "정상 문서 " + LEDGER)
+          stale = deck(tmp / "numbers_stale.pptx", "총 사업비 40억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
+          base = json.loads(audit_path.read_text(encoding="utf-8"))
+          for name, digest in (("numbers_ok", good), ("numbers_stale", stale)):
+              d = json.loads(json.dumps(base))
+              d["render"]["artifact_hash"] = d["package"]["artifact_hash"] = digest
+              (tmp / f"{name}.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          PY
+          python "$GATE" "${RUNNER_TEMP}/numbers_ok.json" --doc "${RUNNER_TEMP}/numbers_ok.pptx" --no-explain | grep -q "STATUS: SUBMISSION-READY"
+          if python "$GATE" "${RUNNER_TEMP}/numbers_stale.json" --doc "${RUNNER_TEMP}/numbers_stale.pptx" --no-explain; then exit 1; fi
+          if python "$GATE" "${RUNNER_TEMP}/numbers_ok.json" --doc "${RUNNER_TEMP}/numbers_ok.pptx" --skip-numbers --no-explain; then exit 1; fi
           python score_completeness.py "$READY" | grep -q '"status": "AUDIT-VALID"'
       - name: Deck pipeline golden
         shell: bash

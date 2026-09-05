@@ -112,7 +112,11 @@ python skills/create-best-proposal/scripts/unified_gate.py audit.json --doc 제�
 python skills/create-best-proposal/scripts/unified_gate.py audit.json --audit-only   # 문서 없이 audit만 → AUDIT-VALID
 
 # 원장 수치 ↔ 문서 대조 (37억 / 3,700,000,000 표기 변형 인식)
+# — unified_gate --doc 경로에서 자동으로 함께 돈다. 아래는 단독 실행용.
 python skills/create-proposal-document/scripts/check_numbers.py 제안서.pptx --audit audit.json
+
+# 제출 묶음 전체 대조(기명본·익명본·가격 별책이 audit의 해시와 같은지)
+python skills/create-best-proposal/scripts/unified_gate.py audit.json --doc 제안서.pptx --bundle 제출본/
 
 # 완성도 2축
 python skills/create-best-proposal/scripts/score_completeness.py audit.json   # 루트 score_completeness.py도 동일
@@ -185,6 +189,14 @@ python .../unified_gate.py audit.json --doc 제안서.pptx --stage submission
   인정하며(노트·레이아웃·마스터에만 있는 값은 차단), 소수·단위·부호를 구분합니다 —
   `37.5개월`은 `37`의 근거가 아니고, `37개월`은 `37원`의 근거가 아닙니다. 금액 합계는 상대
   오차가 아니라 1원 단위 절대 오차로 검산합니다.
+- **제출은 파일 하나가 아닙니다.** `attachments[]`에 역할(`role`)을 적으면 그 역할의 규칙이
+  붙습니다 — 익명 사본은 식별정보 검사 기록(`anonymity_checked`)과 검토자가, 가격을 담으면
+  안 되는 산출물은 가격 혼입 검사 기록(`price_screened`)이 필요하고, 제출하는 첨부에는 모두
+  `sha256`이 있어야 합니다. `unified_gate.py --bundle <폴더>`가 각 첨부를 실제 파일과 대조하므로,
+  검토 뒤 바뀐 첨부나 빠진 가격 별책이 대표 파일 하나의 해시를 우회하지 못합니다.
+- **원장 수치 대조가 통합 게이트에 들어 있습니다.** `--doc`으로 문서를 주면 `check_numbers`가
+  자동으로 돌아, 원장의 금액·기간·수량이 그 문서 본문에 실제로 있는지 확인합니다. 해시가 맞아도
+  장표에 옛 금액이 남아 있으면 차단됩니다. `--skip-numbers`는 제출 판정에서 통과가 아닙니다.
 - **렌더 성공과 육안 승인은 다른 사실입니다.** 제출 모드는 `render.visual_review_approved`와
   `visual_reviewer`를 요구합니다. `deck_check.py`는 이 값을 항상 `false`로 기록하고, 썸네일을
   본 사람이 직접 바꿉니다. PDF 변환이 됐다는 것은 디자인 승인이 아닙니다.
@@ -241,6 +253,8 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
   문자열이 커밋되지 않았는지, 픽스처 발주처가 가상 표기인지.
 - `test_rfx_rules.py` — 공개 RFx에서 확인한 평가 구조(가격 별책·계층 배점·과락·미공개)를 합성
   데이터로 재현, 요구 강도, RFI 응답 규칙. 원문은 싣지 않는다.
+- `test_submission_bundle.py` — 역할별 첨부 규칙(익명 사본·가격 별책·중복 역할), `--bundle`
+  해시 대조, 통합 게이트의 원장↔문서 수치 대조.
 
 OOXML 픽스처는 `ooxml_fixtures.py` 한 곳에서 만든다. 각 테스트가 zipfile로 조립하다 보니 필수
 파트가 빠진 '열리지 않는 파일'이 양성 대조군으로 쓰였기 때문이다 — 실제 로더로 열리는지까지

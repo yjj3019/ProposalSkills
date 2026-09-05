@@ -103,6 +103,22 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   각 요구는 `requirements[].criterion_ids`로 **말단** 배점 항목에 연결하며, 대응 요구가 없는 말단
   항목은 차단한다(목차가 통째로 빠진 신호). `reading_mode`가 규격을 기대하는데
   `render.output_profile`이 **없거나** 다르면 제출 모드에서 차단한다(누락 = 미검사).
+- **제출 묶음(attachments)**: `{name, required?, present?, role?, file?, format?, sha256?,
+  copies?, channel?, anonymity_checked?, price_screened?, reviewer?}`. 제출은 파일 하나가 아니라
+  기명 원본·익명 사본·밀봉 가격서·별책 워크시트가 함께 나가고 파일마다 규칙이 다르다.
+  `role`(`proposal` | `proposal-anonymous` | `price` | `form` | `certificate` | `presentation` |
+  `appendix` | `other`)을 적으면 그 역할의 규칙이 붙는다 — 역할이 없으면 예전처럼 존재 여부만
+  본다(후방호환). 제출 모드에서 `present: true`인 항목은:
+  - `sha256`이 필요하다 — 묶음의 어느 바이트를 검사했는지 남긴다.
+  - `proposal-anonymous`이면 `anonymity_checked: true`와 `reviewer`가 필요하다. 본문뿐 아니라
+    노트·문서속성·파일명의 식별 표기를 검사하고(`quality_gate.py --names`), 로고·그림 속 표기는
+    사람이 확인한다. 익명 사본만 있고 기명 원본이 없으면 경고한다.
+  - `price`가 아닌 산출물은 `price_screened: true`가 필요하다 — 가격을 담으면 안 되는 기술본에
+    가격이 섞였는지 확인한 기록이다.
+  - `proposal`·`proposal-anonymous`·`price` 역할이 둘 이상이면 차단한다(어느 파일이 제출본인지
+    하나로 정한다).
+  `unified_gate.py --bundle <폴더>`는 각 첨부를 실제 파일과 해시 대조한다(`file`이 있으면 그
+  이름, 없으면 `name`). 검토 뒤 바뀌었거나 없는 첨부를 잡는다.
 - **요구 강도(requirements[].strength)**: `required` | `recommended` | `optional` | `conditional`
   | `informational`. 없으면 `mandatory`에서 유도한다(미기재 = `required`, fail-closed). 둘 다 있고
   서로 어긋나면 스키마 오류다. `conditional`은 `condition`(어떤 조건에서 필수가 되는가)이 필요하며

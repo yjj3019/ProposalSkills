@@ -53,6 +53,20 @@ def _find_quality_gate() -> Path | None:
     return None
 
 
+def _find_check_numbers() -> Path | None:
+    env = os.environ.get("CHECK_NUMBERS_PATH")
+    if env and Path(env).is_file():
+        return Path(env)
+    candidates = [
+        SKILLS_ROOT / "create-proposal-document" / "scripts" / "check_numbers.py",
+        SKILL_DIR / "vendor" / "check_numbers.py",
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+    return None
+
+
 def _load_gate_module(path: Path):
     import importlib.util
     spec = importlib.util.spec_from_file_location("proposal_gate_mod", path)
@@ -117,6 +131,52 @@ def classify(decision: str, failures: list[str]) -> tuple[str, int]:
     return "READY", 0
 
 
+def run_check_numbers(doc: Path, audit_path: Path) -> tuple[int, str]:
+    """원장 수치가 실제 문서 본문에 있는지 대조한다.
+
+    게이트는 원장 안의 합계·비율을 계산하지만, 그 값이 장표에 적힌 값과 같은지는 문서를
+    열어야 안다. 이 대조를 사람 손에 맡기면 원장과 장표가 갈린 채로 제출된다.
+    """
+    cn = _find_check_numbers()
+    if cn is None:
+        return 2, "check_numbers.py not found (install create-proposal-document " \
+                  "or set CHECK_NUMBERS_PATH; use install_skill.py --with-deps)"
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    proc = subprocess.run([sys.executable, str(cn), str(doc), "--audit", str(audit_path)],
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", env=env)
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+
+def verify_bundle(data: dict, root: Path) -> list[str]:
+    """제출 묶음의 각 첨부가 실제로 그 자리에 그 내용으로 있는지 확인한다.
+
+    audit의 attachments[]는 사람이 적은 기록이다. 파일이 그 사이에 바뀌었거나 아예 없는데
+    'present: true'로 남아 있으면, 대표 파일 하나만 해시로 묶어 둔 것으로는 잡히지 않는다.
+    """
+    problems: list[str] = []
+    for item in data.get("attachments", []):
+        if not isinstance(item, dict) or not item.get("present") is True:
+            continue
+        digest = item.get("sha256")
+        name = item.get("name") or "?"
+        if not isinstance(digest, str) or not digest.strip():
+            continue  # 스키마 검사가 별도로 요구한다
+        filename = item.get("file") or name
+        path = root / filename
+        if not path.is_file():
+            problems.append(f"bundle: 첨부 파일 없음 — {filename} (attachment {name}) "
+                            f"@ {root}")
+            continue
+        actual = "sha256:" + sha256_file(path)
+        if _norm_digest(digest) != _norm_digest(actual):
+            problems.append(
+                f"bundle: {filename}의 해시가 audit과 다르다 "
+                f"(audit {_norm_digest(digest)[:12]}… vs 파일 {_norm_digest(actual)[:12]}…) "
+                "— 검토 이후 이 파일이 바뀌었다")
+    return problems
+
+
 def run_quality_gate(doc: Path, stage: str, lang: str, names: Path | None,
                      palette: str | None) -> tuple[int, str]:
     qg = _find_quality_gate()
@@ -147,6 +207,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--lang", choices=["ko", "en", "both"], default="ko")
     ap.add_argument("--names", type=Path, help="Banned residual names file")
     ap.add_argument("--palette", help="Allowed hex palette comma-list")
+    ap.add_argument("--bundle", type=Path, metavar="DIR",
+                    help="제출 묶음이 있는 폴더. attachments[]의 file/name과 sha256을 실제 파일과 대조한다")
+    ap.add_argument("--skip-numbers", action="store_true",
+                    help="원장↔문서 수치 대조를 건너뛴다(대조 도구가 없는 환경 전용 — "
+                         "제출 판정에는 쓰지 않는다)")
     ap.add_argument("--explain", action=argparse.BooleanOptionalAction, default=True,
                     help="Print remediation markdown (default: on; --no-explain = labels only)")
     args = ap.parse_args(argv)
@@ -216,9 +281,38 @@ def main(argv: list[str] | None = None) -> int:
             print("BLOCKED: document quality_gate failed")
             return 1
         doc_failures = bind_document(data, args.doc)
+        # 원장 수치 ↔ 문서 대조. 원장이 있는데 대조하지 않으면 '검산 완료'가 다시
+        # 자기선언으로 돌아간다 — 그래서 문서를 받은 경로에서는 기본으로 돌린다.
+        numbers = data.get("numbers")
+        if isinstance(numbers, list) and numbers and not args.skip_numbers:
+            code, nout = run_check_numbers(args.doc, args.audit)
+            print("=== check_numbers ===")
+            print(nout.rstrip() or "(no output)")
+            if code == 2:
+                print("INVALID: check_numbers usage/dependency failure")
+                return 2
+            if code != 0:
+                doc_failures.append("원장 수치가 문서 본문과 일치하지 않는다 "
+                                    "— 위 check_numbers 결과를 해소한다")
+        elif isinstance(numbers, list) and numbers and args.skip_numbers:
+            print("=== check_numbers ===")
+            print("[NOT INSPECTED] --skip-numbers로 건너뜀 — 원장과 문서가 일치하는지 확인되지 않았다")
+            if audit_mode == "submission":
+                doc_failures.append("--skip-numbers는 제출 판정에 쓸 수 없다 "
+                                    "— 미검사는 통과가 아니다")
     elif audit_mode == "submission" and data.get("artifact_required") is True and not args.audit_only:
         doc_failures = ["제출 판정에는 실제 산출물이 필요하다 — --doc <최종파일>로 다시 실행한다 "
                         "(문서 없이 audit만 보려면 --audit-only)"]
+
+    if args.bundle:
+        if not args.bundle.is_dir():
+            print(f"INVALID: 묶음 폴더 없음: {args.bundle}", file=sys.stderr)
+            return 2
+        bundle_problems = verify_bundle(data, args.bundle)
+        print("=== bundle ===")
+        print("\n".join(f"- {p}" for p in bundle_problems)
+              or f"첨부 해시가 모두 일치한다 ({args.bundle})")
+        doc_failures.extend(bundle_problems)
 
     try:
         failures = mod.evaluate(data)

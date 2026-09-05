@@ -41,6 +41,14 @@ CLAIM_KINDS = {"material", "commitment", "informational"}
 # 요구 강도. 실제 공고는 필수/권장/선택/조건부/참고를 구분하는데 mandatory 불리언 하나로는
 # 권장 분량 초과와 필수 위반이 같은 무게가 된다. mandatory는 후방호환으로 남긴다.
 STRENGTHS = {"required", "recommended", "optional", "conditional", "informational"}
+# 제출 묶음. 한 파일이 아니라 여러 산출물이 함께 나가고, 파일마다 규칙이 다르다
+# (기명 원본 / 익명 사본 / 밀봉 가격서 / 별책 워크시트). 역할을 적어야 규칙이 붙는다.
+ATTACHMENT_ROLES = {"proposal", "proposal-anonymous", "price", "form", "certificate",
+                    "presentation", "appendix", "other"}
+# 익명 제출본 — 제출자를 식별할 수 있는 표기가 남으면 즉시 탈락 사유다.
+ANONYMOUS_ROLES = {"proposal-anonymous"}
+# 가격을 담아도 되는 역할. 기술본에 가격이 섞이면 실격인 공고가 많다.
+PRICE_ROLES = {"price"}
 MANDATORY_STRENGTHS = {"required", "conditional"}
 STRENGTH_OF_MANDATORY = {True: "required", False: "optional"}
 
@@ -477,6 +485,76 @@ def validate_context(context: object) -> list[str]:
     return failures
 
 
+def check_attachments(data: dict) -> list[str]:
+    """제출 묶음 원장. 제출은 파일 하나가 아니라 여러 산출물이 함께 나간다.
+
+    항목 = {name, required?, present?, role?, format?, sha256?, copies?, channel?,
+            anonymity_checked?, price_screened?, reviewer?}
+    역할(role)을 적으면 그 역할의 규칙이 붙는다 — 익명 사본은 식별정보 검사 기록이
+    필요하고, 가격을 담으면 안 되는 산출물은 가격 혼입 검사 기록이 필요하다. 역할이
+    없으면 예전처럼 존재 여부만 본다(후방호환).
+    """
+    items = data.get("attachments")
+    if not isinstance(items, list):
+        return []
+    mode = data.get("mode")
+    failures: list[str] = []
+    roles: dict[str, list[str]] = {}
+    for i, item in enumerate(items):
+        if not isinstance(item, dict):
+            failures.append(f"attachments[{i}] must be an object")
+            continue
+        name = item.get("name") or f"attachments[{i}]"
+        if item.get("required", True) is not False and not _true(item.get("present")):
+            failures.append(f"missing attachment: {name}")
+        role = item.get("role")
+        if role is not None:
+            if not _enum_ok(role, ATTACHMENT_ROLES):
+                failures.append(f"attachment {name} has unsupported role: {role!r} "
+                                f"(allowed: {', '.join(sorted(ATTACHMENT_ROLES))})")
+                continue
+            roles.setdefault(role, []).append(name)
+        digest = item.get("sha256")
+        if digest is not None and not is_digest(digest):
+            failures.append(f"attachment {name} sha256 must be a sha256 digest (got {digest!r})")
+        for field in ("format", "channel", "reviewer"):
+            if field in item and not isinstance(item[field], str):
+                failures.append(f"attachment {name} {field} must be a string")
+        copies = item.get("copies")
+        if copies is not None and (not isinstance(copies, int) or isinstance(copies, bool) or copies < 1):
+            failures.append(f"attachment {name} copies must be a positive integer (got {copies!r})")
+        if mode != "submission" or not _true(item.get("present")) or role is None:
+            continue
+        # 제출하는 파일에는 그 역할의 검사 기록이 있어야 한다. 기록이 없으면 미검사다.
+        if role in ANONYMOUS_ROLES:
+            if not _true(item.get("anonymity_checked")):
+                failures.append(
+                    f"attachment {name} is an anonymous copy but anonymity_checked is not true "
+                    "— 본문뿐 아니라 노트·문서속성·파일명의 식별 표기를 검사한다"
+                    "(quality_gate.py --names)")
+            if _is_placeholder(item.get("reviewer")):
+                failures.append(f"attachment {name} is an anonymous copy without a reviewer "
+                                "— 로고·그림 속 표기는 사람이 확인한다")
+        if role not in PRICE_ROLES and not _true(item.get("price_screened")):
+            failures.append(
+                f"attachment {name} lacks a price screening record (price_screened) "
+                "— 가격을 담으면 안 되는 산출물에 가격이 섞였는지 확인한다")
+        if item.get("sha256") is None:
+            failures.append(f"attachment {name} is submitted without a sha256 "
+                            "— 묶음의 어느 바이트를 검사했는지 남긴다")
+    if mode == "submission" and roles:
+        # 익명 제출을 요구하는 공고는 기명 원본과 익명 사본을 함께 낸다. 한쪽만 있으면
+        # 다른 쪽을 빠뜨렸거나 익명화를 하지 않은 것이다.
+        if "proposal-anonymous" in roles and "proposal" not in roles:
+            failures.append("bundle has an anonymous copy but no named original "
+                            "— 기명 원본이 함께 요구되는지 공고를 확인한다")
+        for role, names in roles.items():
+            if role in {"proposal", "proposal-anonymous", "price"} and len(names) > 1:
+                failures.append(f"bundle has {len(names)} attachments with role {role}: {names} "
+                                "— 어느 파일이 제출본인지 하나로 정한다")
+    return failures
+
+
 def check_evaluation_criteria(data: dict) -> list[str]:
     """평가표 원장. 공공 제안에서 배점표는 목차·분량·근거의 기준이다.
 
@@ -735,9 +813,7 @@ def evaluate(data: dict) -> list[str]:
         if _enum_ok(defect.get("severity"), {"critical", "major"}) and defect.get("status") != "closed":
             failures.append(f"{defect.get('severity')} defect {defect.get('id', '?')} is open")
 
-    for attachment in data["attachments"]:
-        if attachment.get("required", True) is not False and not _true(attachment.get("present")):
-            failures.append(f"missing attachment: {attachment.get('name', '?')}")
+    failures.extend(check_attachments(data))
 
     # submission 체크(파일명·형식·부수 등 제출 규정)는 제출 모드에서만 요구한다. draft/review에서
     # 요구하면 Pink/Red 체크포인트가 구조적으로 도달 불가능해진다(consistency·arithmetic은 전 모드).
