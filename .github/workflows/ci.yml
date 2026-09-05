@@ -51,7 +51,9 @@ jobs:
           doc = tmp / "final.pptx"
           prs = Presentation()
           slide = prs.slides.add_slide(prs.slide_layouts[6])
-          slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(1)).text_frame.text = "정상 문서"
+          # 양성 대조군은 audit 원장(37억)과 같은 금액을 담아야 한다 — 통합 게이트가 수치를 대조한다.
+          slide.shapes.add_textbox(Inches(1), Inches(1), Inches(9), Inches(1)).text_frame.text = (
+              "정상 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
           prs.save(str(doc))
           data = json.loads(audit_path.read_text(encoding="utf-8"))
           digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
