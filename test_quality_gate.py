@@ -102,5 +102,19 @@ class QualityGateTests(unittest.TestCase):
             self.assertTrue(blocking(run(path, [], set(), "ko", "submission")))
 
 
+
+    def test_list_related_exits_zero(self):
+        import subprocess
+        script = Path(__file__).parent / "skills/create-proposal-document/scripts/quality_gate.py"
+        proc = subprocess.run(
+            [sys.executable, str(script), "--list-related"],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("mapping_check.py", proc.stdout)
+        self.assertIn("package_inspect.py", proc.stdout)
+        self.assertIn("runtime_check.py", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

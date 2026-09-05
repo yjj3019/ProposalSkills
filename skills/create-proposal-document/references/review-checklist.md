@@ -87,8 +87,15 @@ M/M표 기준으로 재산정, owner=PM, 기한=제출 3일 전, 요약·조직�
 - 1·3·5·7의 텍스트 검사는 `scripts/quality_gate.py`로 실행한다
   (과장어·플레이스홀더·잔존 명칭·팔레트 일탈을 한 번에 검사, 종료 코드로 판정).
   예: `python3 scripts/quality_gate.py 제안서.pptx --names 이전고객명.txt --palette "1F3864,8FAADC,D6E0F0,EDF1F8,C00000,1F7A3D,202020,595959"`
+- **§1 조견표 양방향**: `scripts/mapping_check.py matrix.md --doc 제안서.pptx`
+- **§8 패키지 힌트**: `scripts/package_inspect.py 제안서.pptx`
+  (메타·노트·댓글·외부링크·임베드·매크로 힌트. 렌더는 별도.)
+- **§8 런타임 준비**: 저장소 루트 `python runtime_check.py` (또는 `--python-only`).
+  Docker 이미지는 README «문서 검토 실행 환경» 절. 사람/기계/런타임 층 분해는
+  `acceptance-criteria.md`.
 - 2·4는 리드문 목록·수치 대조표를 만들어 눈으로 대조한다.
-- 8은 PDF 변환 → 페이지 이미지 렌더 → 시각 확인.
+- 8의 렌더는 PDF 변환 → `pdftoppm` 페이지 이미지 → 시각 확인.
+  MS Office가 최종 기준이면 해당 앱에서 쪽수·인쇄를 재확인한다.
 - 검수 결과는 항목별 통과/실패 + 수정 내역으로 사용자에게 요약 보고한다.
 
 ## 결과 점수·상태 표준 (평가자 간 수렴용)
