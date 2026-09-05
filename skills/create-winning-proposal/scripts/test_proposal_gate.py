@@ -13,6 +13,7 @@ def ready_data():
     return {
         "mode": "submission",
         "bid_decision": "bid",
+        "context": {"buyer_types": ["private"], "stage": "final-submission"},
         "bid_conditions": [],
         "requirements": [{"id": "R1", "text": "RHEL 9 표준 이미지 제공", "mandatory": True,
                           "state": "approved", "evidence_refs": ["proposal.md#3.1"]}],

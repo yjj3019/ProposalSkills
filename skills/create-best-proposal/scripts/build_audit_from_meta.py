@@ -192,6 +192,12 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
         # Optional S2 matrix fields passthrough
         if "criterion_ids" in req:
             item["criterion_ids"] = _str_list(req, "criterion_ids", f"requirement {item['id']}")
+        # 요구 강도와 조건. 변환에서 빠지면 권장이 필수로 승격되거나 조건이 사라진다.
+        for key in ("strength", "condition"):
+            if key in req:
+                if not isinstance(req[key], str):
+                    raise ValueError(f"requirement {item['id']}.{key} must be a string")
+                item[key] = req[key]
         for key in ("fit", "eval_weight", "win_theme_id", "risk", "support", "text", "basis"):
             if key in req and key not in item:
                 item[key] = req[key]
@@ -299,6 +305,9 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         audit["context"] = meta["context"]
     if meta.get("evaluation_criteria") is not None:
         audit["evaluation_criteria"] = _as_list(meta.get("evaluation_criteria"))
+    if meta.get("evaluation_total") is not None:
+        # 가격 별책 등으로 원장의 만점이 100이 아닐 때. 잃어버리면 게이트가 100을 요구한다.
+        audit["evaluation_total"] = meta["evaluation_total"]
     if meta.get("artifact_mode"):
         audit["artifact_mode"] = meta["artifact_mode"]
     if warnings:

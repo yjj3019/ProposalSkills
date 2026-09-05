@@ -76,15 +76,40 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 - **응답 위치 ≠ 근거**: 조견표의 응답 위치는 `response_refs`에 넣는다. `evidence_refs`는
   주장을 뒷받침하는 출처(확인서·시험성적서·제조사 회신)다. `bulk_matrix.py`도 두 필드를
   분리해 생성한다 — `slide:99`가 사실의 증거로 승격되지 않는다.
-- **분류(context)**: `{buyer_types[], engagement, stage, reading_mode, constraints[]}`. 기관 이름이
-  아니라 축으로 분류하며(공공병원 → `["public","healthcare"]`), 게이트가 이 값을 읽어 요구사항을
-  바꾼다. 값 목록과 각 축이 무엇을 바꾸는지는
-  [sectors/README.md](sectors/README.md) 참조. RFP의 명시 요구가 언제나 분류보다 우선한다.
-- **평가표(evaluation_criteria)**: `{id, label, weight}` 배열, 가중치 합 100(±0.5).
+- **분류(context)**: `{buyer_types[], engagement, stage, reading_mode, constraints[], rfx_type}`.
+  기관 이름이 아니라 축으로 분류하며(공공병원 → `["public","healthcare"]`), 게이트가 이 값을 읽어
+  요구사항을 바꾼다. 값 목록과 각 축이 무엇을 바꾸는지는 [sectors/README.md](sectors/README.md)
+  참조. RFP의 명시 요구가 언제나 분류보다 우선한다. **제출 모드는 `buyer_types`와 `stage`가
+  필수**다 — 분류가 없으면 분류가 바꾸는 검사가 전부 조용히 꺼지므로, 누락을 정상값으로 두지
+  않는다(초안·검토 단계는 후방호환으로 허용).
+- **문서 종류(context.rfx_type)**: `rfp`(기본) | `rfi` | `rfq`. 구매 단계(`stage`)와 다른 축이다.
+  `rfi`이면 (1) 공공이라도 평가표 원장을 요구하지 않고, (2) `kind: commitment` 주장을 차단한다
+  — RFI 응답은 계약 제안이 아니므로 추정치가 확약 문장으로 승격되면 안 된다. 자격(`eligibility`)·
+  첨부·형식 검사는 RFI에서도 그대로다(RFI라는 이유로 자격 요구를 생략하지 않는다).
+- **평가표(evaluation_criteria)**: `{id, label, weight, parent?, stage?, method?, minimum_ratio?,
+  minimum_score?, disclosed?, source?}` 배열과 선택적 `evaluation_total`(원장의 만점, 기본 100).
   `buyer_types`에 `public`이 있고 제출 단계이면 필수다 — 공공 입찰에서 배점표는 목차·분량·근거
-  배분의 기준이므로, 없으면 무엇에 점수가 걸렸는지 모르는 채로 쓴 것이다. 각 요구는
-  `requirements[].criterion_ids`로 배점 항목에 연결하며, **대응 요구가 없는 배점 항목은 차단**한다
-  (목차가 통째로 빠진 신호). `reading_mode`와 `render.output_profile`이 어긋나도 차단한다.
+  배분의 기준이므로, 없으면 무엇에 점수가 걸렸는지 모르는 채로 쓴 것이다.
+  원문의 평가 방식은 "합계 100"으로 환원되지 않으므로 다음을 구분한다.
+  - **최상위 항목의 합 = `evaluation_total`**. 기술 90점만 원장에 있고 가격이 별책이면
+    `evaluation_total: 90`으로 적는다(100으로 고치지 않는다).
+  - **하위 항목(`parent`)의 합 = 상위 항목의 배점**. 1단계 기술평가 100 = 정량 20 + 정성 80처럼
+    계층을 그대로 옮기며, 상·하위를 한 번에 더해 100을 넘기는 이중 합산을 막는다.
+  - **배점 미공개는 `disclosed: false`**로, `weight` 없이 기록한다. 게이트가 80:20을 지어내지 않는다.
+  - **과락은 `minimum_ratio`(배점한도 대비 비율, 0.85 = 85%) 또는 `minimum_score`**로 보존만
+    한다. 게이트는 심사 점수를 예측하거나 "기술 미달"을 판정하지 않는다 — 협상적격 기준의 85%는
+    기술능력평가분야 **배점한도**의 85%(만점 90이면 76.5)이지 총점 85가 아니며, 적용 여부는
+    공고마다 확인한다.
+  각 요구는 `requirements[].criterion_ids`로 **말단** 배점 항목에 연결하며, 대응 요구가 없는 말단
+  항목은 차단한다(목차가 통째로 빠진 신호). `reading_mode`가 규격을 기대하는데
+  `render.output_profile`이 **없거나** 다르면 제출 모드에서 차단한다(누락 = 미검사).
+- **요구 강도(requirements[].strength)**: `required` | `recommended` | `optional` | `conditional`
+  | `informational`. 없으면 `mandatory`에서 유도한다(미기재 = `required`, fail-closed). 둘 다 있고
+  서로 어긋나면 스키마 오류다. `conditional`은 `condition`(어떤 조건에서 필수가 되는가)이 필요하며
+  필수로 센다. `recommended`를 따르지 않은 채 제출하려면 `rationale`을 적어야 한다 — 권장 분량
+  초과와 필수 위반은 같은 무게가 아니지만, 권장을 조용히 잊는 것과 사유를 갖고 넘기는 것은
+  구분돼야 한다. 조견표(`bulk_matrix.py`)의 `필수` 열에 적힌 권장·선택·조건부·참고는 강도로
+  옮겨진다.
 - **수치 원장(numbers)**: `numbers[] = {id, label, value(JSON 숫자), unit, source?, components?[],
   percent_of?, amount?, tolerance?(기본 0.005), must_appear?}`. `components`가 있으면 값이 구성
   요소의 합과 같아야 하고(단위가 섞이면 차단), `percent_of`+`amount`가 있으면 비율을 다시

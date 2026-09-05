@@ -49,11 +49,36 @@ def normalize_mandatory(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     text = str(value if value is not None else "").strip().lower()
-    if text in {"", "1", "true", "yes", "y", "필수", "m", "mandatory", "o"}:
+    if text in {"", "1", "true", "yes", "y", "필수", "m", "mandatory", "o", "조건부", "조건", "conditional"}:
         return True
-    if text in {"0", "false", "no", "n", "선택", "optional", "권고", "x"}:
+    if text in {"0", "false", "no", "n", "선택", "optional", "권고", "권장", "참고", "x"}:
         return False
     raise ValueError(f"unknown mandatory value {value!r}")
+
+
+STRENGTH_WORDS = {
+    "required": {"required", "필수", "의무", "mandatory", "m"},
+    "recommended": {"recommended", "권장", "권고"},
+    "optional": {"optional", "선택", "임의"},
+    "conditional": {"conditional", "조건부", "조건"},
+    "informational": {"informational", "참고", "정보"},
+}
+
+
+def normalize_strength(value: Any, mandatory: bool, fallback: Any = None) -> str:
+    """요구 강도. 강도 열이 없으면 필수 열의 낱말(권장·참고 등)을, 그것도 없으면 필수
+    여부에서 유도한다(필수 → required, 아니면 optional)."""
+    text = str(value if value is not None else "").strip().lower()
+    if not text:
+        fb = str(fallback if fallback is not None else "").strip().lower()
+        for name, words in STRENGTH_WORDS.items():
+            if fb and fb in words and name != "required":
+                return name
+        return "required" if mandatory else "optional"
+    for name, words in STRENGTH_WORDS.items():
+        if text in words:
+            return name
+    raise ValueError(f"unknown strength value {value!r} (필수/권장/선택/조건부/참고)")
 
 
 def load_rows(path: Path) -> list[dict[str, Any]]:
@@ -82,6 +107,7 @@ def normalize(row: dict[str, Any], index: int) -> dict[str, str]:
     rid = str(row.get("id") or row.get("ID") or f"R{index:03d}")
     support = normalize_support(row.get("support", row.get("지원여부")), rid)
     # S2: optional industry matrix columns (fit / eval weight / win theme / risk)
+    mandatory = normalize_mandatory(row.get("mandatory", row.get("필수")))
     fit = str(row.get("fit") or row.get("적합") or "").strip().upper()
     if fit in {"STRONG", "S", "강"}:
         fit = "STRONG"
@@ -94,7 +120,9 @@ def normalize(row: dict[str, Any], index: int) -> dict[str, str]:
         "section": str(row.get("section") or row.get("구분") or ""),
         "item": str(row.get("item") or row.get("항목") or ""),
         "text": str(row.get("text") or row.get("내용") or row.get("question") or ""),
-        "mandatory": normalize_mandatory(row.get("mandatory", row.get("필수"))),
+        "mandatory": mandatory,
+        "strength": normalize_strength(row.get("strength", row.get("강도")), mandatory,
+                                       fallback=row.get("mandatory", row.get("필수"))),
         "support": support,
         "fit": fit,
         "eval_weight": str(row.get("eval_weight") or row.get("배점") or ""),
@@ -163,7 +191,7 @@ def to_markdown(rows: list[dict[str, str]], summary_rows: int) -> str:
 
 
 def to_csv(rows: list[dict[str, str]]) -> str:
-    fields = ["id", "section", "item", "text", "mandatory", "support",
+    fields = ["id", "section", "item", "text", "mandatory", "strength", "support",
               "fit", "eval_weight", "win_theme_id", "risk",
               "product", "note", "source_loc", "response_loc"]
     from io import StringIO
@@ -187,6 +215,7 @@ def to_audit_requirements(rows: list[dict[str, str]]) -> list[dict]:
         item = {
             "id": r["id"],
             "mandatory": r["mandatory"],
+            "strength": r.get("strength") or ("required" if r["mandatory"] else "optional"),
             "state": state,
             "text": r["text"] or r["item"],
             "support": r["support"],

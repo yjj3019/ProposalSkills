@@ -30,6 +30,7 @@ def public_audit() -> dict:
     data = audit()
     data["context"] = {"buyer_types": ["public"], "engagement": "build",
                        "stage": "final-submission", "reading_mode": "print-evaluation"}
+    data["render"]["output_profile"] = "detailed-submission"
     data["evaluation_criteria"] = [
         {"id": "E-TECH", "label": "기술평가", "weight": 80},
         {"id": "E-PRICE", "label": "가격평가", "weight": 20},
@@ -62,9 +63,20 @@ class AxisValidationTests(unittest.TestCase):
                 self.assertTrue(any(needle in f for f in pg.validate_context(ctx)),
                                 pg.validate_context(ctx))
 
-    def test_missing_context_is_backward_compatible(self):
+    def test_missing_context_is_tolerated_only_before_submission(self):
+        """초안·검토 단계는 후방호환으로 허용한다. 제출 기록에 분류가 없으면 분류가
+        바꾸는 검사(공공 평가표·규격 대조)가 전부 조용히 꺼지므로 차단한다."""
         self.assertEqual(pg.validate_context(None), [])
-        self.assertEqual(pg.evaluate(audit()), [])
+        data = audit()
+        data.pop("context")
+        failures = pg.evaluate(data)
+        self.assertTrue(any("submission requires context.buyer_types" in f for f in failures), failures)
+        self.assertTrue(any("submission requires context.stage" in f for f in failures))
+        draft = audit()
+        draft.pop("context")
+        draft["mode"] = "draft"
+        draft["artifact_required"] = False
+        self.assertFalse(any("requires context" in f for f in pg.evaluate(draft)))
 
 
 class PublicProcurementTests(unittest.TestCase):
@@ -130,11 +142,20 @@ class ReadingModeTests(unittest.TestCase):
         data["render"]["output_profile"] = "presentation"
         self.assertEqual(pg.evaluate(data), [])
 
-    def test_no_profile_recorded_is_not_a_failure(self):
+    def test_missing_profile_is_a_failure_when_the_reading_mode_expects_one(self):
+        """값이 틀리면 잡고 지우면 통과하던 구멍(3차 진단 재점검 항목). 누락 = 미검사."""
         data = public_audit()
         data["context"]["reading_mode"] = "screen-presentation"
-        self.assertNotIn("output_profile", data["render"])
+        data["render"].pop("output_profile")
+        failures = pg.evaluate(data)
+        self.assertTrue(any("output_profile is missing" in f for f in failures), failures)
+        data["render"]["output_profile"] = "presentation"
         self.assertEqual(pg.evaluate(data), [])
+
+    def test_unknown_profile_name_is_rejected(self):
+        data = public_audit()
+        data["render"]["output_profile"] = "compact"
+        self.assertTrue(any("output_profile has unsupported value" in f for f in pg.evaluate(data)))
 
 
 class SensitiveDataTests(unittest.TestCase):

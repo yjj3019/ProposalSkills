@@ -12,6 +12,8 @@
 | 수정공고·질의응답 회신 | 원공고와 충돌하면 나중 것이 우선 |
 | 발표(PT) 유무와 시간 | 발표본을 별도 규격으로 만들지 결정 |
 | 감점·실격 조건 | 명시된 것은 조견표에 그대로 옮긴다 |
+| 요구의 강도(필수/권장/조건부) | 권장 분량 초과와 필수 위반은 같은 무게가 아니다. 원문의 표현을 `strength`로 옮긴다 |
+| 문서 종류(RFP/RFI/RFQ) | RFI는 입찰이 아니다 — 확약 대신 추정 범위·대안·확인 질문으로 답한다 |
 
 ## 제안서가 입증해야 할 것
 
@@ -30,9 +32,15 @@
 
 `context.buyer_types`에 `public`이 있고 제출 단계이면 게이트가 요구한다.
 
-- `evaluation_criteria[]` 원장 필수 — `{id, label, weight}`, 배점 합계 100(±0.5).
-- 각 배점 항목에 대응하는 요구가 최소 1건(`requirements[].criterion_ids`). 대응이 없는 배점은
+- `evaluation_criteria[]` 원장 필수 — 최상위 항목의 합이 `evaluation_total`(기본 100)과 같고,
+  하위 항목의 합이 상위 배점과 같아야 한다. 가격 별책·단계별 평가·배점 미공개·과락은 원문대로
+  옮긴다([audit-schema.md](../audit-schema.md) 평가표 항목). **협상적격 기준의 85%는 기술
+  배점한도 대비 비율**이지 총점 85가 아니며, 기술 90:가격 10도 원칙과 예외가 있는 규정이므로
+  공고 원문에서 확인해 `minimum_ratio`·`weight`로 적는다 — 게이트에 상수로 두지 않는다.
+- 각 말단 배점 항목에 대응하는 요구가 최소 1건(`requirements[].criterion_ids`). 대응이 없는 배점은
   목차가 통째로 빠졌다는 뜻이다.
+- `context.rfx_type`이 `rfi`이면 평가표를 요구하지 않는다(정보 요청은 입찰이 아니다). 대신 확약
+  (`kind: commitment`)을 차단한다.
 - `eligibility[]` 원장(제출 모드 공통) — 미달+치유불가면 `bid` 금지.
 - `context.constraints`에 `sensitive-data`가 있으면 패키지 검사 `metadata`·`hidden-content`·
   `stale-customer-data`가 모두 `pass`여야 한다.
