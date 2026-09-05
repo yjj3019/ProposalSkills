@@ -44,6 +44,21 @@ python install_skill.py --dest "%USERPROFILE%\.grok\skills" --all
 
 `agents/openai.yaml`은 OpenAI 계열 UI용 선택 메타데이터입니다.
 
+## 장표 생산 파이프라인 (PPTX)
+
+```bash
+# 장표 계획(slides.json) → PPTX. 좌표·색·폰트는 스크립트가 고정, 모델은 내용만 채운다
+python skills/create-proposal-document/scripts/build_deck.py slides.json -o 제안서.pptx --strict
+# 레이아웃 린트(리드문·REQ-ID·페이지 수·최소 폰트) + LibreOffice 렌더 + audit용 render 블록
+python skills/create-proposal-document/scripts/deck_check.py 제안서.pptx --max-pages 40 \
+  --exclude-cover-toc --require-req-ids --render --png-dir out/png --emit-render render.json
+```
+
+레이아웃 12종(표지·목차·간지·조견표(자동 분할)·표·프로세스·구성도·간트·인력·카드·불릿·마무리),
+스키마와 페이지 배분 공식은 [deck-production.md](skills/create-proposal-document/references/deck-production.md).
+전 구간 골든 예제: [fixtures/e2e-mini-rfp](skills/create-proposal-document/fixtures/e2e-mini-rfp/).
+LibreOffice(`soffice`)가 없으면 렌더는 `NOT INSPECTED`로 남고 린트만 수행한다. 의존성: `python-pptx`.
+
 ## create-best-proposal 빠른 명령
 
 ```bash
@@ -58,7 +73,7 @@ python skills/create-best-proposal/scripts/unified_gate.py audit.json
 python skills/create-best-proposal/scripts/unified_gate.py audit.json --doc 제안서.pptx --stage submission
 
 # 완성도 2축
-python score_completeness.py audit.json
+python skills/create-best-proposal/scripts/score_completeness.py audit.json   # 루트 score_completeness.py도 동일
 ```
 
 ## 테스트
@@ -71,7 +86,8 @@ python skills/create-best-proposal/scripts/test_best_proposal.py -q
 ```
 
 GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.12에서 같은
-스위트를 실행한다. `test_gate_hardening.py`는 게이트 허위 통과 회귀 테스트(노트·마스터·머리말
+스위트를 실행한다(Ubuntu에는 LibreOffice를 설치해 렌더 경로까지 검증). `test_deck_pipeline.py`는
+미니 RFP 골든으로 slides.json→PPTX→deck_check→quality_gate→audit→unified_gate 전 구간을 고정한다. `test_gate_hardening.py`는 게이트 허위 통과 회귀 테스트(노트·마스터·머리말
 미검사, run 분할 과장어, 문자열 불리언, draft audit의 SUBMISSION-READY 표시, cp949 콘솔 크래시 등)다.
 
 게이트 스크립트 공통 규약: exit 0=통과, 1=차단, 2=사용 오류·손상 파일·스키마 오류. audit JSON의

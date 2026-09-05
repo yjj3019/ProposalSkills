@@ -1,6 +1,6 @@
 ---
 name: create-best-proposal
-description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공/금융 제안서(PPTX·DOCX·XLSX)를 작성·검토·제출 게이트할 때 사용. create-proposal-document(콘텐츠·문체·조견표)와 create-winning-proposal(bid 판정·감사 JSON·결정론적 게이트)를 한 워크플로로 오케스트레이션한다. 트리거: 제안서, RFP, 입찰, 조견표, 기술답변서, 유지보수 제안, bid/no-bid, 제출 게이트, audit, 품질 검수."
+description: "제안서(PPTX 장표형 기본, DOCX·XLSX 지원) 작성·검토·제출 게이트의 단일 진입점. 사용자가 제안서, RFP 대응, 입찰, 조견표, 기술답변서, 유지보수/구축 제안, bid/no-bid, 제출 게이트, 품질 검수를 언급하면 이 스킬을 선택한다(형제 스킬은 직접 고르지 않는다). 콘텐츠·문체(create-proposal-document)와 bid 판정·audit·결정론적 게이트(create-winning-proposal)를 한 워크플로로 실행하고, slides.json→build_deck.py→deck_check.py로 실제 PPTX를 생성·검사한다."
 ---
 
 # create-best-proposal — 통합 제안서 스킬
@@ -13,8 +13,8 @@ description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공
 | **거버넌스** | `create-winning-proposal` | bid 4단 판정, 요구·근거 원장, audit JSON, proposal_gate, 반낙관 가드 |
 | **통합(본 스킬)** | `create-best-proposal` | 경로 선택, meta→audit 빌더, 통합 게이트, 대량 조견표, 제출 직전 카드 |
 
-시뮬레이션 근거(2026-07): 문서 스킬 작성≈93 / readiness≈31(NO-GO 고정), 거버넌스 스킬 프로세스≈99.
-**작성 품질만으로는 제출 불가** — 게이트가 상태를 결정한다.
+**작성 품질만으로는 제출 불가** — 게이트가 상태를 결정한다. 작성 점수와 제출가능성은 별개 축이다
+(`scripts/score_completeness.py`).
 
 형제 스킬이 같은 `skills/` 트리에 있으면 상세 reference를 그대로 읽는다.
 단독 설치 시에도 본 스킬의 `references/`와 `scripts/`만으로 최소 완전 경로를 수행한다.
@@ -81,15 +81,32 @@ description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공
 형제 상세: `writing-style.md`, `phrase-library.md`, `evidence-and-claims.md`,
 `writing-and-phrases.md`
 
-### Phase D — 시각·산출물
+### Phase D — 장표 생산 (slides.json → PPTX → 검사)
 
-1. 브랜드 스킬 토큰 우선, 없으면 `visual-style.md` 중립 팔레트. 임의 색·폰트 금지.
-2. 기본 산출: 한국어 **PPTX 장표**. 발주처 A4 문서형이면 DOCX 동일 규칙.
-3. XLSX 질의: 행·수식·숨김시트 보존, 지정 열만 기입.
-4. 렌더 검사와 **원본 패키지** 검사 분리(메타·노트·숨김·매크로·잔존 고객/가격).
-   못 본 항목 = `NOT INSPECTED` (통과 추정 금지). quality_gate는 노트·레이아웃·마스터·
-   머리말/바닥글·주석·문서속성까지 텍스트 검사하지만, 매크로·외부링크·임베디드 파일은
-   사람이 패키지 검사로 확인한다.
+레이아웃·색·폰트를 손으로 재현하지 않는다. **내용만 slides.json에 채우고 스크립트가 그린다.**
+상세 스키마·페이지 배분 공식: `../create-proposal-document/references/deck-production.md`
+
+1. 리드문 맵 = `slides.json`(type·breadcrumb·title·lead·req_ids만) →
+   ```bash
+   python ../create-proposal-document/scripts/build_deck.py slides.json -o 초안.pptx --strict
+   ```
+   리드문만 이어 읽어 스토리 성립 확인. `page_limit` 초과·리드문 누락은 `--strict`가 막는다.
+2. 본문 채움: 표=`table`, 조견표=`matrix`(자동 분할), 구성도=`zones`, 절차=`process`,
+   일정=`gantt`, 인력=`staff`, 차별점/3단 논리=`cards`. 도식은 편집 가능한 네이티브 도형이다.
+   `bullets`는 최소화(항상 경고).
+3. 검사(초안은 `--stage draft`, 제출 후보는 `submission`):
+   ```bash
+   python ../create-proposal-document/scripts/deck_check.py 제안서.pptx --max-pages N --exclude-cover-toc \
+     --require-req-ids --stage draft --render --png-dir out/png --emit-render render.json
+   ```
+   리드문·REQ-ID·페이지 수·최소 폰트·텍스트 밀도·표 헤더 + LibreOffice 렌더 대조. `render.json`을
+   meta의 `render` 블록으로 넣는다(렌더 성공+차단 0 → `verified:true`). soffice 없으면 `NOT INSPECTED`.
+4. 사람: `out/png` 전 장 육안 확인(잘림·겹침·폰트 대체), 발주처 PowerPoint에서 1회 열기.
+5. 사내 양식은 `--template 양식.pptx`(16:9, 빈 레이아웃 필요), 브랜드 토큰은 `meta.palette`.
+   발주처 A4 문서형이면 DOCX 동일 규칙(docx 스킬 사용). XLSX 질의: 행·수식·숨김시트 보존, 지정 열만 기입.
+6. **원본 패키지** 검사는 렌더와 별개(메타·노트·숨김·매크로·잔존 고객/가격). quality_gate가 노트·
+   레이아웃·마스터·머리말/바닥글·주석·문서속성 텍스트까지 읽지만 매크로·외부링크·임베디드 파일은
+   사람이 확인한다. 못 본 항목 = `NOT INSPECTED`.
 
 ### Phase E — 감사·게이트·제출 (거버넌스 종결)
 
@@ -118,7 +135,7 @@ description: "최고 수준 제안서 통합 스킬. 한국어·영문 IT/공공
 
 완성도 수치(두 축 고정):
 ```bash
-python ../../score_completeness.py audit.json [quality.json]
+python scripts/score_completeness.py audit.json [quality.json]
 ```
 상태는 **게이트만** 결정 — 작성 점수 높아도 BLOCKING이면 NO-GO.
 
@@ -148,11 +165,14 @@ python ../../score_completeness.py audit.json [quality.json]
 | `fixtures/audit_ready_financial.json` | 금융 submission-ready 골든 (SI-B4) |
 | `fixtures/audit_decision_memo.json` | no-bid DECISION_MEMO_ONLY 골든 |
 | `fixtures/meta_sample.json` | meta 입력 예제 |
+| `../create-proposal-document/scripts/build_deck.py` | slides.json → PPTX (레이아웃 12종, 토큰 고정) |
+| `../create-proposal-document/scripts/deck_check.py` | 레이아웃 린트 + LibreOffice 렌더 + render 블록 |
+| `../create-proposal-document/fixtures/e2e-mini-rfp/` | 미니 RFP → slides.json → meta.json 전 구간 골든 |
 
 형제 게이트 (동일 저장소 설치 시):
 - `../create-proposal-document/scripts/quality_gate.py`
 - `../create-winning-proposal/scripts/proposal_gate.py`
-- `../../score_completeness.py`
+- `scripts/score_completeness.py`
 
 ## 5. 형제 스킬 상세 맵
 

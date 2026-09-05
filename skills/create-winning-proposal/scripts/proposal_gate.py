@@ -273,7 +273,10 @@ def evaluate(data: dict) -> list[str]:
         if attachment.get("required", True) is not False and not _true(attachment.get("present")):
             failures.append(f"missing attachment: {attachment.get('name', '?')}")
 
-    for name in ("consistency", "arithmetic", "submission"):
+    # submission 체크(파일명·형식·부수 등 제출 규정)는 제출 모드에서만 요구한다. draft/review에서
+    # 요구하면 Pink/Red 체크포인트가 구조적으로 도달 불가능해진다(consistency·arithmetic은 전 모드).
+    required_checks = ("consistency", "arithmetic") + (("submission",) if mode == "submission" else ())
+    for name in required_checks:
         if data["checks"].get(name) is not True:
             failures.append(f"check failed or missing: {name}")
 

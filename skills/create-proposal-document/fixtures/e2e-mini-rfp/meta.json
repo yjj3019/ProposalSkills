@@ -1,0 +1,56 @@
+{
+  "mode": "draft",
+  "bid_decision": "conditional-bid",
+  "title": "사내 가상화 플랫폼 구축 제안서",
+  "buyer": "○○공사",
+  "proposal_type": "A",
+  "deadline": "2099-12-15T17:00:00+09:00",
+  "flags": {"financial": false},
+  "bid_conditions": [
+    {"id": "B1", "owner": "영업", "deadline": "2099-12-10T17:00:00+09:00", "accepted": true,
+     "note": "최근 5년 유사실적 2건 증명서 확보 후 R6 approved 전환"}
+  ],
+  "eligibility": [
+    {"id": "E1", "criterion": "최근 5년 유사실적 2건", "mandatory": true, "met": false, "curable": true}
+  ],
+  "requirements": [
+    {"id": "R1", "text": "가상화 노드 12대 구성", "mandatory": true, "state": "approved", "slide": 8,
+     "evidence_refs": ["deck:slide8 구성도", "조견표#R1"], "reviewer": "기술PL", "fit": "STRONG", "eval_weight": 25, "win_theme_id": "WT1"},
+    {"id": "R2", "text": "VMware 400 VM 이관", "mandatory": true, "state": "approved", "slide": 11,
+     "evidence_refs": ["deck:slide11 Wave 절차", "content-patterns §4"], "reviewer": "기술PL", "fit": "STRONG", "eval_weight": 15, "win_theme_id": "WT2"},
+    {"id": "R3", "text": "8개월 내 완료", "mandatory": true, "state": "approved", "slide": 13,
+     "evidence_refs": ["deck:slide13 간트"], "reviewer": "PM", "fit": "STRONG", "eval_weight": 10},
+    {"id": "R4", "text": "관리 노드 이중화", "mandatory": true, "state": "approved", "slide": 9,
+     "evidence_refs": ["deck:slide9 HA 표"], "reviewer": "기술PL", "fit": "STRONG", "eval_weight": 25, "win_theme_id": "WT1"},
+    {"id": "R5", "text": "제안서 40p 이내", "mandatory": true, "state": "approved",
+     "evidence_refs": ["deck_check: 본문 12장/40장"], "reviewer": "PM"},
+    {"id": "R6", "text": "최근 5년 유사실적 2건", "mandatory": true, "state": "drafted", "slide": 9,
+     "evidence_refs": [], "reviewer": ""},
+    {"id": "R7", "text": "기존 백업 솔루션 연계", "mandatory": false, "state": "drafted", "evidence_refs": []}
+  ],
+  "win_themes": [
+    {"id": "WT1", "statement": "관리 3중화·계층 분리로 단일 장애점 없는 플랫폼", "req_ids": ["R1", "R4"], "proof": "deck:slide8-9"},
+    {"id": "WT2", "statement": "Wave 이관 + 롤백 게이트로 서비스 영향 최소화", "req_ids": ["R2"], "proof": "deck:slide11"}
+  ],
+  "claims": [
+    {"id": "C1", "kind": "commitment", "text": "Worker 장애 시 VM 재기동 ≤ 5분", "status": "qualified", "owner_approved": true},
+    {"id": "C2", "kind": "commitment", "text": "Wave 실패 시 원복 ≤ 2시간", "status": "qualified", "owner_approved": true}
+  ],
+  "unresolved_tokens": ["[NEEDS INPUT: 영업 — 실적증명 2건]", "[NEEDS INPUT: PMO — 성명]"],
+  "attachments": [
+    {"name": "사업자등록증.pdf", "required": true, "present": true},
+    {"name": "유사실적증명서(2건)", "required": true, "present": false}
+  ],
+  "inputs": [
+    {"id": "I1", "class": "blocking", "status": "open", "text": "유사실적 증명 2건 (영업)"}
+  ],
+  "defects": [],
+  "checks": {"consistency": true, "arithmetic": true, "submission": false},
+  "slides": [
+    {"no": 3, "title": "요구사항 대응표", "req_ids": ["R1", "R2", "R3", "R4", "R5", "R6", "R7"]},
+    {"no": 8, "title": "플랫폼 전체 구성도", "req_ids": ["R1", "R4"]},
+    {"no": 9, "title": "고가용성 구성 방안", "req_ids": ["R4"]},
+    {"no": 11, "title": "Wave 기반 이관 절차", "req_ids": ["R2"]},
+    {"no": 13, "title": "추진 일정", "req_ids": ["R3"]}
+  ]
+}

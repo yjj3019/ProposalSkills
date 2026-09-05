@@ -1,6 +1,6 @@
 ---
 name: create-winning-proposal
-description: Create, rewrite, review, and finalize evidence-backed Korean or English business, public-sector, technical, RFP, RFI, and RFx proposals. Use when an AI assistant must make a bid/no-bid assessment, extract atomic requirements, build a compliance and evidence ledger, draft evaluator-focused responses, standardize wording and visual structure, verify commitments and consistency, preserve a supplied DOCX template, or prepare and gate a submission-ready DOCX/PDF proposal with an audit bundle.
+description: "create-best-proposal이 로드하는 거버넌스 레이어(한/영). bid/no-bid 판정, 원자 요구사항·근거 원장, 승인 체인, audit JSON 스키마와 결정론적 제출 게이트(proposal_gate.py)를 담는다. PPTX·DOCX·PDF 산출물에 공통 적용. 사용자가 게이트·audit·bid 판정만 요구할 때, 또는 create-best-proposal이 없을 때만 직접 사용한다."
 ---
 
 # Create Winning Proposal

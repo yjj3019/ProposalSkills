@@ -1,6 +1,6 @@
 ---
 name: create-proposal-document
-description: "IT 인프라·클라우드·유지보수 사업 제안서(PPTX 장표형 중심, DOCX 문서형 지원)를 작성·수정·검수할 때 반드시 사용. 트리거: 제안서, 제안 장표, RFP 대응, 입찰, 수행방안, 기술 답변서, 조견표, 제안 목차, 유지보수 제안, 구축 제안, BMT/PoC 제안 등 제안 활동 전반. 사용자가 '제안서'라고 말하지 않아도 RFP·평가표·발주처가 언급되면 이 스킬을 먼저 참조한다. 브랜드·디자인 규격은 조직의 브랜드 문서 스킬이 설치되어 있으면 그것과 함께 사용."
+description: "create-best-proposal이 로드하는 콘텐츠·문체·시각 레이어. 한국어 IT 제안서의 유형별 목차, 리드문·조견표·내용 패턴, 시각 규격, slides.json 기반 PPTX 생성기(build_deck.py)·레이아웃 린트(deck_check.py)·텍스트 검수(quality_gate.py)를 담는다. 사용자가 명시적으로 문체·구조·장표 레이아웃만 다루자고 할 때, 또는 create-best-proposal이 없을 때만 직접 사용한다."
 ---
 
 # 표준 제안서 작성 스킬 (create-proposal-document)
@@ -68,13 +68,15 @@ RFP 원문, 고객 현황, 제품 버전·EOL·로드맵, 실적·인증. 최신
   근거를 못 채운 주장은 본문에 넣지 말고 `[unverified]` 태그로 별도 목록화해 사용자에게 보고한다.
 - 공공·금융 제안(유형 A·B)은 각 페이지에 대응 요구사항 ID를 표기하고 조견표와 양방향 일치시킨다.
 
-### 4. 시각화 — `references/visual-style.md` 읽기
-- 브랜드 문서 스킬이 설치되어 있으면 그 디자인 토큰(색·폰트·레이아웃)을 그대로 쓴다.
-  없으면 visual-style.md의 중립 기본값을 쓴다. 임의 색·폰트 금지.
-- 제안서 특화 컴포넌트(조견표, SLA 표, 인력 프로필, 실적표, 추진일정 간트)는
-  visual-style.md의 규격을 따른다.
-- 접근성 하한: 일반 텍스트 명암비 4.5:1, 큰 텍스트 3:1(WCAG 2.2 참조값).
-  색상만으로 상태를 구분하지 않는다 — 레이블·기호·패턴 병행.
+### 4. 장표 생산 — `references/deck-production.md` 읽기 (규격 원문은 `visual-style.md`)
+- 장표 계획을 `slides.json`으로 쓰고 `scripts/build_deck.py`로 생성한다. 좌표·색·폰트·위계는
+  스크립트가 고정하고, 모델은 리드문·표 데이터·도식 요소만 채운다. 임의 색·폰트 금지.
+- 브랜드 토큰이 있으면 `meta.palette`·`--template 사내양식.pptx`로 넘긴다. 없으면 폴백 토큰.
+- 조견표·SLA 표·인력·실적·간트·구성도는 대응 type(`matrix/table/staff/gantt/zones`)을 쓴다.
+  도식은 편집 가능한 네이티브 도형으로 생성된다(이미지 삽입은 선 연결 토폴로지에 한정).
+- `scripts/deck_check.py`로 리드문·REQ-ID·페이지 수·최소 폰트·밀도·표 헤더를 린트하고
+  LibreOffice 렌더로 페이지 대조·PNG 썸네일을 만든다. 썸네일 육안 확인은 사람이 한다.
+- 접근성 하한: 일반 텍스트 명암비 4.5:1, 큰 텍스트 3:1. 색상만으로 상태를 구분하지 않는다.
 
 ### 5. 품질 게이트 — `references/review-checklist.md` 읽기
 제출 전 통합 검수 1회. 체크리스트 8개 항목 전부 통과해야 완료 선언.
@@ -103,6 +105,9 @@ Critical·Major·BLOCKING INPUT이 닫히고 제출 리허설·접수 증적 계
   스킬 배포본에는 비어 있다(민감 정보 비포함 원칙).
 - `assets/brand-assets/` — 사용 조직의 브랜드 자산(로고·템플릿)을 두는 자리.
   브랜드 문서 스킬이 있으면 그 토큰이 단일 출처다.
+- `scripts/build_deck.py` — slides.json → PPTX 생성기(레이아웃 12종, 도형 역할명 부여).
+- `scripts/deck_check.py` — 레이아웃 린트 + 렌더 검사 + audit용 render 블록 출력.
+- `fixtures/e2e-mini-rfp/` — 미니 RFP → slides.json → meta.json 골든(파이프라인 전 구간 예제).
 - `scripts/quality_gate.py` — 기계 검수(과장어·플레이스홀더·잔존 명칭·팔레트). PPTX/DOCX/XLSX의
   본문뿐 아니라 노트·레이아웃·마스터·차트·머리말/바닥글·각주·주석·문서속성까지 검사한다
   (렌더에 안 보이는 잔존 고객명이 주된 탈락 경로). 금지 명칭은 대소문자·공백 무시 매칭.

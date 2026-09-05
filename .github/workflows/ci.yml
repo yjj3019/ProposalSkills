@@ -19,6 +19,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - name: Install python-pptx
+        run: python -m pip install --quiet python-pptx
+      - name: Install LibreOffice (render path)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libreoffice-impress poppler-utils fonts-nanum >/dev/null
       - name: Unit tests (repo root)
         run: python -m unittest discover -s . -p "test_*.py" -v
       - name: proposal_gate tests
@@ -33,6 +38,12 @@ jobs:
           if python skills/create-best-proposal/scripts/unified_gate.py skills/create-best-proposal/fixtures/audit_decision_memo.json --no-explain; then exit 1; fi
           python skills/create-best-proposal/scripts/build_audit_from_meta.py skills/create-best-proposal/fixtures/meta_sample.json -o "${RUNNER_TEMP}/audit.json"
           python score_completeness.py skills/create-best-proposal/fixtures/audit_ready_financial.json | grep -q '"status": "SUBMISSION-READY"'
+      - name: Deck pipeline golden
+        shell: bash
+        run: |
+          set -e
+          python skills/create-proposal-document/scripts/build_deck.py skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json -o "${RUNNER_TEMP}/draft.pptx" --strict
+          python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/draft.pptx" --max-pages 40 --exclude-cover-toc --require-req-ids --stage draft
       - name: Install smoke test
         shell: bash
         run: |

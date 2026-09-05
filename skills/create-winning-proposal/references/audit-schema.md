@@ -123,7 +123,7 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 아니라 **DECISION_MEMO**(정상 불참/보류)로 분기하고, `conditional-bid`가 미결로 막히면
 `CONDITIONAL-GO → NO-GO 다운그레이드`와 회복 조건을 함께 보여준다. `python proposal_gate.py --explain AUDIT.json`.
 
-## 완성도 수치 일원화 — `score_completeness.py`(저장소 루트)
+## 완성도 수치 일원화 — `score_completeness.py`(create-best-proposal/scripts, 루트에도 동일 진입점)
 
 리뷰어마다 'overall 수치'를 다르게 계산해 값이 갈리던 문제를 없애기 위해 동일 audit에서
 두 축을 결정론적으로 산출한다: 제출가능성(readiness, 세부 차원 충족률 + 게이트),
