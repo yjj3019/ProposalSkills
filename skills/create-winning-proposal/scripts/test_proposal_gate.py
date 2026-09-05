@@ -14,6 +14,7 @@ def ready_data():
         "mode": "submission",
         "bid_decision": "bid",
         "context": {"buyer_types": ["private"], "stage": "final-submission"},
+        "proposal_archetype": "build",
         "bid_conditions": [],
         "requirements": [{"id": "R1", "text": "RHEL 9 표준 이미지 제공", "mandatory": True,
                           "state": "approved", "evidence_refs": ["proposal.md#3.1"]}],

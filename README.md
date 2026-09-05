@@ -189,6 +189,13 @@ python .../unified_gate.py audit.json --doc 제안서.pptx --stage submission
   인정하며(노트·레이아웃·마스터에만 있는 값은 차단), 소수·단위·부호를 구분합니다 —
   `37.5개월`은 `37`의 근거가 아니고, `37개월`은 `37원`의 근거가 아닙니다. 금액 합계는 상대
   오차가 아니라 1원 단위 절대 오차로 검산합니다.
+- **사업 성격이 목차를 바꿉니다.** `context.engagement`가 목차 뼈대를 정하고
+  (`build`/`migrate`→구축, `operate`/`service-improvement`→유지보수,
+  `product-selection`→기술답변서), audit의 `proposal_archetype`에 실제로 쓴 뼈대를 남깁니다.
+  둘이 어긋나면 차단합니다 — 유지보수 사업에 IT 구축 목차를 그대로 쓰는 것이 기관명만 바뀐
+  제안서의 전형이기 때문입니다. `sections[]`에 목차를 적으면 뼈대별 필수 절(구축이면 사업
+  범위·시험/검수 등) 누락도 검사합니다. **교육·컨설팅·정책은 이 저장소에 목차 근거가 없어
+  유형을 강제하지 않습니다** — 업종 프로파일을 하나만 두는 것과 같은 이유입니다.
 - **제출은 파일 하나가 아닙니다.** `attachments[]`에 역할(`role`)을 적으면 그 역할의 규칙이
   붙습니다 — 익명 사본은 식별정보 검사 기록(`anonymity_checked`)과 검토자가, 가격을 담으면
   안 되는 산출물은 가격 혼입 검사 기록(`price_screened`)이 필요하고, 제출하는 첨부에는 모두
@@ -212,7 +219,7 @@ python .../unified_gate.py audit.json --doc 제안서.pptx --stage submission
 
 ## 테스트
 
-로컬 실행 전 `pip install python-pptx`(CI는 자동 설치). 없으면 `test_deck_pipeline.py`가
+로컬 실행 전 `pip install -r requirements.txt`(CI는 자동 설치). 없으면 `test_deck_pipeline.py`가
 `ModuleNotFoundError: No module named 'pptx'`로 실패한다 — 코드 결함이 아니라 의존성 누락이다.
 
 ```bash
@@ -255,6 +262,8 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
   데이터로 재현, 요구 강도, RFI 응답 규칙. 원문은 싣지 않는다.
 - `test_submission_bundle.py` — 역할별 첨부 규칙(익명 사본·가격 별책·중복 역할), `--bundle`
   해시 대조, 통합 게이트의 원장↔문서 수치 대조.
+- `test_outline_archetypes.py` — 사업 성격 ↔ 목차 뼈대 대조, 뼈대별 필수 절, 근거 없는
+  업종에 유형을 강제하지 않는지, 읽기 환경과 문서 역할의 분리.
 
 OOXML 픽스처는 `ooxml_fixtures.py` 한 곳에서 만든다. 각 테스트가 zipfile로 조립하다 보니 필수
 파트가 빠진 '열리지 않는 파일'이 양성 대조군으로 쓰였기 때문이다 — 실제 로더로 열리는지까지

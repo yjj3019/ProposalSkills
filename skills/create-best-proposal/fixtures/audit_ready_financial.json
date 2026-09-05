@@ -175,5 +175,6 @@
     "constraints": [
       "regulated-industry"
     ]
-  }
+  },
+  "proposal_archetype": "build"
 }
