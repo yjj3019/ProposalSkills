@@ -234,6 +234,17 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "tool": render_in.get("tool") or "",
         "evidence": _str_list(render_in, "evidence", "render"),
     }
+    # 검사·승인 기록은 입력에 있는 것만 그대로 옮긴다. 여기서 빠지면 승인까지 마친
+    # 정상 경로가 "육안 승인 없음"으로 차단된다(승인 사실을 만들어내지는 않는다).
+    for flag in ("render_succeeded", "layout_checked", "visual_review_approved"):
+        if flag in render_in:
+            render[flag] = _bool(render_in, flag, False, "render")
+    for text_field in ("visual_reviewer", "output_profile"):
+        value = render_in.get(text_field)
+        if value is not None:
+            if not isinstance(value, str):
+                raise ValueError(f"render.{text_field} must be a string (got {type(value).__name__})")
+            render[text_field] = value
 
     package_in = meta.get("package") if isinstance(meta.get("package"), dict) else {}
     checks = dict(REQUIRED_PACKAGE_CHECKS)

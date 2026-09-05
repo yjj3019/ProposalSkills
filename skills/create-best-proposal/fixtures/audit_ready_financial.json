@@ -10,7 +10,8 @@
       "evidence_refs": [
         "proposal.pptx#slide-18",
         "조견표#R1"
-      ]
+      ],
+      "text": "R1 항목 내용(픽스처)"
     },
     {
       "id": "R2",
@@ -19,7 +20,8 @@
       "evidence_refs": [
         "망분리 구성도#3",
         "regulatory REG1"
-      ]
+      ],
+      "text": "R2 항목 내용(픽스처)"
     }
   ],
   "claims": [
@@ -31,7 +33,8 @@
       "evidence_refs": [
         "금융권 유사 실적 확인서 2026-05",
         "망분리 구성 점검 확인서 2026-06"
-      ]
+      ],
+      "text": "C1 항목 내용(픽스처)"
     }
   ],
   "unresolved_tokens": [],

@@ -154,11 +154,43 @@ def validate_package(z: zipfile.ZipFile, suffix: str) -> None:
     bad = z.testzip()
     if bad is not None:
         raise KeyError(f"손상된 ZIP 항목: {bad}")
-    for name in (main, "[Content_Types].xml"):
+    # 관계 파트와 본문 파트를 모두 파싱한다. 두 파일만 보던 때는 slide1.xml이나
+    # _rels/.rels가 깨진 패키지가 통과했고, 그 파일은 실제로 열리지 않는다.
+    targets = [main, "[Content_Types].xml"]
+    targets += [n for n in names if n.endswith(".rels")]
+    if part_pattern:
+        targets += [n for n in names if re.match(part_pattern, n)]
+    for name in dict.fromkeys(targets):
         try:
             ET.fromstring(z.read(name))
         except ET.ParseError as exc:
             raise KeyError(f"{name} XML 파싱 실패: {exc}") from exc
+        except KeyError as exc:
+            raise KeyError(f"{name} 파트를 읽을 수 없다: {exc}") from exc
+
+
+def load_check(path: Path) -> str | None:
+    """실제 로더로 한 번 열어본다. 문제가 있으면 사유 문자열, 없으면 None.
+
+    구조 검사(validate_package)가 놓치는 조합 — 관계 누락, 스키마 위반 — 은 로더가
+    잡는다. 최종 산출물 검사(deck_check)에서만 쓴다: 합성 픽스처까지 로더를 통과해야
+    하면 텍스트 추출 경로 전체가 라이브러리에 묶인다.
+    라이브러리가 없으면 None(구조 검사는 이미 끝났다)."""
+    readers = {".pptx": ("pptx", "Presentation"), ".docx": ("docx", "Document"),
+               ".xlsx": ("openpyxl", "load_workbook")}
+    spec = readers.get(Path(path).suffix.lower())
+    if spec is None:
+        return None
+    module_name, func_name = spec
+    try:
+        module = __import__(module_name)
+    except ImportError:
+        return None
+    try:
+        getattr(module, func_name)(str(path))
+    except Exception as exc:  # 로더가 거부하면 제출할 수 없는 파일이다
+        return f"{module_name}로 열 수 없는 패키지다: {type(exc).__name__}: {exc}"
+    return None
 
 
 def _num(name: str) -> str:

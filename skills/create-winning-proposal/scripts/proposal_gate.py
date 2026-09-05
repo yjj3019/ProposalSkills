@@ -38,6 +38,8 @@ OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibili
 REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
 VENDOR_KINDS = {"support", "supply"}
 CLAIM_KINDS = {"material", "commitment", "informational"}
+# 원장 항목이 무엇인지 사람이 읽을 수 있는 필드. 하나라도 있으면 된다.
+LEDGER_TEXT_FIELDS = ("text", "label", "title", "summary", "description")
 # 엄격 불리언 필드: JSON true만 참. "yes"/"pending"/"no" 같은 문자열은 스키마 오류로
 # 거절한다(진리값 평가로 비어있지 않은 문자열이 통과하던 P0 허위 통과 차단).
 STRICT_BOOL_FIELDS = {
@@ -231,6 +233,21 @@ def validate_schema(data: object) -> list[str]:
                 failures.append(f"duplicate id in {name}: {rid}")
             else:
                 seen.add(rid)
+            # ID만 있고 내용이 없는 껍데기 원장 차단. "요구 R1 승인"은 R1이 무엇인지
+            # 적혀 있어야 검증 가능한 기록이 된다. 제출 기록에만 요구한다 — 초안 단계의
+            # 부분 원장까지 막으면 작성 중에 게이트를 돌릴 수 없다.
+            if data.get("mode") == "submission" \
+                    and not any(not _is_placeholder(item.get(f)) for f in LEDGER_TEXT_FIELDS):
+                failures.append(
+                    f"{name} {rid if isinstance(rid, str) and rid.strip() else i} lacks a "
+                    f"human-readable text ({'/'.join(LEDGER_TEXT_FIELDS)} 중 하나에 내용을 적는다)")
+            # informational은 근거 검사를 면제받는 유일한 유형이다. 면제 사유를 적게 해서
+            # 근거 없는 주장을 informational로 재분류해 빠져나가는 경로를 막는다.
+            if name == "claims" and _enum_ok(item.get("kind"), {"informational"}) \
+                    and _is_placeholder(item.get("rationale")):
+                failures.append(
+                    f"claim {item.get('id', i)} is informational but lacks a rationale "
+                    "— 근거 면제 사유를 적는다(주장이면 material/commitment로 분류한다)")
     return sorted(set(failures), key=failures.index)
 
 
@@ -261,6 +278,24 @@ def _is_number(value: object) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+# 통화 단위의 절대 허용오차. 표시 반올림(원 단위)과 수천만 원 차이를 같은 상대오차로
+# 다루면 37억에 1,800만원 오차가 통과한다 — 금액은 절대값으로 좁게 본다.
+CURRENCY_UNITS = {"KRW", "원", "USD", "EUR", "JPY", "달러", "엔"}
+CURRENCY_ABS_TOLERANCE = 1.0
+
+
+def _is_finite(value: object) -> bool:
+    import math
+    return _is_number(value) and math.isfinite(float(value))
+
+
+def _tolerance_for(item: dict, value: float, tol: float) -> float:
+    """항목 성격에 맞는 허용오차. 금액은 절대값, 그 외는 상대값."""
+    if str(item.get("unit", "")).strip() in CURRENCY_UNITS:
+        return CURRENCY_ABS_TOLERANCE
+    return max(tol * max(abs(value), 1), 1e-9)
+
+
 def check_numbers(entries: object) -> list[str]:
     """수치 원장의 산술을 실제로 계산해 검증한다.
 
@@ -286,8 +321,9 @@ def check_numbers(entries: object) -> list[str]:
             failures.append(f"duplicate id in numbers: {nid}")
             continue
         by_id[nid] = item
-        if not _is_number(item.get("value")):
-            failures.append(f"number {nid} value must be a JSON number (got {item.get('value')!r})")
+        if not _is_finite(item.get("value")):
+            failures.append(f"number {nid} value must be a finite JSON number "
+                            f"(got {item.get('value')!r})")
         if not isinstance(item.get("unit"), str) or not item["unit"].strip():
             failures.append(f"number {nid} lacks a unit")
         if _is_placeholder(item.get("label")):
@@ -297,6 +333,10 @@ def check_numbers(entries: object) -> list[str]:
         if not _is_number(tol) or tol < 0:
             failures.append(f"number {nid} tolerance must be a non-negative number")
             tol = 0.005
+        if not isinstance(item.get("unit"), str):
+            # 단위가 문자열이 아니면 위에서 이미 차단됐다. 여기서 계속 진행하면
+            # 해시 불가 값(dict/list)이 set에 들어가 TypeError로 게이트가 죽는다.
+            continue
         parts = item.get("components")
         if parts is not None:
             if not isinstance(parts, list) or not parts:
@@ -306,14 +346,19 @@ def check_numbers(entries: object) -> list[str]:
             if missing:
                 failures.append(f"number {nid} references unknown components: {missing}")
                 continue
+            if nid in parts:
+                failures.append(f"number {nid} lists itself as a component — 검산이 성립하지 않는다")
+                continue
+            if not all(isinstance(by_id[p].get("unit"), str) for p in parts):
+                continue  # 구성요소 단위가 문자열이 아니면 위에서 이미 차단됐다
             units = {by_id[p].get("unit") for p in parts} | {item.get("unit")}
             if len(units) > 1:
                 failures.append(f"number {nid} mixes units in a sum: {sorted(str(u) for u in units)}")
                 continue
-            if not all(_is_number(by_id[p].get("value")) for p in parts) or not _is_number(item.get("value")):
+            if not all(_is_finite(by_id[p].get("value")) for p in parts) or not _is_finite(item.get("value")):
                 continue
             total = sum(by_id[p]["value"] for p in parts)
-            if abs(total - item["value"]) > max(tol * max(abs(item["value"]), 1), 1e-9):
+            if abs(total - item["value"]) > _tolerance_for(item, item["value"], tol):
                 failures.append(
                     f"number {nid} ({item.get('label', '')}) is {item['value']} but its components "
                     f"sum to {total} — 합계가 맞지 않는다")
@@ -325,9 +370,19 @@ def check_numbers(entries: object) -> list[str]:
             if item.get("unit") != "%":
                 failures.append(f"number {nid} uses percent_of but its unit is not '%'")
                 continue
+            if base == nid:
+                failures.append(f"number {nid} is a percentage of itself")
+                continue
             share, whole = item.get("value"), by_id[base].get("value")
             amount = item.get("amount")
-            if _is_number(share) and _is_number(whole) and _is_number(amount) and whole:
+            # 계산할 수 없으면 통과가 아니라 미검증이다 — 조용히 넘기면 비율이 무검사로 남는다.
+            if not _is_finite(amount):
+                failures.append(f"number {nid} uses percent_of but lacks a finite 'amount' "
+                                "(분자) — 검산할 수 없다")
+            elif not _is_finite(whole) or whole == 0:
+                failures.append(f"number {nid} percent_of {base} has a zero or non-numeric base "
+                                "— 나눗셈이 성립하지 않는다")
+            elif _is_finite(share):
                 expected = amount / whole * 100
                 if abs(expected - share) > max(tol * max(abs(share), 1), 1e-9):
                     failures.append(
@@ -607,6 +662,13 @@ def evaluate(data: dict) -> list[str]:
     numbers = data.get("numbers")
     if numbers is not None:
         failures.extend(check_numbers(numbers))
+        if mode == "submission" and isinstance(numbers, list) and not numbers:
+            # 빈 원장으로 검산 의무가 사라지지 않는다. 검증할 수치가 없는 문서라면
+            # 그 사실을 근거와 함께 기록한다.
+            if not _evidence_ok(data.get("numbers_not_applicable")):
+                failures.append(
+                    "numbers ledger is empty — 금액·기간·수량이 없는 문서라면 "
+                    "numbers_not_applicable에 사유를 기록한다")
     elif mode == "submission":
         failures.append(
             "checks.arithmetic is self-declared without a numbers ledger — "
@@ -631,8 +693,14 @@ def evaluate(data: dict) -> list[str]:
     # 렌더 성공(PDF 변환)은 디자인 승인이 아니다 — 미검사를 통과로 추정하지 않는다.
     if mode == "submission":
         render_block = data["render"]
-        if "layout_checked" in render_block and not _true(render_block.get("layout_checked")):
-            failures.append("layout check is missing — deck_check.py로 레이아웃을 검사한다")
+        if not _true(render_block.get("layout_checked")):
+            # 필드를 지우면 요구가 사라지던 구멍을 막는다(누락 = 미검사 = 차단).
+            failures.append("layout check is missing — deck_check.py로 레이아웃을 검사하고 "
+                            "render.layout_checked=true를 기록한다")
+        if "render_succeeded" in render_block and _true(render_block.get("verified")) \
+                and not _true(render_block.get("render_succeeded")):
+            failures.append("render.verified=true contradicts render_succeeded=false "
+                            "— 렌더가 실패했는데 검증 완료로 기록됐다")
         if not _true(render_block.get("visual_review_approved")):
             failures.append(
                 "visual review is not approved — 렌더 썸네일을 사람이 확인한 뒤 "
@@ -757,7 +825,7 @@ def remediation_hint(failure: str) -> str:
 
 
 def explain_markdown(data: dict, schema_failures: list[str], failures: list[str],
-                     label: str | None = None) -> str:
+                     label: str | None = None, document_verified: bool = False) -> str:
     """게이트 결과를 사람이 바로 고칠 수 있는 마크다운으로 설명한다.
 
     label을 주면 그 판정을 그대로 쓴다. 호출자(unified_gate)는 audit만으로는 알 수 없는
@@ -775,9 +843,13 @@ def explain_markdown(data: dict, schema_failures: list[str], failures: list[str]
         # 라벨과 설명은 같은 판정에서 나온다. 호출자가 준 label이 우선한다.
         label = label or readiness(data, failures)[0]
         mode = str(data.get("mode", "")) or "draft"
-        if label == "SUBMISSION-READY":
+        if label == "SUBMISSION-READY" and document_verified:
             body = ("제출 가능. 모든 결정론적 게이트를 통과했고 실제 파일과 해시가 일치한다. "
                     "최종 수치·화면·패키지는 사람이 한 번 더 확인한다.")
+        elif label == "SUBMISSION-READY":
+            # 이 호출자는 파일을 보지 않았다 — audit만으로 제출 승인을 말하지 않는다.
+            body = ("audit의 결정론적 게이트는 통과했다. **실제 파일을 검사하지 않았으므로 "
+                    "제출 승인이 아니다** — `unified_gate.py --doc <최종파일>`로 해시 대조를 받는다.")
         elif label == "AUDIT-VALID":
             body = ("audit 자체는 유효하다 — **제출 판정이 아니다.** 실제 문서를 검사하지 "
                     "않았으므로 제출 준비 상태로 볼 수 없다. `--doc <최종파일>`로 다시 실행한다.")

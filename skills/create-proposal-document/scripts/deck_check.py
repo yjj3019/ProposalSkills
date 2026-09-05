@@ -41,6 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import deck_profiles
+import quality_gate
 
 try:
     from pptx import Presentation
@@ -90,6 +91,51 @@ def iter_shapes(shapes):
             yield sh
 
 
+def _group_transform(group) -> tuple[float, float, float, float] | None:
+    """그룹의 (offset_x, offset_y, scale_x, scale_y). 못 읽으면 None.
+
+    그룹 자식의 left/top은 자식 좌표계(chOff/chExt) 값이라 슬라이드 좌표가 아니다.
+    변환 없이 비교하면 화면 안 도형을 '화면 밖'으로 잡거나 그 반대가 된다.
+    """
+    try:
+        xfrm = group.element.find(
+            "{http://schemas.openxmlformats.org/presentationml/2006/main}grpSpPr").find(
+            "{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm")
+        a = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+        off, ext = xfrm.find(a + "off"), xfrm.find(a + "ext")
+        ch_off, ch_ext = xfrm.find(a + "chOff"), xfrm.find(a + "chExt")
+        cx, cy = int(ch_ext.get("cx")), int(ch_ext.get("cy"))
+        if not cx or not cy:
+            return None
+        sx, sy = int(ext.get("cx")) / cx, int(ext.get("cy")) / cy
+        return (int(off.get("x")) - int(ch_off.get("x")) * sx,
+                int(off.get("y")) - int(ch_off.get("y")) * sy, sx, sy)
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def placed_shapes(shapes, transform=(0.0, 0.0, 1.0, 1.0)):
+    """(도형, 슬라이드 좌표 left/top/width/height). 그룹은 변환을 누적한다."""
+    ox, oy, sx, sy = transform
+    for sh in shapes:
+        if sh.shape_type == 6 and hasattr(sh, "shapes"):  # GROUP
+            inner = _group_transform(sh)
+            if inner is None:
+                # 변환을 못 읽으면 그룹 자체의 상자로만 판단한다(잘못된 좌표로
+                # 자식을 재느니 검사 대상에서 뺀다).
+                continue
+            gx, gy, gsx, gsy = inner
+            yield from placed_shapes(sh.shapes,
+                                     (ox + gx * sx, oy + gy * sy, sx * gsx, sy * gsy))
+            continue
+        try:
+            box = (ox + int(sh.left) * sx, oy + int(sh.top) * sy,
+                   int(sh.width) * sx, int(sh.height) * sy)
+        except (TypeError, ValueError):
+            continue  # 좌표를 못 읽는 도형(플레이스홀더 상속 등)은 건너뛴다
+        yield sh, box
+
+
 def slide_kind(slide) -> str:
     names = {sh.name for sh in iter_shapes(slide.shapes)}
     if "COVER_BAND" in names and "SUBTITLE" in names:
@@ -108,27 +154,51 @@ def slide_kind(slide) -> str:
 # 생성기가 넣는 상용구(위치·번호·캡션)만 제외한다. BODY_LEGEND는 구성도의 범례로
 # 작성자가 쓴 내용이므로 폰트·밀도 검사 대상이다(예전엔 제외돼 본문 하한 미만으로 남았다).
 META_SHAPES = {"HEADER", "FOOTER", "PAGENO", "CAPTION", "REQID", "STATUS"}
+# 소형 텍스트(범례·간트 라벨)의 정의는 deck_profiles에 있다 — 생성기와 같은 정의를
+# 읽어야 두 도구의 기준이 갈리지 않는다. 검사 대상이되 하한은 표 기준을 쓴다.
 
 
-def min_font_pt(slide) -> float | None:
-    """본문 텍스트의 최소 폰트. 캡션·헤더·푸터(visual-style: 8~9pt 허용)는 제외."""
-    sizes = []
+def _effective_pt(run, paragraph, shape) -> float | None:
+    """실제로 적용되는 글자 크기. run에 없으면 문단, 그 다음 도형 기본값을 본다.
+
+    run.font.size만 보면 문단 수준에서 크기를 준 텍스트가 통째로 '크기 미지정'으로
+    빠져 폰트 하한 검사를 지나쳤다 — 축소한 장표가 그대로 통과하던 경로다.
+    """
+    for source in (run.font, paragraph.font,
+                   getattr(getattr(shape, "text_frame", None), "_defRPr", None)):
+        size = getattr(source, "size", None) if source is not None else None
+        if size is not None:
+            return size.pt
+    return None
+
+
+def min_font_pt(slide) -> tuple[float | None, float | None]:
+    """(본문 최소 pt, 표 최소 pt). 캡션·헤더·푸터(상용구)는 제외.
+
+    본문과 표는 허용 하한이 다르다(표가 더 작다). 하나로 합치면 표 하한이 본문에도
+    적용돼, 본문을 표 크기까지 줄인 장표가 통과한다.
+    """
+    body: list[float] = []
+    table: list[float] = []
     for sh in iter_shapes(slide.shapes):
         if sh.name in META_SHAPES:
             continue
-        frames = []
+        frames: list[tuple[object, list]] = []
         if sh.has_text_frame:
-            frames.append(sh.text_frame)
+            frames.append((sh.text_frame, table if deck_profiles.is_small_text(sh.name) else body))
         if getattr(sh, "has_table", False) and sh.has_table:
             for row in sh.table.rows:
                 for cell in row.cells:
-                    frames.append(cell.text_frame)
-        for tf in frames:
+                    frames.append((cell.text_frame, table))
+        for tf, bucket in frames:
             for p in tf.paragraphs:
                 for r in p.runs:
-                    if r.font.size is not None and r.text.strip():
-                        sizes.append(r.font.size.pt)
-    return min(sizes) if sizes else None
+                    if not r.text.strip():
+                        continue
+                    pt = _effective_pt(r, p, sh)
+                    if pt is not None:
+                        bucket.append(pt)
+    return (min(body) if body else None, min(table) if table else None)
 
 
 def out_of_bounds(prs, slide) -> list[str]:
@@ -140,14 +210,9 @@ def out_of_bounds(prs, slide) -> list[str]:
     """
     sw, sh_ = int(prs.slide_width), int(prs.slide_height)
     problems: list[str] = []
-    for shape in iter_shapes(slide.shapes):
+    for shape, (left, top, width, height) in placed_shapes(slide.shapes):
         if not shape_text(shape).strip():
             continue
-        try:
-            left, top = int(shape.left), int(shape.top)
-            width, height = int(shape.width), int(shape.height)
-        except (TypeError, ValueError):
-            continue  # 좌표를 못 읽는 도형(플레이스홀더 상속 등)은 건너뛴다
         right, bottom = left + width, top + height
         if right <= 0 or bottom <= 0 or left >= sw or top >= sh_:
             problems.append(f"'{shape.name}' 완전히 화면 밖")
@@ -186,8 +251,11 @@ def stage_is_submission(stage: str) -> bool:
 
 
 def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float,
-         require_req_ids: bool, stage: str, style: dict | None = None) -> list[str]:
+         require_req_ids: bool, stage: str, style: dict | None = None,
+         min_table_font: float | None = None) -> list[str]:
     style = style or _DEFAULT
+    if min_table_font is None:
+        min_table_font = min(min_font, style["sizes"]["table"] - 1)
     lead_max = style["lead_max_chars"]
     density_max = style["density_max"]
     table_rows_max = style["table_rows_max"]
@@ -244,9 +312,12 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
                       if not heuristic else len(all_text))
         if body_chars > density_max:
             items.append(f"{WARN} 슬라이드 {idx}: 텍스트 {body_chars}자 > {density_max}자 — 도식·표로 압축 또는 분할")
-        mf = min_font_pt(slide)
-        if mf is not None and mf < min_font:
-            items.append(f"[차단] 슬라이드 {idx}: 최소 폰트 {mf:g}pt < {min_font:g}pt — 폰트 축소로 분량 회피 금지")
+        body_pt, table_pt = min_font_pt(slide)
+        for measured, floor, role in ((body_pt, min_font, "본문"),
+                                      (table_pt, min_table_font, "표")):
+            if measured is not None and floor is not None and measured < floor:
+                items.append(f"[차단] 슬라이드 {idx}: {role} 최소 폰트 {measured:g}pt < "
+                             f"{floor:g}pt — 폰트 축소로 분량 회피 금지")
         for sh in iter_shapes(slide.shapes):
             if getattr(sh, "has_table", False) and sh.has_table:
                 tbl = sh.table
@@ -356,9 +427,16 @@ def main(argv: list[str] | None = None) -> int:
     # 최소 폰트는 프로파일에서 유도한다 — 상수로 고정하면 발표본(18pt)을 상세본
     # 기준(9pt)으로 재거나, 그 반대로 정상 산출물을 차단한다.
     min_font = a.min_font if a.min_font is not None else deck_profiles.min_body_font(profile)
+    min_table_font = (min(a.min_font, deck_profiles.min_table_font(profile))
+                      if a.min_font is not None else deck_profiles.min_table_font(profile))
+    # 실제 로더로 한 번 열어본다 — 구조 검사가 놓치는 관계·스키마 결함은 여기서 걸린다.
+    load_problem = quality_gate.load_check(a.pptx)
+    if load_problem:
+        print(f"검사 불가: {load_problem}", file=sys.stderr)
+        return 2
     source = "지정" if a.profile else ("파일 표시" if stamped else "기본값 추정")
     items = [f"[정보] 규격: {style['label']}({profile}, {source}) · 최소 폰트 {min_font}pt · "
-             f"밀도 {style['density_max']}자"]
+             f"표 {min_table_font}pt · 밀도 {style['density_max']}자"]
     if a.profile and stamped and a.profile != stamped:
         items.append(f"{WARN} 지정한 규격({a.profile})이 파일에 남은 표시({stamped})와 다르다 — "
                      "다른 규격으로 만든 파일을 검사하고 있는지 확인한다")
@@ -371,7 +449,8 @@ def main(argv: list[str] | None = None) -> int:
         items.append(f"{level} {detail} — {deck_profiles.DEFAULT_PROFILE} 기준으로 재고 있다. "
                      "`--profile`로 규격을 명시하거나 build_deck으로 다시 생성한다")
     items += lint(prs, max_pages=a.max_pages, exclude_cover_toc=a.exclude_cover_toc,
-                  min_font=min_font, require_req_ids=a.require_req_ids, stage=a.stage, style=style)
+                  min_font=min_font, min_table_font=min_table_font,
+                  require_req_ids=a.require_req_ids, stage=a.stage, style=style)
     evidence: dict = {}
     rendered = False
     if a.render or a.png_dir or a.emit_render:

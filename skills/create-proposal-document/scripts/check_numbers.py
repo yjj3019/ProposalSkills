@@ -59,17 +59,66 @@ def variants(value: float) -> list[str]:
     return sorted(set(out), key=len, reverse=True)
 
 
-def document_text(path: Path) -> str:
-    return normalize_text(" ".join(text for _, text in extract_labeled_blocks(path)))
+# 평가위원이 읽는 영역. 노트·레이아웃·마스터·문서속성은 인쇄물에 나타나지 않으므로
+# "문서에 있다"의 근거가 될 수 없다(원장 수치가 노트에만 있으면 본문은 빈 채로 나간다).
+BODY_LABELS = ("슬라이드", "문단", "본문", "시트")
 
 
-def _found(haystack: str, needle: str) -> bool:
-    """숫자 경계를 지켜 찾는다 — '37'이 '370'에 걸리지 않게 한다."""
-    pattern = r"(?<![0-9.,])" + re.escape(needle) + r"(?![0-9,]*\d)"
-    return re.search(pattern, haystack) is not None
+def _is_body(label: str) -> bool:
+    return any(label.startswith(prefix) for prefix in BODY_LABELS)
 
 
-def compare(entries: list[dict], text: str) -> tuple[list[str], list[dict]]:
+def document_text(path: Path, body_only: bool = True) -> str:
+    blocks = extract_labeled_blocks(path)
+    if body_only:
+        blocks = [b for b in blocks if _is_body(b[0])]
+    return normalize_text(" ".join(text for _, text in blocks))
+
+
+# 수 뒤에 붙는 한국어·기호 단위. 같은 숫자라도 단위가 다르면 다른 값이다(37원 ≠ 37개월).
+# 공백 없이 붙은 것만 단위로 본다. "400 VM"의 VM은 명사이고, 한국어 제안서의 단위
+# 표기는 "37개월"·"37원"처럼 숫자에 붙는다 — 띄어쓴 낱말까지 단위로 보면 정상 표기를 차단한다.
+UNIT_TOKEN_RE = re.compile(r"^(%|퍼센트|원|억|만|천|조|개월|년|월|일|주|시간|분|초|명|개|건|식|대|회|배|점|배럴|GB|TB|MB|Gbps|Mbps|VM|core|vCPU)",
+                           re.IGNORECASE)
+# 원장 단위 → 문서에서 허용되는 표기. 여기 없는 단위는 인접 단위를 검사하지 않는다.
+UNIT_ALIASES: dict[str, set[str]] = {
+    "KRW": {"원", "억", "만", "천", "조"}, "원": {"원", "억", "만", "천", "조"},
+    "USD": {"달러"}, "달러": {"달러"},
+    "%": {"%", "퍼센트"}, "퍼센트": {"%", "퍼센트"},
+    "개월": {"개월", "월"}, "월": {"개월", "월"}, "년": {"년"},
+    "일": {"일"}, "주": {"주"}, "시간": {"시간"},
+    "명": {"명"}, "개": {"개"}, "건": {"건"}, "대": {"대"}, "회": {"회"}, "점": {"점"},
+}
+
+
+def _unit_conflict(after: str, unit: str) -> bool:
+    """매치 바로 뒤 단위가 원장 단위와 명백히 다르면 True(같은 수·다른 뜻)."""
+    allowed = UNIT_ALIASES.get(str(unit).strip())
+    if not allowed:
+        return False  # 모르는 단위는 판단하지 않는다 — 거짓 차단을 만들지 않는다
+    m = UNIT_TOKEN_RE.match(after)
+    if not m:
+        return False  # 단위가 붙어 있지 않으면(표 셀 등) 판단 근거가 없다
+    return m.group(1) not in allowed
+
+
+def _find_spans(haystack: str, needle: str) -> list[re.Match]:
+    """숫자 경계를 지켜 찾는다 — '37'이 '370'·'37.5'·'-37'에 걸리지 않게 한다."""
+    pattern = (r"(?<![0-9.,\-\u2212\u25b3])" + re.escape(needle)
+               + r"(?![0-9.,]*\d)")
+    return list(re.finditer(pattern, haystack))
+
+
+def _found(haystack: str, needle: str, unit: str = "") -> bool:
+    for m in _find_spans(haystack, needle):
+        tail = haystack[m.end():m.end() + 8]
+        if needle[-1].isdigit() and _unit_conflict(tail, unit):
+            continue  # 숫자로 끝나는 표기만 단위 충돌을 본다("37억"은 이미 단위를 포함)
+        return True
+    return False
+
+
+def compare(entries: list[dict], text: str, other: str = "") -> tuple[list[str], list[dict]]:
     """(검사 항목, 항목별 결과). 원장 순서를 유지한다."""
     items: list[str] = []
     results: list[dict] = []
@@ -85,13 +134,19 @@ def compare(entries: list[dict], text: str) -> tuple[list[str], list[dict]]:
             items.append(f"{BLOCK} {nid} {label}: value가 숫자가 아니다 — 대조할 수 없다")
             results.append({"id": nid, "checked": False, "matched": False})
             continue
-        found = [v for v in variants(value) if _found(text, v)]
+        unit = entry.get("unit", "")
+        found = [v for v in variants(value) if _found(text, v, unit)]
         results.append({"id": nid, "checked": True, "matched": bool(found),
                         "matched_as": found[:3]})
         if found:
-            items.append(f"[정보] {nid} {label}: 문서에서 확인({', '.join(found[:2])})")
+            items.append(f"[정보] {nid} {label}: 본문에서 확인({', '.join(found[:2])})")
+            continue
+        elsewhere = [v for v in variants(value) if other and _found(other, v, unit)]
+        if elsewhere:
+            items.append(f"{BLOCK} {nid} {label}: 값 {value}{unit}이 노트·레이아웃 등 "
+                         "비본문 영역에만 있다 — 평가위원이 보는 본문에는 없다")
         else:
-            items.append(f"{BLOCK} {nid} {label}: 값 {value}{entry.get('unit', '')}을 문서에서 찾지 못했다 "
+            items.append(f"{BLOCK} {nid} {label}: 값 {value}{unit}을 본문에서 찾지 못했다 "
                          "— 원장과 장표 중 하나가 낡았다")
     return items, results
 
@@ -128,12 +183,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{WARN} 원장이 비어 있다 — 대조할 수치가 없다")
         return 0
     try:
-        text = document_text(a.doc)
+        blocks = extract_labeled_blocks(a.doc)
     except Exception as exc:  # 손상·미지원 파일
         print(f"검사 불가(파일 형식·손상): {exc}", file=sys.stderr)
         return 2
+    text = normalize_text(" ".join(t for label, t in blocks if _is_body(label)))
+    other = normalize_text(" ".join(t for label, t in blocks if not _is_body(label)))
 
-    items, results = compare(entries, text)
+    items, results = compare(entries, text, other)
     for line in items:
         print(line)
     blockers = [i for i in items if i.startswith(BLOCK)]
