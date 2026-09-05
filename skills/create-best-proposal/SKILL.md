@@ -59,7 +59,11 @@ description: "제안서(PPTX 장표형 기본, DOCX·XLSX 지원) 작성·검토
 
 1. 요구사항 원자 추출 → 조견표 뼈대
    (`ID | 원문 | 근거유형 명시/해석/자체제안 | 필수 | 배점 | 응답위치 | 증빙 | 상태`).
-2. 유형 판별: **A 구축 / B 유지보수·기술지원 / C 기술답변서** (+ 변형 매핑).
+2. 유형 판별: **A 구축 / B 유지보수·기술지원 / C 기술답변서**. `context.engagement`가
+   뼈대를 정한다(build·migrate→A, operate·service-improvement→B, product-selection→C).
+   쓴 뼈대를 meta `proposal_archetype`에, 목차를 `sections[]`에 적으면 게이트가 사업
+   성격과 대조하고 필수 절 누락을 검사한다. **교육·컨설팅·정책은 이 저장소에 목차
+   근거가 없다** — A/B/C를 그대로 쓰려면 `archetype_rationale`에 이유를 적는다.
 3. Win Theme ≤3: `고객문제 → 차별화 → 근거 → 고객효과`. 각 theme에 **req_ids ≥1**
    (미링크 theme = 장식 → 경고/`--strict` 시 빌드 실패). meta `win_themes[]`에 기록.
 4. 목차 확정 후 **페이지별 리드문 1줄** 선작성 → 리드문만으로 논리 성립 여부 검증.

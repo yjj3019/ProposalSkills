@@ -103,6 +103,22 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   각 요구는 `requirements[].criterion_ids`로 **말단** 배점 항목에 연결하며, 대응 요구가 없는 말단
   항목은 차단한다(목차가 통째로 빠진 신호). `reading_mode`가 규격을 기대하는데
   `render.output_profile`이 **없거나** 다르면 제출 모드에서 차단한다(누락 = 미검사).
+  규격을 기대하는 읽기 조건은 `screen-presentation`(발표본)과 `print-evaluation`(상세본)
+  둘뿐이다 — `individual-review`는 임원 요약본일 수도 상세 기술평가서일 수도 있어서 읽는
+  환경만으로 문서 역할을 정할 수 없으므로 매핑하지 않는다.
+- **목차 뼈대(proposal_archetype, sections, archetype_rationale)**: `build`(구축) |
+  `maintenance`(유지보수·기술지원) | `technical-response`(기술답변서). 사업 성격
+  (`context.engagement`)이 표준 뼈대를 정한다 — build·migrate → `build`,
+  operate·service-improvement → `maintenance`, product-selection → `technical-response`.
+  둘이 어긋나면 차단하되, 발주처가 목차를 지정했다면 `archetype_rationale`에 근거를 적어
+  통과시킨다. 제출 모드에서 매핑되는 사업 성격이면 **어떤 뼈대를 썼는지 기록**해야 한다.
+  `sections[]`(`{title}` 또는 문자열 배열)를 적으면 뼈대별 필수 절 누락을 검사한다 —
+  구축이면 사업 범위·구축 방안·추진 일정·시험/검수·이행 조직, 유지보수면 지원 범위·지원
+  체계·SLA·장애 대응, 기술답변서면 요구 대응표·제품 규격·근거 증빙. 원장이 없으면 검사하지
+  않는다(없는 목차를 만들어내지 않으며, `slides[]`는 요구 대응 매핑이지 목차가 아니므로
+  거기서 유추하지도 않는다).
+  **교육·컨설팅·정책에는 이 저장소에 목차 근거가 없다.** 유형을 강제하지 않되, IT 구축
+  목차를 그대로 쓰려면 이유를 적게 한다.
 - **제출 묶음(attachments)**: `{name, required?, present?, role?, file?, format?, sha256?,
   copies?, channel?, anonymity_checked?, price_screened?, reviewer?}`. 제출은 파일 하나가 아니라
   기명 원본·익명 사본·밀봉 가격서·별책 워크시트가 함께 나가고 파일마다 규칙이 다르다.

@@ -49,6 +49,40 @@ ATTACHMENT_ROLES = {"proposal", "proposal-anonymous", "price", "form", "certific
 ANONYMOUS_ROLES = {"proposal-anonymous"}
 # 가격을 담아도 되는 역할. 기술본에 가격이 섞이면 실격인 공고가 많다.
 PRICE_ROLES = {"price"}
+
+# 목차 뼈대(아키타입) — 사업 성격이 다르면 목차가 달라야 한다. 여기 있는 세 유형은
+# 실제 수주 제안서에서 추출해 references/proposal-structure.md에 적힌 것뿐이다.
+# 근거 없는 목차를 지어내지 않으므로, 매핑이 없는 사업 성격에는 유형을 강제하지 않는다.
+ARCHETYPES = {"build", "maintenance", "technical-response"}
+ARCHETYPE_OF_ENGAGEMENT = {
+    "build": "build",                    # 유형 A 구축
+    "migrate": "build",                  # 이관도 구축 목차(현행→목표·전환·검수)
+    "operate": "maintenance",            # 유형 B 유지보수·기술지원
+    "service-improvement": "maintenance",
+    "product-selection": "technical-response",  # 유형 C 기술답변서
+}
+# 아키타입이 요구하는 절(節). 없으면 그 사업에서 반드시 답해야 할 것을 통째로 빠뜨린 것이다.
+# 값은 목차 표준(proposal-structure.md)에서 왔고, 매칭은 키워드 하나라도 걸리면 충족으로 본다.
+ARCHETYPE_SECTIONS: dict[str, dict[str, tuple[str, ...]]] = {
+    "build": {
+        "사업 범위": ("범위", "scope"),
+        "구축 방안": ("구축", "구성도", "아키텍처", "설계"),
+        "추진 일정": ("일정", "간트", "로드맵", "단계별"),
+        "시험·검수": ("시험", "테스트", "검수", "검증"),
+        "이행 조직": ("조직", "인력", "추진체계", "r&r"),
+    },
+    "maintenance": {
+        "지원 범위·대상": ("지원 대상", "지원범위", "대상 제품", "서비스 범위"),
+        "지원 체계": ("지원 체계", "에스컬레이션", "1선", "조직"),
+        "SLA": ("sla", "응답", "복구 시간", "서비스 수준"),
+        "장애 대응": ("장애", "비상", "인시던트"),
+    },
+    "technical-response": {
+        "요구 대응표": ("대응표", "조견표", "요구사항"),
+        "제품·규격": ("제품", "규격", "사양", "명세"),
+        "근거·증빙": ("근거", "증빙", "인증", "시험 성적"),
+    },
+}
 MANDATORY_STRENGTHS = {"required", "conditional"}
 STRENGTH_OF_MANDATORY = {True: "required", False: "optional"}
 
@@ -438,10 +472,13 @@ STAGES = {"explore", "internal-review", "rfp-response", "presentation", "final-s
 READING_MODES = {"screen-presentation", "print-evaluation", "individual-review", "appendix"}
 CONSTRAINTS = {"sensitive-data", "business-continuity", "closed-network", "regulated-industry"}
 # 읽는 조건 → 장표 규격(deck_profiles). 발표라면서 인쇄용 밀도로 만든 덱을 잡는다.
+# 읽는 환경이 규격을 강제하는 것은 그 환경이 규격을 사실상 결정할 때뿐이다.
+# 스크린 발표는 뒷자리 가독성이, 인쇄 채점은 분량 안의 근거 밀도가 규격을 정한다.
+# 개인 열람(individual-review)은 임원 요약본일 수도 상세 기술평가서일 수도 있어서
+# 환경만으로 문서 역할을 정할 수 없다 — 매핑하지 않는다(읽는 환경 ≠ 문서 역할).
 READING_MODE_PROFILE = {
     "screen-presentation": "presentation",
     "print-evaluation": "detailed-submission",
-    "individual-review": "executive-summary",
 }
 SUBMISSION_STAGES = {"rfp-response", "final-submission"}
 # 문서 종류는 구매 단계와 다른 축이다. RFI 응답은 입찰이 아니지만 자격·형식 요구는
@@ -482,6 +519,56 @@ def validate_context(context: object) -> list[str]:
             if bad:
                 failures.append(f"context.constraints has unsupported values: {bad} "
                                 f"(allowed: {', '.join(sorted(CONSTRAINTS))})")
+    return failures
+
+
+def check_outline(data: dict) -> list[str]:
+    """목차 뼈대가 사업 성격과 맞는지, 그 뼈대가 요구하는 절이 있는지 본다.
+
+    `context.engagement`가 사업 성격이고 `proposal_archetype`이 실제로 쓴 목차 뼈대다.
+    둘이 어긋나면 유지보수 사업에 구축 목차를 쓴 것이다 — 기관명만 바꾼 제안서의 전형.
+    매핑이 없는 사업 성격(교육·컨설팅·정책)에는 유형을 강제하지 않는다. 이 저장소에 그
+    목차의 근거가 없기 때문이다. 다만 A/B/C 중 하나를 굳이 쓴다면 이유를 적게 한다.
+    """
+    failures: list[str] = []
+    archetype = data.get("proposal_archetype")
+    if archetype is not None and not _enum_ok(archetype, ARCHETYPES):
+        return [f"proposal_archetype has unsupported value: {archetype!r} "
+                f"(allowed: {', '.join(sorted(ARCHETYPES))})"]
+    context = data.get("context") if isinstance(data.get("context"), dict) else {}
+    engagement = context.get("engagement")
+    expected = ARCHETYPE_OF_ENGAGEMENT.get(str(engagement)) if engagement else None
+    mode = data.get("mode")
+    if archetype is None:
+        if mode == "submission" and expected:
+            failures.append(
+                f"submission requires proposal_archetype — engagement={engagement}이면 "
+                f"'{expected}' 목차가 표준이다(다르게 쓸 수 있으나 무엇을 썼는지 기록한다)")
+        return failures
+    explained = not _is_placeholder(data.get("archetype_rationale"))
+    if expected and archetype != expected and not explained:
+        failures.append(
+            f"proposal_archetype '{archetype}' does not match engagement '{engagement}' "
+            f"(expected '{expected}') — 사업 성격과 목차가 어긋난다. 발주처가 목차를 "
+            "지정했다면 archetype_rationale에 근거를 적는다")
+    elif engagement and not expected and not explained:
+        failures.append(
+            f"engagement '{engagement}' has no standard outline in this repository but "
+            f"proposal_archetype '{archetype}' was used — archetype_rationale에 이 목차를 "
+            "쓰는 이유를 적는다(IT 구축 목차를 교육·컨설팅 사업에 그대로 쓰지 않는다)")
+    # 목차 원장은 있으면 검사한다. meta에 slides[]가 있으면 변환기가 제목에서 채우므로,
+    # 문서화된 경로를 따르면 자동으로 검사 대상이 된다.
+    sections = data.get("sections")
+    if sections is None:
+        return failures
+    if not isinstance(sections, list):
+        return failures + ["sections must be an array"]
+    titles = " ".join(
+        str(s.get("title", "")) if isinstance(s, dict) else str(s) for s in sections).lower()
+    for label, keywords in ARCHETYPE_SECTIONS.get(archetype, {}).items():
+        if not any(k in titles for k in keywords):
+            failures.append(f"outline is missing a '{label}' section for the "
+                            f"'{archetype}' archetype — 이 사업에서 반드시 답해야 할 항목이다")
     return failures
 
 
@@ -814,6 +901,7 @@ def evaluate(data: dict) -> list[str]:
             failures.append(f"{defect.get('severity')} defect {defect.get('id', '?')} is open")
 
     failures.extend(check_attachments(data))
+    failures.extend(check_outline(data))
 
     # submission 체크(파일명·형식·부수 등 제출 규정)는 제출 모드에서만 요구한다. draft/review에서
     # 요구하면 Pink/Red 체크포인트가 구조적으로 도달 불가능해진다(consistency·arithmetic은 전 모드).

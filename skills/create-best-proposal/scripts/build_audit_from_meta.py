@@ -305,6 +305,15 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         audit["context"] = meta["context"]
     if meta.get("evaluation_criteria") is not None:
         audit["evaluation_criteria"] = _as_list(meta.get("evaluation_criteria"))
+    for field in ("proposal_archetype", "archetype_rationale"):
+        if meta.get(field) is not None:
+            if not isinstance(meta[field], str):
+                raise ValueError(f"meta field must be a string: {field}")
+            audit[field] = meta[field]
+    if meta.get("sections") is not None:
+        # slides[]에서 유추하지 않는다 — 그것은 요구 대응 매핑이지 목차가 아니다.
+        # 부분 매핑을 목차로 읽으면 있는 절을 없다고 잡는다.
+        audit["sections"] = _as_list(meta.get("sections"))
     if meta.get("evaluation_total") is not None:
         # 가격 별책 등으로 원장의 만점이 100이 아닐 때. 잃어버리면 게이트가 100을 요구한다.
         audit["evaluation_total"] = meta["evaluation_total"]

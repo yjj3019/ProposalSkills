@@ -1,0 +1,5 @@
+# 게이트·검사 스크립트 실행에 필요한 것 전부.
+# 표준 라이브러리만 쓰는 스크립트가 다수이며, 장표 생성·검사(build_deck / deck_check /
+# check_numbers)에만 python-pptx가 필요하다. LibreOffice(soffice)는 렌더 검사용 선택
+# 사항이며 pip로 설치하지 않는다 — 없으면 렌더는 NOT INSPECTED로 남는다.
+python-pptx>=0.6.21

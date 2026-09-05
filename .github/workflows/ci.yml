@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Install python-pptx
-        run: python -m pip install --quiet python-pptx
+      - name: Install dependencies
+        run: python -m pip install --quiet -r requirements.txt
       - name: Install LibreOffice (render path)
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libreoffice-impress poppler-utils fonts-nanum >/dev/null
@@ -200,6 +200,28 @@ jobs:
           python "$GATE" "${RUNNER_TEMP}/numbers_ok.json" --doc "${RUNNER_TEMP}/numbers_ok.pptx" --no-explain | grep -q "STATUS: SUBMISSION-READY"
           if python "$GATE" "${RUNNER_TEMP}/numbers_stale.json" --doc "${RUNNER_TEMP}/numbers_stale.pptx" --no-explain; then exit 1; fi
           if python "$GATE" "${RUNNER_TEMP}/numbers_ok.json" --doc "${RUNNER_TEMP}/numbers_ok.pptx" --skip-numbers --no-explain; then exit 1; fi
+          # 사업 성격 ↔ 목차 뼈대: 유지보수 사업에 구축 목차는 차단, 발주처 지정 근거가 있으면 통과
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          base = json.loads(audit_path.read_text(encoding="utf-8"))
+          d = json.loads(json.dumps(base)); d["context"]["engagement"] = "operate"
+          (tmp / "outline_mismatch.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d = json.loads(json.dumps(d)); d["archetype_rationale"] = "RFP 별지가 구축 목차를 지정"
+          (tmp / "outline_explained.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d = json.loads(json.dumps(base))
+          d["sections"] = [{"title": "구축 방안"}, {"title": "추진 일정"}, {"title": "추진체계"}]
+          (tmp / "outline_missing_section.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d["sections"] += [{"title": "사업 범위"}, {"title": "시험 및 검수"}]
+          (tmp / "outline_complete.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          PY
+          for BAD in outline_mismatch outline_missing_section; do
+            if python "$GATE" "${RUNNER_TEMP}/$BAD.json" --audit-only --no-explain; then exit 1; fi
+          done
+          for OK in outline_explained outline_complete; do
+            python "$GATE" "${RUNNER_TEMP}/$OK.json" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
+          done
           python score_completeness.py "$READY" | grep -q '"status": "AUDIT-VALID"'
       - name: Deck pipeline golden
         shell: bash

@@ -9,79 +9,512 @@
     "page_limit": 40
   },
   "slides": [
-    {"type": "cover"},
-    {"type": "toc", "title": "목차", "lead": "평가항목 배점 순서(기술구성 25 · 수행전략 20 · 이관 15)로 지면을 배분했습니다.",
-     "items": ["조견표", "Ⅰ. 제안 개요", "Ⅱ. 제안사 현황", "Ⅲ. 기술 구성", "Ⅳ. 이관 방안", "Ⅴ. 사업관리", "별첨"]},
-    {"type": "matrix", "breadcrumb": "조견표", "title": "요구사항 대응표", "lead": "필수 요구 6건 전부 수용, 조건부 1건은 조건과 대안을 명시했습니다.",
-     "caption": "기준일 2099-12-01 · 수용여부 기호+텍스트 병행", "req_ids": ["R1", "R2", "R3", "R4", "R5", "R6", "R7"],
-     "rows": [
-       {"id": "R1", "text": "가상화 노드 12대 구성", "support": "O 수용", "response_loc": "Ⅲ-1 p.12", "note": ""},
-       {"id": "R2", "text": "VMware 400 VM 이관", "support": "O 수용", "response_loc": "Ⅳ-1 p.18", "note": "Wave 4회"},
-       {"id": "R3", "text": "8개월 내 완료", "support": "O 수용", "response_loc": "Ⅴ-1 p.24", "note": ""},
-       {"id": "R4", "text": "관리 노드 이중화", "support": "O 수용", "response_loc": "Ⅲ-2 p.13", "note": ""},
-       {"id": "R5", "text": "제안서 40p 이내", "support": "O 수용", "response_loc": "전체", "note": "본문 38p"},
-       {"id": "R6", "text": "최근 5년 유사실적 2건", "support": "△ 조건부", "response_loc": "Ⅱ-2 p.9", "note": "[NEEDS INPUT: 영업 — 실적증명 2건]"},
-       {"id": "R7", "text": "기존 백업 솔루션 연계", "support": "O 수용", "response_loc": "Ⅲ-3 p.15", "note": "제조사 확약 첨부"}
-     ]},
-    {"type": "section", "no": "Ⅰ", "title": "제안 개요", "items": ["사업 이해", "추진 전략", "기대 효과"]},
-    {"type": "cards", "breadcrumb": "Ⅰ. 제안 개요 > 1. 사업 이해", "title": "사업 이해와 핵심 과제", "lead": "EOL이 임박한 가상화 기반을 서비스 중단 최소화로 전환하는 것이 핵심 과제입니다.",
-     "req_ids": ["R2", "R3"], "caption": "그림 1. 환경 변화 → 과제 → 목적 3단 논리",
-     "items": [
-       {"title": "환경 변화", "desc": ["기존 가상화 라이선스 정책 변경", "지원 종료 일정 [NEEDS INPUT: 고객 — 계약 만료일]"]},
-       {"title": "핵심 과제", "desc": ["400 VM 서비스 영향 최소화 이관", "운영 인력 재교육"]},
-       {"title": "사업 목적", "desc": ["컨테이너·VM 통합 플랫폼 확보", "8개월 내 전환 완료"]}
-     ]},
-    {"type": "process", "breadcrumb": "Ⅰ. 제안 개요 > 2. 추진 전략", "title": "단계별 추진 전략", "lead": "평가·설계 1개월, 구축 2개월, 이관 4개월, 안정화 1개월의 4단계로 위험을 분산합니다.",
-     "req_ids": ["R3"], "caption": "그림 2. 4단계 추진 전략",
-     "steps": [
-       {"title": "평가·설계", "desc": ["현행 VM 인벤토리", "이관 적합성 평가"]},
-       {"title": "플랫폼 구축", "desc": ["노드 12대 설치", "관리 노드 이중화"]},
-       {"title": "Wave 이관", "desc": ["4 Wave × 100 VM", "Wave별 롤백 게이트"]},
-       {"title": "안정화·이전", "desc": ["운영 교육", "SLA 전환"]}
-     ]},
-    {"type": "section", "no": "Ⅲ", "title": "기술 구성", "items": ["전체 구성도", "고가용성", "백업 연계"]},
-    {"type": "zones", "breadcrumb": "Ⅲ. 기술 구성 > 1. 전체 구성도", "title": "플랫폼 전체 구성도", "lead": "관리·컴퓨트·스토리지·네트워크 4계층을 분리하고 관리 노드는 3중화합니다.",
-     "req_ids": ["R1", "R4"], "caption": "그림 3. 전체 구성도 (계층 위→아래)", "source": "제안사 표준 참조 아키텍처",
-     "legend": ["실선: 데이터 경로", "점선: 관리 경로"],
-     "zones": [
-       {"title": "관리 계층", "items": [{"title": "Control Plane ×3", "desc": ["etcd 3중화"]}, {"title": "관리 콘솔"}, {"title": "모니터링"}]},
-       {"title": "컴퓨트 계층", "items": [{"title": "Worker ×9", "desc": ["VM/컨테이너 혼합"]}, {"title": "Live Migration"}]},
-       {"title": "스토리지·네트워크", "items": [{"title": "SDS"}, {"title": "기존 SAN 연계"}, {"title": "본딩 이중화"}]}
-     ]},
-    {"type": "table", "breadcrumb": "Ⅲ. 기술 구성 > 2. 고가용성", "title": "고가용성 구성 방안", "lead": "단일 장애점을 계층별로 제거하고 장애 시 자동 복구 목표를 수치로 제시합니다.",
-     "req_ids": ["R4"], "caption": "표 1. 계층별 HA 구성", "source": "제조사 공식 문서 [NEEDS INPUT: 기술 — 버전·기준일]",
-     "columns": ["계층", "장애 시나리오", "보호 방식", "복구 목표"],
-     "rows": [["관리", "Control Plane 1대 장애", "3중화 쿼럼 유지", "무영향"],
-              ["컴퓨트", "Worker 1대 장애", "VM 자동 재기동", "≤ 5분"],
-              ["스토리지", "디스크 장애", "복제 3본", "무영향"],
-              ["네트워크", "NIC 장애", "본딩 Active-Backup", "≤ 1초"]]},
-    {"type": "section", "no": "Ⅳ", "title": "이관 방안"},
-    {"type": "process", "breadcrumb": "Ⅳ. 이관 방안 > 1. Wave 이관", "title": "Wave 기반 이관 절차", "lead": "100 VM 단위 4 Wave로 나누고 각 Wave에 검증·롤백 게이트를 둡니다.",
-     "req_ids": ["R2"], "caption": "그림 4. Wave 이관 절차",
-     "steps": [
-       {"title": "사전 점검", "desc": ["의존성 매핑", "이관 적합성 분류"]},
-       {"title": "이관 실행", "desc": ["MTV 기반 이관", "네트워크 매핑 유지"]},
-       {"title": "검증", "desc": ["기능·성능 체크리스트", "사용자 확인"]},
-       {"title": "전환/롤백", "desc": ["Cut-over", "실패 시 원복 ≤ 2시간"]}
-     ]},
-    {"type": "section", "no": "Ⅴ", "title": "사업관리"},
-    {"type": "gantt", "breadcrumb": "Ⅴ. 사업관리 > 1. 추진 일정", "title": "추진 일정", "lead": "8개월 내 완료를 위해 구축과 Wave 1 사전 점검을 병행합니다.",
-     "req_ids": ["R3"], "caption": "그림 5. 추진 일정(월 단위) · ◆ 마일스톤", "months": 8,
-     "tasks": [
-       {"name": "1. 평가·설계", "start": 1, "end": 1, "phase": true, "milestones": [{"at": 1, "label": "설계 승인"}]},
-       {"name": "2. 플랫폼 구축", "start": 2, "end": 3, "phase": true},
-       {"name": "  노드 설치·HA", "start": 2, "end": 3},
-       {"name": "3. Wave 이관", "start": 3, "end": 7, "phase": true},
-       {"name": "  Wave 1~4", "start": 3, "end": 7, "label": "4 Wave"},
-       {"name": "4. 안정화·이전", "start": 8, "end": 8, "phase": true, "milestones": [{"at": 8, "label": "완료 보고"}]}
-     ]},
-    {"type": "staff", "breadcrumb": "Ⅴ. 사업관리 > 2. 투입 인력", "title": "투입 인력 구성", "lead": "PM 1명, 가상화 아키텍트 2명, 이관 엔지니어 3명으로 Wave 병행을 감당합니다.",
-     "req_ids": ["R3"], "caption": "표 2. 투입 인력 (성명은 발주처 마스킹 정책 확인)",
-     "people": [
-       {"name": "[NEEDS INPUT: PMO — 성명]", "role": "PM", "grade": "특급", "years": "15년", "certs": ["PMP"], "mm": "8.0"},
-       {"name": "[NEEDS INPUT: PMO — 성명]", "role": "가상화 아키텍트", "grade": "특급", "years": "12년", "certs": ["RHCA"], "mm": "8.0"},
-       {"name": "[NEEDS INPUT: PMO — 성명]", "role": "이관 엔지니어", "grade": "고급", "years": "8년", "certs": ["RHCE"], "mm": "6.0"}
-     ]},
-    {"type": "closing", "title": "감사합니다", "lead": "본 제안의 모든 수치·약속은 조견표와 별첨 근거에 대응합니다."}
+    {
+      "type": "cover"
+    },
+    {
+      "type": "toc",
+      "title": "목차",
+      "lead": "평가항목 배점 순서(기술구성 25 · 수행전략 20 · 이관 15)로 지면을 배분했습니다.",
+      "items": [
+        "조견표",
+        "Ⅰ. 제안 개요",
+        "Ⅱ. 제안사 현황",
+        "Ⅲ. 기술 구성",
+        "Ⅳ. 이관 방안",
+        "Ⅴ. 사업관리",
+        "별첨"
+      ]
+    },
+    {
+      "type": "matrix",
+      "breadcrumb": "조견표",
+      "title": "요구사항 대응표",
+      "lead": "필수 요구 6건 전부 수용, 조건부 1건은 조건과 대안을 명시했습니다.",
+      "caption": "기준일 2099-12-01 · 수용여부 기호+텍스트 병행",
+      "req_ids": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7"
+      ],
+      "rows": [
+        {
+          "id": "R1",
+          "text": "가상화 노드 12대 구성",
+          "support": "O 수용",
+          "response_loc": "Ⅲ-1 p.12",
+          "note": ""
+        },
+        {
+          "id": "R2",
+          "text": "VMware 400 VM 이관",
+          "support": "O 수용",
+          "response_loc": "Ⅳ-1 p.18",
+          "note": "Wave 4회"
+        },
+        {
+          "id": "R3",
+          "text": "8개월 내 완료",
+          "support": "O 수용",
+          "response_loc": "Ⅴ-1 p.24",
+          "note": ""
+        },
+        {
+          "id": "R4",
+          "text": "관리 노드 이중화",
+          "support": "O 수용",
+          "response_loc": "Ⅲ-2 p.13",
+          "note": ""
+        },
+        {
+          "id": "R5",
+          "text": "제안서 40p 이내",
+          "support": "O 수용",
+          "response_loc": "전체",
+          "note": "본문 38p"
+        },
+        {
+          "id": "R6",
+          "text": "최근 5년 유사실적 2건",
+          "support": "△ 조건부",
+          "response_loc": "Ⅱ-2 p.9",
+          "note": "[NEEDS INPUT: 영업 — 실적증명 2건]"
+        },
+        {
+          "id": "R7",
+          "text": "기존 백업 솔루션 연계",
+          "support": "O 수용",
+          "response_loc": "Ⅲ-3 p.15",
+          "note": "제조사 확약 첨부"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "no": "Ⅰ",
+      "title": "제안 개요",
+      "items": [
+        "사업 이해",
+        "추진 전략",
+        "기대 효과"
+      ]
+    },
+    {
+      "type": "cards",
+      "breadcrumb": "Ⅰ. 제안 개요 > 1. 사업 이해",
+      "title": "사업 이해와 핵심 과제",
+      "lead": "EOL이 임박한 가상화 기반을 서비스 중단 최소화로 전환하는 것이 핵심 과제입니다.",
+      "req_ids": [
+        "R2",
+        "R3"
+      ],
+      "caption": "그림 1. 환경 변화 → 과제 → 목적 3단 논리",
+      "items": [
+        {
+          "title": "환경 변화",
+          "desc": [
+            "기존 가상화 라이선스 정책 변경",
+            "지원 종료 일정 [NEEDS INPUT: 고객 — 계약 만료일]"
+          ]
+        },
+        {
+          "title": "핵심 과제",
+          "desc": [
+            "400 VM 서비스 영향 최소화 이관",
+            "운영 인력 재교육"
+          ]
+        },
+        {
+          "title": "사업 목적",
+          "desc": [
+            "컨테이너·VM 통합 플랫폼 확보",
+            "8개월 내 전환 완료"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "breadcrumb": "Ⅰ. 제안 개요 > 2. 사업 범위",
+      "title": "사업 범위",
+      "lead": "수행 영역과 고객 책임 영역을 나누어 경계를 먼저 확정합니다.",
+      "req_ids": [
+        "R1",
+        "R2"
+      ],
+      "caption": "표 1. 수행 범위 / 고객 책임 범위",
+      "columns": [
+        "구분",
+        "수행 범위",
+        "고객 책임"
+      ],
+      "rows": [
+        [
+          "플랫폼",
+          "노드 설치·구성·HA",
+          "상면·전원·냉방"
+        ],
+        [
+          "이관",
+          "VM 이관 및 검증",
+          "업무 담당자 확인"
+        ],
+        [
+          "운영 인계",
+          "운영 문서·교육",
+          "운영 인력 배정"
+        ]
+      ]
+    },
+    {
+      "type": "process",
+      "breadcrumb": "Ⅰ. 제안 개요 > 2. 추진 전략",
+      "title": "단계별 추진 전략",
+      "lead": "평가·설계 1개월, 구축 2개월, 이관 4개월, 안정화 1개월의 4단계로 위험을 분산합니다.",
+      "req_ids": [
+        "R3"
+      ],
+      "caption": "그림 2. 4단계 추진 전략",
+      "steps": [
+        {
+          "title": "평가·설계",
+          "desc": [
+            "현행 VM 인벤토리",
+            "이관 적합성 평가"
+          ]
+        },
+        {
+          "title": "플랫폼 구축",
+          "desc": [
+            "노드 12대 설치",
+            "관리 노드 이중화"
+          ]
+        },
+        {
+          "title": "Wave 이관",
+          "desc": [
+            "4 Wave × 100 VM",
+            "Wave별 롤백 게이트"
+          ]
+        },
+        {
+          "title": "안정화·이전",
+          "desc": [
+            "운영 교육",
+            "SLA 전환"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "no": "Ⅲ",
+      "title": "기술 구성",
+      "items": [
+        "전체 구성도",
+        "고가용성",
+        "백업 연계"
+      ]
+    },
+    {
+      "type": "zones",
+      "breadcrumb": "Ⅲ. 기술 구성 > 1. 전체 구성도",
+      "title": "플랫폼 전체 구성도",
+      "lead": "관리·컴퓨트·스토리지·네트워크 4계층을 분리하고 관리 노드는 3중화합니다.",
+      "req_ids": [
+        "R1",
+        "R4"
+      ],
+      "caption": "그림 3. 전체 구성도 (계층 위→아래)",
+      "source": "제안사 표준 참조 아키텍처",
+      "legend": [
+        "실선: 데이터 경로",
+        "점선: 관리 경로"
+      ],
+      "zones": [
+        {
+          "title": "관리 계층",
+          "items": [
+            {
+              "title": "Control Plane ×3",
+              "desc": [
+                "etcd 3중화"
+              ]
+            },
+            {
+              "title": "관리 콘솔"
+            },
+            {
+              "title": "모니터링"
+            }
+          ]
+        },
+        {
+          "title": "컴퓨트 계층",
+          "items": [
+            {
+              "title": "Worker ×9",
+              "desc": [
+                "VM/컨테이너 혼합"
+              ]
+            },
+            {
+              "title": "Live Migration"
+            }
+          ]
+        },
+        {
+          "title": "스토리지·네트워크",
+          "items": [
+            {
+              "title": "SDS"
+            },
+            {
+              "title": "기존 SAN 연계"
+            },
+            {
+              "title": "본딩 이중화"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "breadcrumb": "Ⅲ. 기술 구성 > 2. 고가용성",
+      "title": "고가용성 구성 방안",
+      "lead": "단일 장애점을 계층별로 제거하고 장애 시 자동 복구 목표를 수치로 제시합니다.",
+      "req_ids": [
+        "R4"
+      ],
+      "caption": "표 1. 계층별 HA 구성",
+      "source": "제조사 공식 문서 [NEEDS INPUT: 기술 — 버전·기준일]",
+      "columns": [
+        "계층",
+        "장애 시나리오",
+        "보호 방식",
+        "복구 목표"
+      ],
+      "rows": [
+        [
+          "관리",
+          "Control Plane 1대 장애",
+          "3중화 쿼럼 유지",
+          "무영향"
+        ],
+        [
+          "컴퓨트",
+          "Worker 1대 장애",
+          "VM 자동 재기동",
+          "≤ 5분"
+        ],
+        [
+          "스토리지",
+          "디스크 장애",
+          "복제 3본",
+          "무영향"
+        ],
+        [
+          "네트워크",
+          "NIC 장애",
+          "본딩 Active-Backup",
+          "≤ 1초"
+        ]
+      ]
+    },
+    {
+      "type": "section",
+      "no": "Ⅳ",
+      "title": "이관 방안"
+    },
+    {
+      "type": "process",
+      "breadcrumb": "Ⅳ. 이관 방안 > 1. Wave 이관",
+      "title": "Wave 기반 이관 절차",
+      "lead": "100 VM 단위 4 Wave로 나누고 각 Wave에 검증·롤백 게이트를 둡니다.",
+      "req_ids": [
+        "R2"
+      ],
+      "caption": "그림 4. Wave 이관 절차",
+      "steps": [
+        {
+          "title": "사전 점검",
+          "desc": [
+            "의존성 매핑",
+            "이관 적합성 분류"
+          ]
+        },
+        {
+          "title": "이관 실행",
+          "desc": [
+            "MTV 기반 이관",
+            "네트워크 매핑 유지"
+          ]
+        },
+        {
+          "title": "검증",
+          "desc": [
+            "기능·성능 체크리스트",
+            "사용자 확인"
+          ]
+        },
+        {
+          "title": "전환/롤백",
+          "desc": [
+            "Cut-over",
+            "실패 시 원복 ≤ 2시간"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "no": "Ⅴ",
+      "title": "사업관리"
+    },
+    {
+      "type": "gantt",
+      "breadcrumb": "Ⅴ. 사업관리 > 1. 추진 일정",
+      "title": "추진 일정",
+      "lead": "8개월 내 완료를 위해 구축과 Wave 1 사전 점검을 병행합니다.",
+      "req_ids": [
+        "R3"
+      ],
+      "caption": "그림 5. 추진 일정(월 단위) · ◆ 마일스톤",
+      "months": 8,
+      "tasks": [
+        {
+          "name": "1. 평가·설계",
+          "start": 1,
+          "end": 1,
+          "phase": true,
+          "milestones": [
+            {
+              "at": 1,
+              "label": "설계 승인"
+            }
+          ]
+        },
+        {
+          "name": "2. 플랫폼 구축",
+          "start": 2,
+          "end": 3,
+          "phase": true
+        },
+        {
+          "name": "  노드 설치·HA",
+          "start": 2,
+          "end": 3
+        },
+        {
+          "name": "3. Wave 이관",
+          "start": 3,
+          "end": 7,
+          "phase": true
+        },
+        {
+          "name": "  Wave 1~4",
+          "start": 3,
+          "end": 7,
+          "label": "4 Wave"
+        },
+        {
+          "name": "4. 안정화·이전",
+          "start": 8,
+          "end": 8,
+          "phase": true,
+          "milestones": [
+            {
+              "at": 8,
+              "label": "완료 보고"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "breadcrumb": "Ⅴ. 사업관리 > 2. 시험·검수",
+      "title": "시험 및 검수 방안",
+      "lead": "항목별 합격 기준을 사전 합의해 검수 분쟁을 없앱니다.",
+      "req_ids": [
+        "R4",
+        "R3"
+      ],
+      "caption": "표 2. 시험 항목과 합격 기준",
+      "columns": [
+        "시험 항목",
+        "방법",
+        "합격 기준"
+      ],
+      "rows": [
+        [
+          "가용성",
+          "노드 강제 정지",
+          "서비스 자동 복구"
+        ],
+        [
+          "이관 정합성",
+          "체크섬 대조",
+          "불일치 0건"
+        ],
+        [
+          "성능",
+          "부하 시험",
+          "기준 대비 동등 이상"
+        ]
+      ]
+    },
+    {
+      "type": "staff",
+      "breadcrumb": "Ⅴ. 사업관리 > 2. 투입 인력",
+      "title": "투입 인력 구성",
+      "lead": "PM 1명, 가상화 아키텍트 2명, 이관 엔지니어 3명으로 Wave 병행을 감당합니다.",
+      "req_ids": [
+        "R3"
+      ],
+      "caption": "표 2. 투입 인력 (성명은 발주처 마스킹 정책 확인)",
+      "people": [
+        {
+          "name": "[NEEDS INPUT: PMO — 성명]",
+          "role": "PM",
+          "grade": "특급",
+          "years": "15년",
+          "certs": [
+            "PMP"
+          ],
+          "mm": "8.0"
+        },
+        {
+          "name": "[NEEDS INPUT: PMO — 성명]",
+          "role": "가상화 아키텍트",
+          "grade": "특급",
+          "years": "12년",
+          "certs": [
+            "RHCA"
+          ],
+          "mm": "8.0"
+        },
+        {
+          "name": "[NEEDS INPUT: PMO — 성명]",
+          "role": "이관 엔지니어",
+          "grade": "고급",
+          "years": "8년",
+          "certs": [
+            "RHCE"
+          ],
+          "mm": "6.0"
+        }
+      ]
+    },
+    {
+      "type": "closing",
+      "title": "감사합니다",
+      "lead": "본 제안의 모든 수치·약속은 조견표와 별첨 근거에 대응합니다."
+    }
   ]
 }
