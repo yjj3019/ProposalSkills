@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import sys
 from pathlib import Path
 
 SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
@@ -130,6 +131,16 @@ def verify(target: Path) -> list[str]:
     return problems
 
 
+def _utf8_console() -> None:
+    """콘솔을 UTF-8로 고정한다. cp949 같은 기본 코드페이지에서 한글·em dash 출력이
+    UnicodeEncodeError로 죽던 문제를 막는다(재설정 불가 환경은 조용히 통과)."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def install_all(root: Path, names: list[str], force: bool) -> list[str]:
     """한 대상 디렉터리에 여러 스킬을 설치하고 사람이 읽을 결과 줄을 만든다."""
     lines: list[str] = []
@@ -170,6 +181,7 @@ def main() -> None:
         help="Also install sibling skills required by the named skill "
              "(create-best-proposal → document + winning gates)")
     args = parser.parse_args()
+    _utf8_console()
 
     if args.list_targets:
         targets = detect_targets()

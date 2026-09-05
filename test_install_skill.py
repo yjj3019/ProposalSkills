@@ -165,3 +165,16 @@ class AutoInstallTests(unittest.TestCase):
         repo = Path(__file__).resolve().parent
         for doc in ("AGENTS.md", "CLAUDE.md"):
             self.assertIn("install_skill.py --auto", (repo / doc).read_text(encoding="utf-8"), doc)
+
+    def test_cp949_console_does_not_crash(self):
+        """한글·em dash 출력이 기본 코드페이지에서 UnicodeEncodeError로 죽지 않는다."""
+        env = {k: v for k, v in os.environ.items() if k not in {"AI_SKILLS_DIR", "CODEX_HOME"}}
+        env.update(HOME=str(self.home), USERPROFILE=str(self.home), PYTHONIOENCODING="cp949")
+        env.pop("PYTHONUTF8", None)
+        for args in (["--list-targets"], ["--auto"]):
+            with self.subTest(args=args):
+                proc = subprocess.run(
+                    [sys.executable, str(Path(__file__).with_name("install_skill.py")), *args],
+                    capture_output=True, env=env)
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertNotIn(b"UnicodeEncodeError", proc.stderr)
