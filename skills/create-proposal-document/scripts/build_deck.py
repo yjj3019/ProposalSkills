@@ -25,6 +25,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import deck_profiles
+
 try:
     from pptx import Presentation
     from pptx.dml.color import RGBColor
@@ -41,10 +45,12 @@ DEFAULT_PALETTE = {
     "text": "202020", "muted": "595959", "warn": "C00000", "ok": "1F7A3D", "white": "FFFFFF",
 }
 DEFAULT_FONT = "맑은 고딕"
-SIZE = {"title": 22, "lead": 13, "body": 11, "table": 10, "caption": 8.5, "header": 9,
-        "footer": 9, "cover_title": 32, "cover_sub": 16, "section": 28}
-LEAD_MAX_CHARS = 60          # writing-style.md: 리드문 60자 이내
-MATRIX_ROWS_PER_SLIDE = 12   # 조견표 자동 분할 기준
+# 규격은 deck_profiles.py 한 곳에만 둔다 — 생성기와 검사기가 같은 숫자를 읽어야
+# "생성기는 통과시키고 검사기는 막는" 어긋남이 생기지 않는다.
+_DEFAULT_SPEC = deck_profiles.get(deck_profiles.DEFAULT_PROFILE)
+SIZE = _DEFAULT_SPEC["sizes"]                      # 하위호환: 기본 프로파일 크기
+LEAD_MAX_CHARS = _DEFAULT_SPEC["lead_max_chars"]   # writing-style.md: 리드문 60자 이내
+MATRIX_ROWS_PER_SLIDE = _DEFAULT_SPEC["matrix_rows_per_slide"]
 
 # 16:9 (13.333in × 7.5in) 고정 그리드 — 좌표는 EMU
 IN = 914400
@@ -68,9 +74,14 @@ def rgb(hex6: str) -> RGBColor:
 
 
 class DeckBuilder:
-    def __init__(self, spec: dict, template: Path | None, strict: bool):
+    def __init__(self, spec: dict, template: Path | None, strict: bool,
+                 profile: str | None = None):
         self.spec = spec
         self.meta = spec.get("meta", {})
+        # 우선순위: CLI --profile > meta.output_profile > 기본(평가용 상세본)
+        self.profile = profile or self.meta.get("output_profile") or deck_profiles.DEFAULT_PROFILE
+        self.style = deck_profiles.get(self.profile)
+        self.size = self.style["sizes"]
         self.pal = {**DEFAULT_PALETTE, **{k: str(v).lstrip("#").upper()
                                           for k, v in (self.meta.get("palette") or {}).items()}}
         self.font = self.meta.get("font") or DEFAULT_FONT
@@ -159,7 +170,8 @@ class DeckBuilder:
             r.font.color.rgb = rgb(color or self.pal["text"])
 
     def _table(self, slide, name, x, y, w, h, columns, rows, *, col_widths=None,
-               size=SIZE["table"], align_right_cols=()):
+               size=None, align_right_cols=()):
+        size = self.size["table"] if size is None else size
         n_rows, n_cols = len(rows) + 1, len(columns)
         gt = slide.shapes.add_table(n_rows, n_cols, Emu(x), Emu(y), Emu(w), Emu(h))
         gt.name = name
@@ -209,20 +221,20 @@ class DeckBuilder:
         doc = self.meta.get("doc_name") or self.meta.get("title") or ""
         crumb = s.get("breadcrumb", "")
         self._text(slide, "HEADER", M, HEADER_Y, BODY_W - int(2.2 * IN), HEADER_H,
-                   f"{doc}  |  {crumb}" if crumb else doc, SIZE["header"], color=self.pal["muted"])
+                   f"{doc}  |  {crumb}" if crumb else doc, self.size["header"], color=self.pal["muted"])
         if s.get("status_tag"):  # 유형 C: 우상단 항목 번호·상태
             self._text(slide, "STATUS", W - M - int(2.2 * IN), HEADER_Y, int(2.2 * IN), HEADER_H,
-                       s["status_tag"], SIZE["header"], bold=True, color=self.pal["primary"],
+                       s["status_tag"], self.size["header"], bold=True, color=self.pal["primary"],
                        align=PP_ALIGN.RIGHT)
-        self._text(slide, "TITLE", M, TITLE_Y, BODY_W, TITLE_H, s.get("title", ""), SIZE["title"],
+        self._text(slide, "TITLE", M, TITLE_Y, BODY_W, TITLE_H, s.get("title", ""), self.size["title"],
                    bold=True, color=self.pal["primary"], anchor=MSO_ANCHOR.MIDDLE)
         line = self._rect(slide, "TITLE_RULE", M, TITLE_Y + TITLE_H, BODY_W, int(0.02 * IN), self.pal["primary"])
         lead = s.get("lead", "")
         if not lead and s.get("type") in BODY_TYPES:
             self.violations.append(f"슬라이드 {self.page} '{s.get('title', '')}': 리드문 없음")
-        if lead and len(lead) > LEAD_MAX_CHARS:
-            self.warnings.append(f"슬라이드 {self.page}: 리드문 {len(lead)}자 (권장 ≤{LEAD_MAX_CHARS})")
-        self._text(slide, "LEAD", M, LEAD_Y, BODY_W, LEAD_H, lead, SIZE["lead"], bold=True,
+        if lead and len(lead) > self.style['lead_max_chars']:
+            self.warnings.append(f"슬라이드 {self.page}: 리드문 {len(lead)}자 (권장 ≤{self.style['lead_max_chars']})")
+        self._text(slide, "LEAD", M, LEAD_Y, BODY_W, LEAD_H, lead, self.size["lead"], bold=True,
                    anchor=MSO_ANCHOR.MIDDLE)
         cap_parts = []
         if s.get("caption"):
@@ -230,18 +242,18 @@ class DeckBuilder:
         if s.get("source"):
             cap_parts.append(f"출처: {s['source']}")
         self._text(slide, "CAPTION", M, CAPTION_Y, BODY_W - int(3.2 * IN), CAPTION_H,
-                   "  ·  ".join(cap_parts), SIZE["caption"], color=self.pal["muted"])
+                   "  ·  ".join(cap_parts), self.size["caption"], color=self.pal["muted"])
         req = s.get("req_ids") or []
         self._text(slide, "REQID", W - M - int(3.2 * IN), CAPTION_Y, int(3.2 * IN), CAPTION_H,
-                   ("대응 요구: " + ", ".join(map(str, req))) if req else "", SIZE["caption"],
+                   ("대응 요구: " + ", ".join(map(str, req))) if req else "", self.size["caption"],
                    color=self.pal["muted"], align=PP_ALIGN.RIGHT)
         if not req and s.get("type") in BODY_TYPES and self.meta.get("require_req_ids", True):
             self.warnings.append(f"슬라이드 {self.page} '{s.get('title', '')}': REQ-ID 없음 (공공·금융 A/B 유형은 필수)")
         bidder = self.meta.get("bidder", "")
         self._text(slide, "FOOTER", M, FOOTER_Y, BODY_W - int(1.0 * IN), FOOTER_H, bidder,
-                   SIZE["footer"], color=self.pal["muted"])
+                   self.size["footer"], color=self.pal["muted"])
         self._text(slide, "PAGENO", W - M - int(1.0 * IN), FOOTER_Y, int(1.0 * IN), FOOTER_H,
-                   str(self.page), SIZE["footer"], color=self.pal["muted"], align=PP_ALIGN.RIGHT)
+                   str(self.page), self.size["footer"], color=self.pal["muted"], align=PP_ALIGN.RIGHT)
         if s.get("notes"):
             slide.notes_slide.notes_text_frame.text = str(s["notes"])
         return slide
@@ -252,15 +264,15 @@ class DeckBuilder:
         self.page += 1
         self._rect(slide, "COVER_BAND", 0, int(2.3 * IN), W, int(2.6 * IN), self.pal["primary"])
         self._text(slide, "TITLE", M, int(2.5 * IN), BODY_W, int(1.3 * IN),
-                   s.get("title") or self.meta.get("title", ""), SIZE["cover_title"], bold=True,
+                   s.get("title") or self.meta.get("title", ""), self.size["cover_title"], bold=True,
                    color=self.pal["white"], anchor=MSO_ANCHOR.MIDDLE)
         self._text(slide, "SUBTITLE", M, int(3.8 * IN), BODY_W, int(0.9 * IN),
-                   s.get("subtitle") or self.meta.get("subtitle", ""), SIZE["cover_sub"],
+                   s.get("subtitle") or self.meta.get("subtitle", ""), self.size["cover_sub"],
                    color=self.pal["white"], anchor=MSO_ANCHOR.MIDDLE)
         lines = [f"제출: {self.meta.get('buyer', '')}", f"제안: {self.meta.get('bidder', '')}",
                  self.meta.get("date", "")]
         self._text(slide, "COVER_META", M, int(5.4 * IN), BODY_W, int(1.2 * IN),
-                   [line for line in lines if line.strip(": ")], SIZE["body"], color=self.pal["muted"])
+                   [line for line in lines if line.strip(": ")], self.size["body"], color=self.pal["muted"])
         return slide
 
     def toc(self, s):
@@ -272,7 +284,7 @@ class DeckBuilder:
                 continue
             x = M + col * (BODY_W // 2 + int(0.2 * IN))
             self._text(slide, f"BODY_TOC{col}", x, BODY_Y, BODY_W // 2 - int(0.2 * IN), BODY_H,
-                       [str(i) for i in chunk], SIZE["body"] + 1)
+                       [str(i) for i in chunk], self.size["body"] + 1)
         return slide
 
     def section(self, s):
@@ -280,12 +292,12 @@ class DeckBuilder:
         self.page += 1
         self._rect(slide, "SECTION_BAND", 0, 0, int(0.35 * IN), H, self.pal["primary"])
         self._text(slide, "SECTION_NO", M + int(0.3 * IN), int(2.4 * IN), BODY_W, int(0.8 * IN),
-                   s.get("no", ""), SIZE["section"], bold=True, color=self.pal["tint1"])
+                   s.get("no", ""), self.size["section"], bold=True, color=self.pal["tint1"])
         self._text(slide, "TITLE", M + int(0.3 * IN), int(3.2 * IN), BODY_W, int(1.0 * IN),
-                   s.get("title", ""), SIZE["section"], bold=True, color=self.pal["primary"])
+                   s.get("title", ""), self.size["section"], bold=True, color=self.pal["primary"])
         if s.get("items"):
             self._text(slide, "SECTION_ITEMS", M + int(0.3 * IN), int(4.3 * IN), BODY_W, int(2.2 * IN),
-                       [f"{i}" for i in s["items"]], SIZE["body"], color=self.pal["muted"])
+                       [f"{i}" for i in s["items"]], self.size["body"], color=self.pal["muted"])
         return slide
 
     def table(self, s):
@@ -297,7 +309,7 @@ class DeckBuilder:
         h = min(BODY_H, int((len(rows) + 1) * 0.38 * IN))
         self._table(slide, "BODY_TABLE", M, BODY_Y, BODY_W, h, columns, rows,
                     col_widths=s.get("col_widths"), align_right_cols=tuple(s.get("right_cols", [])))
-        if len(rows) > 14:
+        if len(rows) > self.style["table_rows_max"]:
             self.warnings.append(f"슬라이드 {self.page}: 표 {len(rows)}행 — 분할 권장(visual-style §4)")
         return slide
 
@@ -308,12 +320,17 @@ class DeckBuilder:
         keys = s.get("keys") or ["id", "text", "support", "response_loc", "note"]
         per_raw = s.get("rows_per_slide")
         if per_raw is None or per_raw == "":
-            per = MATRIX_ROWS_PER_SLIDE
+            per = self.style["matrix_rows_per_slide"]
         else:
             # 0·음수·문자열은 행을 통째로 날린다. 조용히 넘기지 않고 입력 오류로 세운다.
             if isinstance(per_raw, bool) or not isinstance(per_raw, int) or per_raw < 1:
                 raise ValueError(f"matrix.rows_per_slide must be a positive integer (got {per_raw!r})")
             per = per_raw
+        if per > self.style["table_rows_max"]:
+            # 생성기는 통과시키고 검사기만 경고하던 비대칭을 없앤다.
+            self.warnings.append(
+                f"조견표 rows_per_slide={per} > {self.style['label']} 표 한계 "
+                f"{self.style['table_rows_max']}행 — deck_check도 경고한다. 분할을 늘린다")
         chunks = [rows[i:i + per] for i in range(0, len(rows), per)] or [[]]
         self.matrix_rows.append((s, sum(len(c) for c in chunks)))
         for i, chunk in enumerate(chunks):
@@ -342,12 +359,12 @@ class DeckBuilder:
             x = M + i * (bw + gap)
             box = self._rect(slide, f"BODY_STEP{i + 1}", x, BODY_Y, bw, top_h,
                              self.pal["primary"] if i == 0 else self.pal["tint1"], shape=MSO_SHAPE.CHEVRON if n <= 6 else MSO_SHAPE.RECTANGLE)
-            self._shape_text(box, [f"{i + 1}. {st.get('title', '')}"], SIZE["body"], bold=True,
+            self._shape_text(box, [f"{i + 1}. {st.get('title', '')}"], self.size["body"], bold=True,
                              color=self.pal["white"] if i == 0 else self.pal["text"])
             desc = st.get("desc", [])
             desc_h = min(BODY_H - top_h - int(0.15 * IN), int(2.6 * IN))
             self._text(slide, f"BODY_STEPDESC{i + 1}", x, BODY_Y + top_h + int(0.15 * IN), bw, desc_h,
-                       [f"• {d}" for d in (desc if isinstance(desc, list) else [desc])], SIZE["body"] - 1,
+                       [f"• {d}" for d in (desc if isinstance(desc, list) else [desc])], self.size["body"] - 1,
                        fill=self.pal["tint3"])
         return slide
 
@@ -366,7 +383,7 @@ class DeckBuilder:
             y = BODY_Y + zi * (zh + gap)
             self._rect(slide, f"BODY_ZONE{zi + 1}", M, y, BODY_W, zh, self.pal["tint3"], line=self.pal["tint1"])
             lab = self._rect(slide, f"BODY_ZONELABEL{zi + 1}", M, y, label_w, zh, self.pal["primary"])
-            self._shape_text(lab, [z.get("title", "")], SIZE["body"], bold=True, color=self.pal["white"])
+            self._shape_text(lab, [z.get("title", "")], self.size["body"], bold=True, color=self.pal["white"])
             items = z.get("items", [])
             if items:
                 iw = int((BODY_W - label_w - gap * (len(items) + 1)) / len(items))
@@ -377,12 +394,14 @@ class DeckBuilder:
                                       line=self.pal["tint1"], shape=MSO_SHAPE.ROUNDED_RECTANGLE)
                     if isinstance(it, dict):
                         self._shape_text(card, [it.get("title", "")] + [str(d) for d in it.get("desc", [])],
-                                         SIZE["body"] - 1, bold=True)
+                                         self.size["body"] - 1, bold=True)
                     else:
-                        self._shape_text(card, [str(it)], SIZE["body"] - 1, bold=True)
+                        self._shape_text(card, [str(it)], self.size["body"] - 1, bold=True)
         if s.get("legend"):
             self._text(slide, "BODY_LEGEND", M, BODY_Y + BODY_H - legend_h, BODY_W, legend_h,
-                       "범례: " + "  ·  ".join(s["legend"]), SIZE["caption"], color=self.pal["muted"])
+                       # 범례는 구성도의 내용이다 — 검사 대상이므로 본문 하한 이상으로 그린다.
+                       "범례: " + "  ·  ".join(s["legend"]), self.size["table"] - 1,
+                       color=self.pal["muted"])
         return slide
 
     def gantt(self, s):
@@ -404,21 +423,21 @@ class DeckBuilder:
             x = int(grid_x + mi * mw)
             hdr = self._rect(slide, f"BODY_GM{mi + 1}", x, BODY_Y, int(mw), head_h,
                              self.pal["primary"], line=self.pal["white"])
-            self._shape_text(hdr, [labels[mi] if mi < len(labels) else f"M{mi + 1}"], SIZE["table"] - 1,
+            self._shape_text(hdr, [labels[mi] if mi < len(labels) else f"M{mi + 1}"], self.size["table"] - 1,
                              bold=True, color=self.pal["white"])
         for ti, t in enumerate(tasks):
             y = BODY_Y + head_h + ti * row_h
             self._rect(slide, f"BODY_GROW{ti + 1}", M, y, BODY_W, row_h,
                        self.pal["tint3"] if ti % 2 else self.pal["white"], line=self.pal["tint2"])
             self._text(slide, f"BODY_GLABEL{ti + 1}", M, y, label_w, row_h, t.get("name", ""),
-                       SIZE["table"], bold=bool(t.get("phase")), anchor=MSO_ANCHOR.MIDDLE)
+                       self.size["table"], bold=bool(t.get("phase")), anchor=MSO_ANCHOR.MIDDLE)
             start, end = float(t.get("start", 1)), float(t.get("end", t.get("start", 1)))
             bx = int(grid_x + (start - 1) * mw)
             bw = max(int((end - start + 1) * mw) - int(0.04 * IN), int(0.08 * IN))
             bar = self._rect(slide, f"BODY_GBAR{ti + 1}", bx, y + int(row_h * 0.25), bw, int(row_h * 0.5),
                              self.pal["primary"] if t.get("phase") else self.pal["tint1"])
             if t.get("label"):
-                self._shape_text(bar, [t["label"]], SIZE["table"] - 1, color=self.pal["white"] if t.get("phase") else self.pal["text"])
+                self._shape_text(bar, [t["label"]], self.size["table"] - 1, color=self.pal["white"] if t.get("phase") else self.pal["text"])
             for ms in t.get("milestones", []):
                 mx = int(grid_x + (float(ms.get("at", end)) - 0.5) * mw)
                 dia = self._rect(slide, f"BODY_GMS{ti + 1}", mx - int(0.09 * IN), y + int(row_h * 0.2),
@@ -432,7 +451,7 @@ class DeckBuilder:
                     if lx + lw > W - M:
                         lx, align = mx - int(0.1 * IN) - lw, PP_ALIGN.RIGHT
                     self._text(slide, f"BODY_GMSL{ti + 1}", max(M, lx), y, lw, row_h,
-                               ms["label"], SIZE["table"] - 1, color=self.pal["warn"],
+                               ms["label"], self.size["table"] - 1, color=self.pal["warn"],
                                anchor=MSO_ANCHOR.MIDDLE, align=align)
         return slide
 
@@ -463,7 +482,7 @@ class DeckBuilder:
             x, y = M + c * (cw + gap), BODY_Y + r * (ch + gap)
             self._rect(slide, f"BODY_CARD{i + 1}", x, y, cw, ch, self.pal["tint3"], line=self.pal["tint1"])
             hdr = self._rect(slide, f"BODY_CARDHDR{i + 1}", x, y, cw, int(0.45 * IN), self.pal["primary"])
-            self._shape_text(hdr, [it.get("title", "")], SIZE["body"], bold=True, color=self.pal["white"])
+            self._shape_text(hdr, [it.get("title", "")], self.size["body"], bold=True, color=self.pal["white"])
             body_lines = []
             if it.get("value"):
                 body_lines.append(str(it["value"]))
@@ -473,15 +492,15 @@ class DeckBuilder:
             if it.get("evidence"):
                 body_lines.append(f"근거: {it['evidence']}")
             self._text(slide, f"BODY_CARDTXT{i + 1}", x, y + int(0.5 * IN), cw, ch - int(0.55 * IN), body_lines,
-                       SIZE["body"] - 1)
+                       self.size["body"] - 1)
         return slide
 
     def bullets(self, s):
         slide = self._frame(s)
         items = s.get("items", [])
         self.warnings.append(f"슬라이드 {self.page}: bullets 유형 — 텍스트 나열은 최소화(도식·표 권장)")
-        self._text(slide, "BODY_BULLETS", M, BODY_Y, BODY_W, BODY_H, [f"• {i}" for i in items], SIZE["body"] + 1)
-        if sum(len(str(i)) for i in items) > 450:
+        self._text(slide, "BODY_BULLETS", M, BODY_Y, BODY_W, BODY_H, [f"• {i}" for i in items], self.size["body"] + 1)
+        if sum(len(str(i)) for i in items) > self.style["bullets_max_chars"]:
             self.warnings.append(f"슬라이드 {self.page}: 텍스트 과밀({sum(len(str(i)) for i in items)}자) — 분할 권장")
         return slide
 
@@ -490,10 +509,10 @@ class DeckBuilder:
         self.page += 1
         self._rect(slide, "COVER_BAND", 0, int(2.8 * IN), W, int(1.8 * IN), self.pal["primary"])
         self._text(slide, "TITLE", M, int(3.0 * IN), BODY_W, int(1.4 * IN), s.get("title", "감사합니다"),
-                   SIZE["cover_title"], bold=True, color=self.pal["white"], anchor=MSO_ANCHOR.MIDDLE,
+                   self.size["cover_title"], bold=True, color=self.pal["white"], anchor=MSO_ANCHOR.MIDDLE,
                    align=PP_ALIGN.CENTER)
         if s.get("lead"):
-            self._text(slide, "LEAD", M, int(4.8 * IN), BODY_W, int(0.8 * IN), s["lead"], SIZE["lead"],
+            self._text(slide, "LEAD", M, int(4.8 * IN), BODY_W, int(0.8 * IN), s["lead"], self.size["lead"],
                        align=PP_ALIGN.CENTER, color=self.pal["muted"])
         return slide
 
@@ -528,6 +547,12 @@ class DeckBuilder:
 
     def save(self, out: Path) -> None:
         out.parent.mkdir(parents=True, exist_ok=True)
+        # 어떤 규격으로 만들었는지 파일 자체에 남긴다. deck_check가 이 표시를 읽어
+        # 같은 기준으로 검사하므로, 인자를 잊어 발표본을 상세본 기준으로 재는 일이 없다.
+        try:
+            self.prs.core_properties.category = deck_profiles.stamp(self.profile)
+        except (AttributeError, ValueError):  # 구버전 python-pptx 등
+            self.warnings.append("프로파일 표시를 파일에 남기지 못했다 — deck_check에 --profile을 준다")
         self.prs.save(str(out))
 
 
@@ -542,18 +567,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-o", "--output", type=Path, required=True, help="출력 PPTX 경로")
     ap.add_argument("--template", type=Path, help="사내 양식 PPTX(마스터·배경 사용, 빈 레이아웃 필요)")
     ap.add_argument("--strict", action="store_true", help="리드문 누락 등 위반 시 exit 1")
+    ap.add_argument("--profile", choices=sorted(deck_profiles.PROFILES),
+                    help="산출물 종류별 시각 규격(기본: meta.output_profile 또는 "
+                         f"{deck_profiles.DEFAULT_PROFILE})")
     a = ap.parse_args(argv)
     try:
         spec = json.loads(a.spec.read_text(encoding="utf-8-sig"))
         if a.template and not a.template.is_file():
             raise ValueError(f"템플릿 없음: {a.template}")
-        b = DeckBuilder(spec, a.template, a.strict)
+        b = DeckBuilder(spec, a.template, a.strict, a.profile)
         b.build()
         b.save(a.output)
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(f"wrote {a.output} ({b.page} slides)")
+    print(f"wrote {a.output} ({b.page} slides, {b.style['label']} 규격)")
     for w in b.warnings:
         print(f"  경고: {w}")
     for v in b.violations:

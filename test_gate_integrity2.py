@@ -368,17 +368,18 @@ class LayoutBoundsTests(unittest.TestCase):
         return p
 
     def test_off_slide_body_is_blocked(self):
-        proc = run(DC, self._deck(15.0))
+        proc = run(DC, self._deck(15.0), "--profile", "detailed-submission")
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("화면 밖", proc.stdout)
 
     def test_inside_body_passes(self):
-        proc = run(DC, self._deck(0.5))
+        # 외부에서 만든 덱은 규격 표시가 없으므로 어떤 기준으로 잴지 명시해야 한다.
+        proc = run(DC, self._deck(0.5), "--profile", "detailed-submission")
         self.assertEqual(proc.returncode, 0, proc.stdout)
 
     def test_emit_render_separates_render_from_visual_review(self):
         out = self.dir / "render.json"
-        proc = run(DC, self._deck(0.5), "--emit-render", out)
+        proc = run(DC, self._deck(0.5), "--profile", "detailed-submission", "--emit-render", out)
         self.assertEqual(proc.returncode, 0, proc.stdout)
         block = json.loads(out.read_text(encoding="utf-8"))
         self.assertTrue(block["layout_checked"])

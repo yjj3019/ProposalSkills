@@ -3,14 +3,17 @@
 
 사용법:
     python3 deck_check.py 제안서.pptx [--max-pages 40] [--exclude-cover-toc]
-        [--render] [--png-dir out/] [--emit-render render.json] [--min-font 9]
-        [--require-req-ids] [--stage draft|submission]
+        [--render] [--png-dir out/] [--emit-render render.json] [--min-font PT]
+        [--require-req-ids] [--stage draft|submission] [--profile 규격]
 
 레이아웃 린트(python-pptx, 항상 수행):
-  1. 페이지 수 vs --max-pages           5. 본문 최소 폰트(기본 9pt) 미만 — 캡션·헤더·푸터 제외
-  2. 본문 장표의 리드문(LEAD) 존재·길이  6. 텍스트 과밀(장표당 600자 초과)
-  3. 본문 장표의 REQ-ID 표기            7. 표 헤더 행 존재, 15행 초과 표
+  1. 페이지 수 vs --max-pages           5. 본문 최소 폰트 미만 — 캡션·헤더·푸터 제외
+  2. 본문 장표의 리드문(LEAD) 존재·길이  6. 텍스트 과밀(표 셀 포함)
+  3. 본문 장표의 REQ-ID 표기            7. 표 헤더 행 존재, 행 수 초과 표
   4. 제목(TITLE) 존재                    8. 빈 슬라이드·이미지 전용 슬라이드
+  폰트·밀도·행 수 기준은 산출물 규격(deck_profiles.py)에서 온다. PPTX에 남은 규격 표시를
+  읽어 자동 적용하며, --profile로 덮어쓸 수 있다. 표시가 없거나 모르는 값이면 제출
+  단계에서 차단한다(가장 느슨한 기본값으로 조용히 통과시키지 않는다).
   build_deck.py 산출물은 도형 이름(TITLE/LEAD/REQID)으로 정확히 검사하고,
   외부 제작 덱은 위치 휴리스틱(상단 두 번째 텍스트 = 리드문)으로 검사한 뒤 [휴리스틱] 표기.
 
@@ -36,6 +39,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import deck_profiles
+
 try:
     from pptx import Presentation
     from pptx.util import Emu
@@ -43,9 +49,12 @@ except ImportError:  # pragma: no cover
     print("python-pptx가 필요합니다: pip install python-pptx", file=sys.stderr)
     raise SystemExit(2)
 
-LEAD_MAX = 60
-DENSITY_MAX = 600
-TABLE_ROWS_MAX = 15
+# 기본값은 deck_profiles의 기본 프로파일에서 온다. 프로파일별 실제 기준은 lint()에
+# 전달되며, 생성기와 같은 정의를 읽으므로 두 도구의 숫자가 갈리지 않는다.
+_DEFAULT = deck_profiles.get(deck_profiles.DEFAULT_PROFILE)
+LEAD_MAX = _DEFAULT["lead_max_chars"]
+DENSITY_MAX = _DEFAULT["density_max"]
+TABLE_ROWS_MAX = _DEFAULT["table_rows_max"]
 REQ_RE = re.compile(r"(?:REQ[-_ ]?\d+|\bR\d{1,3}\b|요구\s*[:：]\s*\S|대응\s*요구)", re.IGNORECASE)
 WARN = "[경고]"
 NOTE = "[NOT INSPECTED]"
@@ -61,8 +70,15 @@ def sha256(path: Path) -> str:
 
 
 def shape_text(shape) -> str:
+    """도형의 보이는 텍스트. 표(GraphicFrame)의 셀까지 읽는다.
+
+    표는 has_text_frame이 False라 셀 텍스트가 밀도 계산에서 통째로 빠졌다 —
+    조견표처럼 가장 빽빽한 장표가 '0자'로 집계돼 밀도 경고가 사실상 동작하지 않았다.
+    """
     if shape.has_text_frame:
         return "\n".join(p.text for p in shape.text_frame.paragraphs).strip()
+    if getattr(shape, "has_table", False) and shape.has_table:
+        return "\n".join(cell.text for row in shape.table.rows for cell in row.cells).strip()
     return ""
 
 
@@ -89,7 +105,9 @@ def slide_kind(slide) -> str:
     return "unknown"
 
 
-META_SHAPES = {"HEADER", "FOOTER", "PAGENO", "CAPTION", "REQID", "STATUS", "BODY_LEGEND"}
+# 생성기가 넣는 상용구(위치·번호·캡션)만 제외한다. BODY_LEGEND는 구성도의 범례로
+# 작성자가 쓴 내용이므로 폰트·밀도 검사 대상이다(예전엔 제외돼 본문 하한 미만으로 남았다).
+META_SHAPES = {"HEADER", "FOOTER", "PAGENO", "CAPTION", "REQID", "STATUS"}
 
 
 def min_font_pt(slide) -> float | None:
@@ -143,15 +161,47 @@ def out_of_bounds(prs, slide) -> list[str]:
     return problems
 
 
+def detect_profile(prs) -> tuple[str | None, str]:
+    """(프로파일, 표시 상태). build_deck이 core properties에 남긴 표시를 읽는다.
+
+    '표시 없음'과 '모르는 표시'를 구분한다. 둘을 같게 처리하면, 이 검사기가 모르는
+    규격으로 만든 덱이 가장 느슨한 기본값으로 조용히 통과한다(fail-open).
+    """
+    try:
+        raw = prs.core_properties.category
+    except (AttributeError, ValueError):
+        return None, "missing"
+    return deck_profiles.read_stamp(raw)
+
+
+def raw_stamp(prs) -> str:
+    try:
+        return str(prs.core_properties.category or "")
+    except (AttributeError, ValueError):
+        return ""
+
+
+def stage_is_submission(stage: str) -> bool:
+    return stage == "submission"
+
+
 def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float,
-         require_req_ids: bool, stage: str) -> list[str]:
+         require_req_ids: bool, stage: str, style: dict | None = None) -> list[str]:
+    style = style or _DEFAULT
+    lead_max = style["lead_max_chars"]
+    density_max = style["density_max"]
+    table_rows_max = style["table_rows_max"]
     items: list[str] = []
     slides = list(prs.slides)
     counted = 0
     for idx, slide in enumerate(slides, 1):
         kind = slide_kind(slide)
-        names = {sh.name: sh for sh in iter_shapes(slide.shapes)}
-        texts = [shape_text(sh) for sh in iter_shapes(slide.shapes)]
+        # 도형을 한 번만 순회해 (이름, 텍스트) 쌍을 만든다. 이름 dict와 텍스트 list를
+        # 따로 만들어 zip하면 같은 이름이 둘 이상일 때(간트 마일스톤 2개 이상) 짝이
+        # 밀려 남의 텍스트를 세거나 본문을 통째로 누락했다.
+        pairs = [(sh.name, shape_text(sh)) for sh in iter_shapes(slide.shapes)]
+        names = {name: sh for name, sh in zip((n for n, _ in pairs), iter_shapes(slide.shapes))}
+        texts = [t for _, t in pairs]
         all_text = "\n".join(t for t in texts if t)
         if not (exclude_cover_toc and kind in {"cover", "toc", "closing"}):
             counted += 1
@@ -179,8 +229,8 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
             items.append(f"[차단] 슬라이드 {idx}: 제목 없음{tag}")
         if not lead:
             items.append(f"[차단] 슬라이드 {idx}: 리드문 없음 — 1페이지 1메시지 원칙{tag}")
-        elif len(lead) > LEAD_MAX:
-            items.append(f"{WARN} 슬라이드 {idx}: 리드문 {len(lead)}자 > {LEAD_MAX}자{tag}")
+        elif len(lead) > lead_max:
+            items.append(f"{WARN} 슬라이드 {idx}: 리드문 {len(lead)}자 > {lead_max}자{tag}")
         elif lead.endswith(("설명합니다.", "설명합니다", "소개합니다.", "소개합니다")):
             items.append(f"{WARN} 슬라이드 {idx}: 리드문이 결론이 아닌 안내문('{lead[-6:]}')")
         if require_req_ids:
@@ -188,10 +238,12 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
             if not REQ_RE.search(req_text):
                 level = "[차단]" if stage == "submission" else WARN
                 items.append(f"{level} 슬라이드 {idx}: 대응 요구사항 ID(REQ-ID) 없음{tag}")
-        body_chars = sum(len(t) for n, t in zip(names.keys(), texts) if n not in {"HEADER", "FOOTER", "PAGENO"}) \
-            if not heuristic else len(all_text)
-        if body_chars > DENSITY_MAX:
-            items.append(f"{WARN} 슬라이드 {idx}: 텍스트 {body_chars}자 > {DENSITY_MAX}자 — 도식·표로 압축 또는 분할")
+        # 밀도에서 제외하는 것과 폰트 검사에서 제외하는 것을 같은 정의(META_SHAPES)로
+        # 맞춘다 — 캡션·REQ-ID는 생성기가 넣는 상용구이지 작성자가 쓴 본문이 아니다.
+        body_chars = (sum(len(t) for n, t in pairs if n not in META_SHAPES)
+                      if not heuristic else len(all_text))
+        if body_chars > density_max:
+            items.append(f"{WARN} 슬라이드 {idx}: 텍스트 {body_chars}자 > {density_max}자 — 도식·표로 압축 또는 분할")
         mf = min_font_pt(slide)
         if mf is not None and mf < min_font:
             items.append(f"[차단] 슬라이드 {idx}: 최소 폰트 {mf:g}pt < {min_font:g}pt — 폰트 축소로 분량 회피 금지")
@@ -201,8 +253,8 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
                 header = [c.text.strip() for c in tbl.rows[0].cells]
                 if not any(header):
                     items.append(f"[차단] 슬라이드 {idx}: 표 헤더 행 비어 있음")
-                if len(tbl.rows) - 1 > TABLE_ROWS_MAX:
-                    items.append(f"{WARN} 슬라이드 {idx}: 표 {len(tbl.rows) - 1}행 > {TABLE_ROWS_MAX}행 — 분할·헤더 반복")
+                if len(tbl.rows) - 1 > table_rows_max:
+                    items.append(f"{WARN} 슬라이드 {idx}: 표 {len(tbl.rows) - 1}행 > {table_rows_max}행 — 분할·헤더 반복")
     if max_pages is not None:
         label = "본문" if exclude_cover_toc else "전체"
         if counted > max_pages:
@@ -279,8 +331,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("pptx", type=Path)
     ap.add_argument("--max-pages", type=int, help="페이지 제한(RFP)")
     ap.add_argument("--exclude-cover-toc", action="store_true", help="표지·목차·마무리를 제한 산정에서 제외")
-    ap.add_argument("--min-font", type=float, default=9.0,
-                    help="본문 최소 폰트(pt, 기본 9). 캡션·헤더·푸터는 검사 제외")
+    ap.add_argument("--min-font", type=float,
+                    help="본문 최소 폰트(pt). 기본값은 프로파일에서 유도한다. 캡션·헤더·푸터는 제외")
+    ap.add_argument("--profile", choices=sorted(deck_profiles.PROFILES),
+                    help="시각 규격을 명시한다. 생략하면 PPTX에 남은 표시를 읽고, "
+                         f"표시가 없으면 {deck_profiles.DEFAULT_PROFILE}")
     ap.add_argument("--require-req-ids", action="store_true", help="본문 장표 REQ-ID 표기 필수(공공·금융 A/B)")
     ap.add_argument("--stage", choices=["draft", "submission"], default="submission")
     ap.add_argument("--render", action="store_true", help="LibreOffice로 PDF 렌더·페이지 대조")
@@ -295,8 +350,28 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # pptx 패키지 손상 등
         print(f"검사 불가(파일 손상·형식): {exc}", file=sys.stderr)
         return 2
-    items = lint(prs, max_pages=a.max_pages, exclude_cover_toc=a.exclude_cover_toc, min_font=a.min_font,
-                 require_req_ids=a.require_req_ids, stage=a.stage)
+    stamped, stamp_state = detect_profile(prs)
+    profile = a.profile or stamped or deck_profiles.DEFAULT_PROFILE
+    style = deck_profiles.get(profile)
+    # 최소 폰트는 프로파일에서 유도한다 — 상수로 고정하면 발표본(18pt)을 상세본
+    # 기준(9pt)으로 재거나, 그 반대로 정상 산출물을 차단한다.
+    min_font = a.min_font if a.min_font is not None else deck_profiles.min_body_font(profile)
+    source = "지정" if a.profile else ("파일 표시" if stamped else "기본값 추정")
+    items = [f"[정보] 규격: {style['label']}({profile}, {source}) · 최소 폰트 {min_font}pt · "
+             f"밀도 {style['density_max']}자"]
+    if a.profile and stamped and a.profile != stamped:
+        items.append(f"{WARN} 지정한 규격({a.profile})이 파일에 남은 표시({stamped})와 다르다 — "
+                     "다른 규격으로 만든 파일을 검사하고 있는지 확인한다")
+    if not a.profile and stamp_state != "known":
+        # 표시가 없거나 모르는 값이면 가장 느슨한 기본값으로 재게 된다. 제출 단계에서는
+        # 추정으로 통과시키지 않는다(미검사 ≠ 통과).
+        detail = ("규격 표시가 없다" if stamp_state == "missing"
+                  else f"이 검사기가 모르는 규격 표시({raw_stamp(prs)})다")
+        level = "[차단]" if stage_is_submission(a.stage) else WARN
+        items.append(f"{level} {detail} — {deck_profiles.DEFAULT_PROFILE} 기준으로 재고 있다. "
+                     "`--profile`로 규격을 명시하거나 build_deck으로 다시 생성한다")
+    items += lint(prs, max_pages=a.max_pages, exclude_cover_toc=a.exclude_cover_toc,
+                  min_font=min_font, require_req_ids=a.require_req_ids, stage=a.stage, style=style)
     evidence: dict = {}
     rendered = False
     if a.render or a.png_dir or a.emit_render:
@@ -315,6 +390,7 @@ def main(argv: list[str] | None = None) -> int:
             "layout_checked": True,
             "visual_review_approved": False,
             "visual_reviewer": "",
+            "output_profile": profile,
             "artifact_hash": sha256(a.pptx),
             "tool": f"deck_check.py + {evidence.get('tool') or 'no-renderer'}",
             "evidence": [i for i in items if not i.startswith(WARN)] + (
