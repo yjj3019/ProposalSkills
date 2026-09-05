@@ -210,6 +210,7 @@ def validate_schema(data: object) -> list[str]:
         for key in keys:
             if key in obj and not isinstance(obj[key], bool):
                 failures.append(f"{obj_name}.{key} must be a boolean (got {obj[key]!r})")
+    failures += validate_context(data.get("context"))
     for claim in data.get("claims", []) if isinstance(data.get("claims"), list) else []:
         if isinstance(claim, dict) and "kind" in claim and not _enum_ok(claim["kind"], CLAIM_KINDS):
             failures.append(f"claim {claim.get('id', '?')} has unsupported kind: {claim['kind']}")
@@ -333,6 +334,117 @@ def check_numbers(entries: object) -> list[str]:
                         f"number {nid} ({item.get('label', '')}) says {share}% but "
                         f"{amount}/{whole} = {expected:.4g}% — 비율이 맞지 않는다")
     return failures
+
+
+# 제안 맥락 분류 축. 기관 이름 하나로 정하지 않는다 — 공공병원·국립대학처럼 속성이
+# 겹치는 조직이 있고, 같은 기관이라도 사업 성격·구매 단계에 따라 필요한 근거가 다르다.
+BUYER_TYPES = {"public", "private", "education", "healthcare"}
+ENGAGEMENTS = {"build", "operate", "migrate", "education", "consulting",
+               "service-improvement", "product-selection", "policy"}
+STAGES = {"explore", "internal-review", "rfp-response", "presentation", "final-submission"}
+READING_MODES = {"screen-presentation", "print-evaluation", "individual-review", "appendix"}
+CONSTRAINTS = {"sensitive-data", "business-continuity", "closed-network", "regulated-industry"}
+# 읽는 조건 → 장표 규격(deck_profiles). 발표라면서 인쇄용 밀도로 만든 덱을 잡는다.
+READING_MODE_PROFILE = {
+    "screen-presentation": "presentation",
+    "print-evaluation": "detailed-submission",
+    "individual-review": "executive-summary",
+}
+SUBMISSION_STAGES = {"rfp-response", "final-submission"}
+
+
+def validate_context(context: object) -> list[str]:
+    """분류 축의 값 검증. 없으면 검사하지 않는다(후방호환)."""
+    if context is None:
+        return []
+    if not isinstance(context, dict):
+        return ["context must be an object"]
+    failures: list[str] = []
+    buyers = context.get("buyer_types")
+    if buyers is not None:
+        if not isinstance(buyers, list) or not buyers:
+            failures.append("context.buyer_types must be a non-empty array "
+                            "(복수 속성 허용: 공공병원 → [\"public\", \"healthcare\"])")
+        else:
+            bad = [b for b in buyers if not _enum_ok(b, BUYER_TYPES)]
+            if bad:
+                failures.append(f"context.buyer_types has unsupported values: {bad} "
+                                f"(allowed: {', '.join(sorted(BUYER_TYPES))})")
+    for field, allowed in (("engagement", ENGAGEMENTS), ("stage", STAGES),
+                           ("reading_mode", READING_MODES)):
+        value = context.get(field)
+        if value is not None and not _enum_ok(value, allowed):
+            failures.append(f"context.{field} has unsupported value: {value!r} "
+                            f"(allowed: {', '.join(sorted(allowed))})")
+    limits = context.get("constraints")
+    if limits is not None:
+        if not isinstance(limits, list):
+            failures.append("context.constraints must be an array")
+        else:
+            bad = [c for c in limits if not _enum_ok(c, CONSTRAINTS)]
+            if bad:
+                failures.append(f"context.constraints has unsupported values: {bad} "
+                                f"(allowed: {', '.join(sorted(CONSTRAINTS))})")
+    return failures
+
+
+def check_evaluation_criteria(data: dict) -> list[str]:
+    """평가표 원장. 공공 제안에서 배점표는 목차·분량·근거의 기준이다.
+
+    배점 항목에 대응하는 요구가 하나도 없으면 그 배점을 통째로 놓친 것인데,
+    지금까지는 요구사항에 흩어진 eval_weight 숫자뿐이라 게이트가 알 수 없었다.
+    """
+    entries = data.get("evaluation_criteria")
+    if entries is None:
+        return []
+    if not isinstance(entries, list):
+        return ["evaluation_criteria must be an array"]
+    failures: list[str] = []
+    seen: set[str] = set()
+    total = 0.0
+    for i, item in enumerate(entries):
+        if not isinstance(item, dict):
+            failures.append(f"evaluation_criteria[{i}] must be an object")
+            continue
+        cid = item.get("id")
+        if not isinstance(cid, str) or not cid.strip():
+            failures.append(f"evaluation_criteria[{i}] lacks a non-empty id")
+            continue
+        if cid in seen:
+            failures.append(f"duplicate id in evaluation_criteria: {cid}")
+            continue
+        seen.add(cid)
+        if _is_placeholder(item.get("label")):
+            failures.append(f"evaluation criterion {cid} lacks a label")
+        weight = item.get("weight")
+        if not _is_number(weight) or weight < 0:
+            failures.append(f"evaluation criterion {cid} weight must be a non-negative number "
+                            f"(got {weight!r})")
+        else:
+            total += weight
+    if seen and abs(total - 100.0) > 0.5:
+        failures.append(f"evaluation_criteria weights sum to {total:g}, not 100 "
+                        "— 배점표를 그대로 옮겼는지 확인한다(가격 포함 여부 명시)")
+    # 배점 항목 ↔ 요구사항 연결. 대응 요구가 없는 배점은 통째로 비어 있는 목차다.
+    referenced: set[str] = set()
+    for req in data.get("requirements", []) if isinstance(data.get("requirements"), list) else []:
+        if isinstance(req, dict):
+            for cid in _as_str_list(req.get("criterion_ids")):
+                referenced.add(cid)
+    unknown = sorted(referenced - seen)
+    if unknown:
+        failures.append(f"requirements reference unknown evaluation criteria: {unknown}")
+    orphan = sorted(seen - referenced)
+    if seen and orphan:
+        failures.append(f"evaluation criteria with no requirement mapped: {orphan} "
+                        "— 배점 항목에 대응하는 요구가 없다(목차 누락 가능성)")
+    return failures
+
+
+def _as_str_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [v for v in value if isinstance(v, str) and v.strip()]
+    return []
 
 
 UNSUPPORTED_CODES = {"X", "미지원", "NO", "N", "불가", "미수용", "부적합"}
@@ -459,6 +571,35 @@ def evaluate(data: dict) -> list[str]:
     for name in required_checks:
         if data["checks"].get(name) is not True:
             failures.append(f"check failed or missing: {name}")
+
+    # 분류가 요구사항을 바꾼다 — 기관 속성·구매 단계·읽는 조건에 따라 필요한 근거가 다르다.
+    context = data.get("context") if isinstance(data.get("context"), dict) else {}
+    buyers = {b for b in _as_str_list(context.get("buyer_types"))}
+    stage_ctx = context.get("stage")
+    limits = set(_as_str_list(context.get("constraints")))
+    failures.extend(check_evaluation_criteria(data))
+    if "public" in buyers and (mode == "submission" or stage_ctx in SUBMISSION_STAGES):
+        # 공공 입찰에서 배점표는 목차·분량·근거 배분의 기준이다. 없으면 무엇에 점수가
+        # 걸려 있는지 모르는 채로 쓴 것이다.
+        if not data.get("evaluation_criteria"):
+            failures.append(
+                "public procurement requires an evaluation_criteria ledger "
+                "— 평가표(배점)를 옮겨 적고 각 요구를 criterion_ids로 연결한다")
+    # 읽는 조건과 실제 장표 규격이 어긋나면 잡는다(발표라면서 인쇄용 밀도로 만든 덱).
+    expected_profile = READING_MODE_PROFILE.get(str(context.get("reading_mode", "")))
+    actual_profile = data["render"].get("output_profile")
+    if expected_profile and isinstance(actual_profile, str) and actual_profile != expected_profile:
+        failures.append(
+            f"reading_mode={context.get('reading_mode')} expects deck profile "
+            f"'{expected_profile}' but the artifact was built as '{actual_profile}' "
+            "— 발표본과 상세본 규격이 뒤바뀌었는지 확인한다")
+    if "sensitive-data" in limits and mode == "submission":
+        checks = data["package"].get("checks", {})
+        for name in ("metadata", "hidden-content", "stale-customer-data"):
+            if isinstance(checks, dict) and checks.get(name) != "pass":
+                failures.append(
+                    f"context.constraints includes sensitive-data: package check {name} "
+                    f"must be 'pass' (got {checks.get(name)!r})")
 
     # 수치 원장이 있으면 산술을 게이트가 직접 계산한다. 제출 모드에서는 원장 없이
     # checks.arithmetic=true 자기선언만으로 통과하지 못한다 — 무엇을 검산했는지

@@ -131,6 +131,11 @@ description: "제안서(PPTX 장표형 기본, DOCX·XLSX 지원) 작성·검토
      sha256이 audit의 `render/package.artifact_hash`와 다르면 차단된다 — 검토 이후 가격·기간이
      바뀐 파일에 과거 판정을 재사용할 수 없다. 해시는 `deck_check.py --emit-render`가 만든다.
    - 전달 파일은 실제로 열리는 OOXML 패키지여야 한다(필수 파트·XML 파싱 확인, 아니면 exit 2).
+   - **분류를 먼저 기록한다.** `context = {buyer_types[], engagement, stage, reading_mode,
+     constraints[]}`. 기관 이름이 아니라 축이며 복수 속성을 허용한다(공공병원 →
+     `["public","healthcare"]`). 공공 + 제출 단계면 평가표 원장(`evaluation_criteria`)이 필수이고,
+     각 요구를 `criterion_ids`로 배점 항목에 연결한다 — 대응 요구가 없는 배점은 차단된다.
+     업종별 상세는 `../create-winning-proposal/references/sectors/`(공공만 제공)를 필요할 때 읽는다.
    - **수치는 자기선언이 아니라 계산이다.** 금액·기간·수량을 `numbers[]` 원장에 적으면 게이트가
      합계·비율을 다시 계산한다. 제출 모드는 원장이 없으면 차단된다. 원장 값이 장표에 실제로
      있는지는 `../create-proposal-document/scripts/check_numbers.py`로 대조한다.

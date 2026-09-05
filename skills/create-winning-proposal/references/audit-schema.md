@@ -76,6 +76,15 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 - **응답 위치 ≠ 근거**: 조견표의 응답 위치는 `response_refs`에 넣는다. `evidence_refs`는
   주장을 뒷받침하는 출처(확인서·시험성적서·제조사 회신)다. `bulk_matrix.py`도 두 필드를
   분리해 생성한다 — `slide:99`가 사실의 증거로 승격되지 않는다.
+- **분류(context)**: `{buyer_types[], engagement, stage, reading_mode, constraints[]}`. 기관 이름이
+  아니라 축으로 분류하며(공공병원 → `["public","healthcare"]`), 게이트가 이 값을 읽어 요구사항을
+  바꾼다. 값 목록과 각 축이 무엇을 바꾸는지는
+  [sectors/README.md](sectors/README.md) 참조. RFP의 명시 요구가 언제나 분류보다 우선한다.
+- **평가표(evaluation_criteria)**: `{id, label, weight}` 배열, 가중치 합 100(±0.5).
+  `buyer_types`에 `public`이 있고 제출 단계이면 필수다 — 공공 입찰에서 배점표는 목차·분량·근거
+  배분의 기준이므로, 없으면 무엇에 점수가 걸렸는지 모르는 채로 쓴 것이다. 각 요구는
+  `requirements[].criterion_ids`로 배점 항목에 연결하며, **대응 요구가 없는 배점 항목은 차단**한다
+  (목차가 통째로 빠진 신호). `reading_mode`와 `render.output_profile`이 어긋나도 차단한다.
 - **수치 원장(numbers)**: `numbers[] = {id, label, value(JSON 숫자), unit, source?, components?[],
   percent_of?, amount?, tolerance?(기본 0.005), must_appear?}`. `components`가 있으면 값이 구성
   요소의 합과 같아야 하고(단위가 섞이면 차단), `percent_of`+`amount`가 있으면 비율을 다시

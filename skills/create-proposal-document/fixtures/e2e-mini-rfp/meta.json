@@ -40,7 +40,10 @@
       "reviewer": "기술PL",
       "fit": "STRONG",
       "eval_weight": 25,
-      "win_theme_id": "WT1"
+      "win_theme_id": "WT1",
+      "criterion_ids": [
+        "C-TECH"
+      ]
     },
     {
       "id": "R2",
@@ -55,7 +58,10 @@
       "reviewer": "기술PL",
       "fit": "STRONG",
       "eval_weight": 15,
-      "win_theme_id": "WT2"
+      "win_theme_id": "WT2",
+      "criterion_ids": [
+        "C-MIGRATE"
+      ]
     },
     {
       "id": "R3",
@@ -68,7 +74,10 @@
       ],
       "reviewer": "PM",
       "fit": "STRONG",
-      "eval_weight": 10
+      "eval_weight": 10,
+      "criterion_ids": [
+        "C-PM"
+      ]
     },
     {
       "id": "R4",
@@ -82,7 +91,10 @@
       "reviewer": "기술PL",
       "fit": "STRONG",
       "eval_weight": 25,
-      "win_theme_id": "WT1"
+      "win_theme_id": "WT1",
+      "criterion_ids": [
+        "C-TECH"
+      ]
     },
     {
       "id": "R5",
@@ -92,7 +104,10 @@
       "evidence_refs": [
         "deck_check: 본문 12장/40장"
       ],
-      "reviewer": "PM"
+      "reviewer": "PM",
+      "criterion_ids": [
+        "C-PM"
+      ]
     },
     {
       "id": "R6",
@@ -101,14 +116,35 @@
       "state": "drafted",
       "slide": 9,
       "evidence_refs": [],
-      "reviewer": ""
+      "reviewer": "",
+      "criterion_ids": [
+        "C-UNDERSTAND"
+      ]
     },
     {
       "id": "R7",
       "text": "기존 백업 솔루션 연계",
       "mandatory": false,
       "state": "drafted",
-      "evidence_refs": []
+      "evidence_refs": [],
+      "criterion_ids": [
+        "C-STRATEGY"
+      ]
+    },
+    {
+      "id": "R8",
+      "text": "가격 제안서 별도 제출(부가세 포함)",
+      "mandatory": true,
+      "state": "approved",
+      "evidence_refs": [
+        "별첨:가격제안서 v3",
+        "견적서 v3 2026-06"
+      ],
+      "reviewer": "PM",
+      "criterion_ids": [
+        "C-PRICE"
+      ],
+      "eval_weight": 20
     }
   ],
   "win_themes": [
@@ -269,6 +305,49 @@
       "value": 8,
       "unit": "개월",
       "source": "RFP 3.1"
+    }
+  ],
+  "context": {
+    "buyer_types": [
+      "public"
+    ],
+    "engagement": "migrate",
+    "stage": "rfp-response",
+    "reading_mode": "print-evaluation",
+    "constraints": [
+      "business-continuity"
+    ]
+  },
+  "evaluation_criteria": [
+    {
+      "id": "C-UNDERSTAND",
+      "label": "사업 이해",
+      "weight": 10
+    },
+    {
+      "id": "C-STRATEGY",
+      "label": "수행 전략",
+      "weight": 20
+    },
+    {
+      "id": "C-TECH",
+      "label": "기술 구성",
+      "weight": 25
+    },
+    {
+      "id": "C-MIGRATE",
+      "label": "이관 방안",
+      "weight": 15
+    },
+    {
+      "id": "C-PM",
+      "label": "사업 관리",
+      "weight": 10
+    },
+    {
+      "id": "C-PRICE",
+      "label": "가격",
+      "weight": 20
     }
   ]
 }

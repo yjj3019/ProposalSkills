@@ -29,6 +29,7 @@ REQUIRED_PACKAGE_CHECKS = {
 
 
 LIST_FIELDS = ("requirements", "slides", "win_themes", "claims", "bid_conditions", "numbers",
+               "evaluation_criteria",
                "unresolved_tokens", "attachments", "inputs", "defects", "eligibility",
                "regulatory_checks", "vendor_confirmations", "source_conflicts")
 
@@ -49,7 +50,8 @@ def _validate_meta_types(meta: dict) -> None:
     # 원장 항목은 객체여야 한다. 문자열 요구 하나가 섞이면 조용히 버려져
     # 필수 요구 3건이 2건이 된 채 통과하던 유실 경로를 위치와 함께 막는다.
     for name in ("requirements", "claims", "win_themes", "eligibility", "attachments",
-                 "inputs", "defects", "bid_conditions", "slides", "numbers"):
+                 "inputs", "defects", "bid_conditions", "slides", "numbers",
+                 "evaluation_criteria"):
         for i, item in enumerate(_as_list(meta.get(name))):
             if not isinstance(item, dict):
                 raise ValueError(f"{name}[{i}] must be an object (got {item!r}) — "
@@ -188,6 +190,8 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
                 if key in exc:
                     item["exception"][key] = exc[key]
         # Optional S2 matrix fields passthrough
+        if "criterion_ids" in req:
+            item["criterion_ids"] = _str_list(req, "criterion_ids", f"requirement {item['id']}")
         for key in ("fit", "eval_weight", "win_theme_id", "risk", "support", "text", "basis"):
             if key in req and key not in item:
                 item[key] = req[key]
@@ -276,6 +280,14 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
     # 제출 모드가 "원장 없이 arithmetic 자기선언"으로 차단된다.
     if meta.get("numbers") is not None:
         audit["numbers"] = _as_list(meta.get("numbers"))
+    # 분류와 평가표는 게이트 요구사항을 바꾸는 입력이다 — 변환에서 잃으면 공공 제안이
+    # 평가표 없이 통과하거나, 읽는 조건과 장표 규격의 불일치를 놓친다.
+    if meta.get("context") is not None:
+        if not isinstance(meta["context"], dict):
+            raise ValueError("meta field must be an object: context")
+        audit["context"] = meta["context"]
+    if meta.get("evaluation_criteria") is not None:
+        audit["evaluation_criteria"] = _as_list(meta.get("evaluation_criteria"))
     if meta.get("artifact_mode"):
         audit["artifact_mode"] = meta["artifact_mode"]
     if warnings:
