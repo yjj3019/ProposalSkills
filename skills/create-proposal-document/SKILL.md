@@ -74,8 +74,10 @@ RFP 원문, 고객 현황, 제품 버전·EOL·로드맵, 실적·인증. 최신
 - 브랜드 토큰이 있으면 `meta.palette`·`--template 사내양식.pptx`로 넘긴다. 없으면 폴백 토큰.
 - 조견표·SLA 표·인력·실적·간트·구성도는 대응 type(`matrix/table/staff/gantt/zones`)을 쓴다.
   도식은 편집 가능한 네이티브 도형으로 생성된다(이미지 삽입은 선 연결 토폴로지에 한정).
-- `scripts/deck_check.py`로 리드문·REQ-ID·페이지 수·최소 폰트·밀도·표 헤더를 린트하고
-  LibreOffice 렌더로 페이지 대조·PNG 썸네일을 만든다. 썸네일 육안 확인은 사람이 한다.
+- `scripts/deck_check.py`로 리드문·REQ-ID·페이지 수·최소 폰트·밀도·표 헤더·화면 밖 배치를
+  린트하고, LibreOffice 렌더로 페이지 대조·PNG 썸네일을 만든다. 썸네일 육안 확인은 사람이 한다.
+- `scripts/check_numbers.py`로 audit의 `numbers[]` 원장 수치가 장표에 실제로 있는지 대조한다
+  (`37억`/`3,700,000,000` 표기 변형 인식). 원장과 장표 중 하나가 낡으면 차단된다.
 - 접근성 하한: 일반 텍스트 명암비 4.5:1, 큰 텍스트 3:1. 색상만으로 상태를 구분하지 않는다.
 
 ### 5. 품질 게이트 — `references/review-checklist.md` 읽기

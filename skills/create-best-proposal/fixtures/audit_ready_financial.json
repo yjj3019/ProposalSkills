@@ -125,5 +125,41 @@
       "required": true,
       "present": true
     }
+  ],
+  "numbers": [
+    {
+      "id": "N1",
+      "label": "총 사업비",
+      "value": 3700000000,
+      "unit": "KRW",
+      "source": "견적서 v3 2026-06",
+      "components": [
+        "N2",
+        "N3"
+      ]
+    },
+    {
+      "id": "N2",
+      "label": "구축비",
+      "value": 2500000000,
+      "unit": "KRW",
+      "source": "견적서 v3 2026-06"
+    },
+    {
+      "id": "N3",
+      "label": "유지보수비(3년)",
+      "value": 1200000000,
+      "unit": "KRW",
+      "source": "견적서 v3 2026-06"
+    },
+    {
+      "id": "N4",
+      "label": "유지보수 비중",
+      "value": 32.4324,
+      "unit": "%",
+      "percent_of": "N1",
+      "amount": 1200000000,
+      "must_appear": false
+    }
   ]
 }

@@ -79,6 +79,27 @@ jobs:
           if python "$GATE" "${RUNNER_TEMP}/bound.json" --stage draft --no-explain; then exit 1; fi
           if python "$GATE" skills/create-best-proposal/fixtures/audit_decision_memo.json --no-explain; then exit 1; fi
           python skills/create-best-proposal/scripts/build_audit_from_meta.py skills/create-best-proposal/fixtures/meta_sample.json -o "${RUNNER_TEMP}/audit.json"
+          # 수치 원장: 틀린 합계는 arithmetic=true 자기선언과 무관하게 차단된다
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          data = json.loads(audit_path.read_text(encoding="utf-8"))
+          assert data["checks"]["arithmetic"] is True
+          data["numbers"][0]["value"] = 9900000000
+          (tmp / "bad_sum.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          PY
+          if python "$GATE" "${RUNNER_TEMP}/bad_sum.json" --audit-only --no-explain; then exit 1; fi
+          # 원장이 없으면 제출 모드에서 arithmetic 자기선언만으로 통과하지 못한다
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          data = json.loads(audit_path.read_text(encoding="utf-8"))
+          data.pop("numbers")
+          (tmp / "no_ledger.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          PY
+          if python "$GATE" "${RUNNER_TEMP}/no_ledger.json" --audit-only --no-explain; then exit 1; fi
           python score_completeness.py "$READY" | grep -q '"status": "AUDIT-VALID"'
       - name: Deck pipeline golden
         shell: bash
@@ -110,6 +131,19 @@ jobs:
           SPEC=skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json
           if python "$BUILD" "$SPEC" -o "${RUNNER_TEMP}/x.pptx" --template "${RUNNER_TEMP}/dirty_template.pptx"; then exit 1; fi
           if python "$BUILD" "${RUNNER_TEMP}/bad_rows.json" -o "${RUNNER_TEMP}/y.pptx"; then exit 1; fi
+          # 원장 수치가 장표에 실제로 있는지 대조한다(골든은 일치, 낡은 값은 차단)
+          CHECK=skills/create-proposal-document/scripts/check_numbers.py
+          META=skills/create-proposal-document/fixtures/e2e-mini-rfp/meta.json
+          python "$CHECK" "${RUNNER_TEMP}/draft.pptx" --audit "$META"
+          python - "$META" "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          meta_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          data = json.loads(meta_path.read_text(encoding="utf-8"))
+          data["numbers"][0]["value"] = 987654  # 장표에 없는 값
+          (tmp / "stale_numbers.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          PY
+          if python "$CHECK" "${RUNNER_TEMP}/draft.pptx" --audit "${RUNNER_TEMP}/stale_numbers.json"; then exit 1; fi
       - name: Auto-install smoke test
         shell: bash
         env:

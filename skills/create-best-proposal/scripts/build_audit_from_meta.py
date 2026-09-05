@@ -28,7 +28,7 @@ REQUIRED_PACKAGE_CHECKS = {
 }
 
 
-LIST_FIELDS = ("requirements", "slides", "win_themes", "claims", "bid_conditions",
+LIST_FIELDS = ("requirements", "slides", "win_themes", "claims", "bid_conditions", "numbers",
                "unresolved_tokens", "attachments", "inputs", "defects", "eligibility",
                "regulatory_checks", "vendor_confirmations", "source_conflicts")
 
@@ -49,7 +49,7 @@ def _validate_meta_types(meta: dict) -> None:
     # 원장 항목은 객체여야 한다. 문자열 요구 하나가 섞이면 조용히 버려져
     # 필수 요구 3건이 2건이 된 채 통과하던 유실 경로를 위치와 함께 막는다.
     for name in ("requirements", "claims", "win_themes", "eligibility", "attachments",
-                 "inputs", "defects", "bid_conditions", "slides"):
+                 "inputs", "defects", "bid_conditions", "slides", "numbers"):
         for i, item in enumerate(_as_list(meta.get(name))):
             if not isinstance(item, dict):
                 raise ValueError(f"{name}[{i}] must be an object (got {item!r}) — "
@@ -272,6 +272,10 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "vendor_confirmations": _as_list(meta.get("vendor_confirmations")),
         "win_themes": win_themes,
     }
+    # 수치 원장은 게이트가 합계·비율을 다시 계산하는 입력이다 — 변환에서 잃으면
+    # 제출 모드가 "원장 없이 arithmetic 자기선언"으로 차단된다.
+    if meta.get("numbers") is not None:
+        audit["numbers"] = _as_list(meta.get("numbers"))
     if meta.get("artifact_mode"):
         audit["artifact_mode"] = meta["artifact_mode"]
     if warnings:

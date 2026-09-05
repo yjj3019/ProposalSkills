@@ -22,7 +22,10 @@ Create every top-level field; do not omit empty arrays.
   "submission": {"cleared": true, "rehearsal_evidence": ["test upload opened"], "receipt_plan": "save portal confirmation", "receipt_evidence": []},
   "flags": {"financial": false},
   "regulatory_checks": [{"id": "REG1", "requirement": "전자금융 감독규정(망분리)", "status": "met", "evidence": ["점검 확인서"], "owner": "보안담당"}],
-  "vendor_confirmations": [{"id": "V1", "kind": "support", "required": true, "present": true}]
+  "vendor_confirmations": [{"id": "V1", "kind": "support", "required": true, "present": true}],
+  "numbers": [{"id": "N1", "label": "총 사업비", "value": 3700000000, "unit": "KRW", "source": "견적서 v3", "components": ["N2", "N3"]},
+              {"id": "N2", "label": "구축비", "value": 2500000000, "unit": "KRW", "source": "견적서 v3"},
+              {"id": "N3", "label": "유지보수비", "value": 1200000000, "unit": "KRW", "source": "견적서 v3"}]
 }
 ```
 
@@ -73,6 +76,12 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 - **응답 위치 ≠ 근거**: 조견표의 응답 위치는 `response_refs`에 넣는다. `evidence_refs`는
   주장을 뒷받침하는 출처(확인서·시험성적서·제조사 회신)다. `bulk_matrix.py`도 두 필드를
   분리해 생성한다 — `slide:99`가 사실의 증거로 승격되지 않는다.
+- **수치 원장(numbers)**: `numbers[] = {id, label, value(JSON 숫자), unit, source?, components?[],
+  percent_of?, amount?, tolerance?(기본 0.005), must_appear?}`. `components`가 있으면 값이 구성
+  요소의 합과 같아야 하고(단위가 섞이면 차단), `percent_of`+`amount`가 있으면 비율을 다시
+  계산한다. **제출 모드는 원장 없이 `checks.arithmetic: true`만으로 통과하지 못한다.** 원장
+  값이 실제 문서에 있는지는 `check_numbers.py`가 대조하며, 중간 계산값은
+  `must_appear: false`로 제외한다.
 - **검증 의무는 취소되지 않는다**: `mode: submission`이면 `artifact_required` 값과 무관하게
   렌더 검증·해시 형식·패키지 검사를 요구한다. `artifact_required: false`는 draft/review에서만
   의미가 있다 — 입력값 하나로 제출 검사를 끄지 못한다.

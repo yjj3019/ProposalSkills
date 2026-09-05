@@ -229,5 +229,46 @@
     "artifact_hash": "",
     "tool": "",
     "evidence": []
-  }
+  },
+  "numbers": [
+    {
+      "id": "N1",
+      "label": "이관 대상 VM",
+      "value": 400,
+      "unit": "대",
+      "source": "RFP 2.1"
+    },
+    {
+      "id": "N2",
+      "label": "가상화 노드",
+      "value": 12,
+      "unit": "대",
+      "source": "RFP 2.2",
+      "components": [
+        "N3",
+        "N4"
+      ]
+    },
+    {
+      "id": "N3",
+      "label": "Control Plane",
+      "value": 3,
+      "unit": "대",
+      "source": "제안 Ⅲ-1"
+    },
+    {
+      "id": "N4",
+      "label": "Worker",
+      "value": 9,
+      "unit": "대",
+      "source": "제안 Ⅲ-1"
+    },
+    {
+      "id": "N5",
+      "label": "사업 기간",
+      "value": 8,
+      "unit": "개월",
+      "source": "RFP 3.1"
+    }
+  ]
 }
