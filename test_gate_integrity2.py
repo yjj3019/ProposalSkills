@@ -16,6 +16,8 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO))
+from test_support import Result, run_script  # noqa: E402
 BEST = REPO / "skills/create-best-proposal"
 DOC = REPO / "skills/create-proposal-document"
 UG = BEST / "scripts/unified_gate.py"
@@ -39,9 +41,12 @@ except ImportError:  # pragma: no cover
     HAS_PPTX = False
 
 
-def run(*args: object, **kw) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", cwd=str(REPO), **kw)
+def run(*args: object, **kw) -> Result:
+    """스킬 스크립트 실행 — 기본은 같은 프로세스(test_support 참조).
+
+    env를 주면 자식 프로세스로 승격된다(인코딩 계약 검사).
+    """
+    return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
 def ready_audit() -> dict:

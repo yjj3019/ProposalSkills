@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO))
+from test_support import run_script  # noqa: E402
 BEST = REPO / "skills/create-best-proposal"
 DOC = REPO / "skills/create-proposal-document"
 FIXTURES = BEST / "fixtures"
@@ -30,8 +32,7 @@ import check_numbers as cn  # noqa: E402
 
 
 def run(*args: object) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", cwd=str(REPO))
+    return run_script(Path(str(args[0])), *args[1:])
 
 
 def ledger() -> list[dict]:

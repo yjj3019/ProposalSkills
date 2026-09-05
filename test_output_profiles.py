@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO))
+from test_support import Result, build_deck_cached, run_script  # noqa: E402
 DOC = REPO / "skills/create-proposal-document"
 BD = DOC / "scripts/build_deck.py"
 DC = DOC / "scripts/deck_check.py"
@@ -29,9 +31,12 @@ except ImportError:  # pragma: no cover
     HAS_PPTX = False
 
 
-def run(*args: object) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, *map(str, args)], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", cwd=str(REPO))
+def run(*args: object, **kw) -> Result:
+    """스킬 스크립트 실행 — 기본은 같은 프로세스(test_support 참조).
+
+    env를 주면 자식 프로세스로 승격된다(인코딩 계약 검사).
+    """
+    return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
 class ProfileSpecTests(unittest.TestCase):
@@ -92,7 +97,7 @@ class BuilderProfileTests(unittest.TestCase):
 
     def _build(self, *extra: object, spec: Path | None = None) -> Path:
         out = self.dir / f"deck{len(list(self.dir.glob('*.pptx')))}.pptx"
-        proc = run(BD, spec or FIX, "-o", out, *extra)
+        proc = build_deck_cached(BD, spec or FIX, out, *extra)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         return out
 
@@ -160,9 +165,9 @@ class CheckerProfileTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def _build(self, profile: str | None = None) -> Path:
+        # 같은 입력·같은 인자면 결과가 같다 — 한 번만 만들고 복사해 쓴다.
         out = self.dir / f"{profile or 'default'}.pptx"
-        args = [BD, FIX, "-o", out] + (["--profile", profile] if profile else [])
-        proc = run(*args)
+        proc = build_deck_cached(BD, FIX, out, *(["--profile", profile] if profile else []))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         return out
 
@@ -301,7 +306,7 @@ class CheckerSubstanceTests(unittest.TestCase):
         for name in dp.PROFILES:
             with self.subTest(profile=name):
                 out = self.dir / f"floor_{name}.pptx"
-                proc = run(BD, FIX, "-o", out, "--profile", name)
+                proc = build_deck_cached(BD, FIX, out, "--profile", name)
                 self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
                 prs = Presentation(str(out))
                 measured = [deck_check.min_font_pt(s) for s in prs.slides]

@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO))
+from test_support import run_script  # noqa: E402
 DOC = REPO / "skills/create-proposal-document"
 BEST = REPO / "skills/create-best-proposal"
 WIN = REPO / "skills/create-winning-proposal"
@@ -40,8 +42,7 @@ except ImportError:
 
 
 def run(*args, **kw) -> subprocess.CompletedProcess:
-    return subprocess.run([PY, *map(str, args)], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", cwd=str(REPO), **kw)
+    return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
 class D01ConversionKeepsApprovalTests(unittest.TestCase):
