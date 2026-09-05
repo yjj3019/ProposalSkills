@@ -68,6 +68,20 @@ jobs:
           set -e
           python skills/create-proposal-document/scripts/build_deck.py skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json -o "${RUNNER_TEMP}/draft.pptx" --strict
           python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/draft.pptx" --max-pages 40 --exclude-cover-toc --require-req-ids --stage draft
+      - name: Auto-install smoke test
+        shell: bash
+        env:
+          HOME: ${{ runner.temp }}/fakehome
+          USERPROFILE: ${{ runner.temp }}/fakehome
+        run: |
+          set -e
+          mkdir -p "${RUNNER_TEMP}/fakehome/.claude"
+          unset AI_SKILLS_DIR CODEX_HOME
+          python install_skill.py --list-targets | grep -q ".claude"
+          python install_skill.py --auto
+          test -f "${RUNNER_TEMP}/fakehome/.claude/skills/create-best-proposal/SKILL.md"
+          test -f "${RUNNER_TEMP}/fakehome/.claude/skills/create-winning-proposal/scripts/proposal_gate.py"
+          python install_skill.py --auto | grep -q "Skip (exists)"   # 재실행 안전
       - name: Install smoke test
         shell: bash
         run: |
