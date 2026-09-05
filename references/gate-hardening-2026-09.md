@@ -66,3 +66,44 @@ Phase D·E, `create-proposal-document/SKILL.md` 자료 위치, README 테스트 
 - `score_completeness.py`를 create-best-proposal/scripts로 이동(설치 트리에서 동작), 루트는 진입점 유지.
 - quality_gate 마커: `○○`·`[unverified]`·`미정`(초안 경고/제출 차단), `p.__`(차단).
 - 3 스킬 frontmatter를 "단일 진입점 + 형제는 로드 전용"으로 재작성(라우터 중복 트리거 제거).
+
+## 3차 (2026-09-05) — 산출물 결속·판정 단일화 (외부 정밀 진단 F01~F05 대응)
+
+외부 진단서(고정 커밋 f346a18)의 지적을 현재 main에서 재현한 뒤 유효한 것만 수정했다.
+재현 결과 F05의 `[unverified]` 미탐, F06 제작 레이어 부재, F09 scorer 미배포는 2차(PR #14)에서
+이미 해소된 상태였고 `package.checks={}`의 TypeError도 재현되지 않았다. 나머지는 모두 유효했다.
+
+**F01 산출물 해시 결속** — audit이 '어느 파일'의 기록인지 확인한다.
+`unified_gate.py`가 `--doc`의 sha256을 계산해 `render/package.artifact_hash`와 대조하고,
+불일치면 차단한다(검토 이후 바뀐 파일에 과거 판정 재사용 금지). `mode=submission` +
+`artifact_required=true`인데 `--doc`이 없으면 차단하며, 문서 없이 audit만 볼 때는
+`--audit-only`를 쓰고 최선의 결과는 `SUBMISSION-READY`가 아니라 `AUDIT-VALID`다.
+제출 모드의 artifact_hash는 실제 `sha256:<64 hex>`여야 하고 render·package가 같은 파일을
+가리켜야 한다(문자열 라벨 `sha256:proposal`은 차단).
+
+**F02 단계·라벨·설명의 단일 판정** — `readiness(data, failures)` 하나가 라벨과 종료 코드를
+정하고 `explain_markdown`·CLI가 같은 함수를 쓴다(draft audit이 "제출 가능"으로 설명되던 불일치
+제거). `mode=submission` audit을 `--stage draft`로 낮춰 검사하는 우회는 사용 오류(exit 2),
+`artifact_mode=simulation-only`는 제출 모드에서 차단.
+
+**F03 변환·스키마 유실 차단** — `_str_list()`가 문자열을 리스트로 감싸지 않는다
+(`"TBD"` → `['T','B','D']` 오변환 제거). 원장 배열의 비객체 항목은 위치와 함께 오류
+(`requirements[2] must be an object`) — 문자열 요구 하나가 조용히 버려져 3건이 2건이 되던
+유실 차단. `requirements[]`·`claims[]`의 id는 필수·유일이며, 열거값 검사는 `_enum_ok()`로
+비문자열을 안전하게 거부한다(`mode=[]`가 트레이스백 대신 INVALID exit 2).
+
+**F04 근거·준수·응답 위치의 분리** — 제출 모드에서 `supported|qualified` 주장은
+`evidence_refs` 필수. `support=X`/`fit=GAP`인데 `state=approved`이면 차단하고, 발주처 예외는
+`exception:{granted_by, evidence}`로만 인정한다. `bulk_matrix.py`는 응답 위치를
+`response_refs`로 분리한다(더 이상 `evidence_refs`로 승격되지 않음).
+
+**F05 문서 검사 범위** — `chart_text()`가 차트 파트에서 run(a:t) 외에 범주·계열 캐시(`c:v`)까지
+읽는다. 제목이 있는 차트에서 범주의 잔존 고객명을 놓치던 미탐 해소(제목 없는 차트는 이전에도
+탐지됐다). 확장자만 `.pptx`인 일반 ZIP은 `NOT INSPECTED` 통과가 아니라 사용 오류(exit 2)다.
+
+**검증** — `test_gate_integrity.py` 22건 신설(정상 대조군 포함), 전체 149건 + proposal_gate 58건
++ best_proposal 11건 통과. 골든 픽스처와 테스트 베이스의 해시를 실제 digest로 교체했다.
+
+**남은 항목(미착수)** — F06 산술·좌표 검증(unified_gate가 `checks.arithmetic`을 실제 계산과
+대조하지 않는다), F07 업종 프로파일(공공·기업·학교·병원), F08 산출물 종류별 시각 규격 분리
+(발표본 18pt+), F10 품질 주장의 근거(블라인드 비교 평가).

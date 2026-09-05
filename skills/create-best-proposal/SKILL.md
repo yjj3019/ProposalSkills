@@ -121,12 +121,18 @@ description: "제안서(PPTX 장표형 기본, DOCX·XLSX 지원) 작성·검토
    python ../create-proposal-document/scripts/quality_gate.py 제안서.pptx \
      --stage draft|submission [--names 금지명.txt] [--lang ko|en|both]
    ```
-3. 통합 게이트 (audit + 선택적 문서 + 조치표, 기본 --explain):
+3. 통합 게이트 (audit + 실제 문서 대조 + 조치표, 기본 --explain):
    ```bash
-   python scripts/unified_gate.py audit.json [--doc 제안서.pptx] [--stage submission]
-   python scripts/unified_gate.py audit.json --no-explain   # 라벨만
+   python scripts/unified_gate.py audit.json --doc 제안서.pptx --stage submission
+   python scripts/unified_gate.py audit.json --audit-only --no-explain   # 문서 없이 audit만
    ```
-   - `SUBMISSION-READY`(≡READY, **mode=submission audit만**) / `DRAFT-READY` / `CONDITIONAL-GO`
+   - **제출 판정에는 실제 파일이 필요하다.** `mode=submission` + `artifact_required=true`인
+     audit을 `--doc` 없이 실행하면 차단된다. 전달한 파일의 sha256이 audit의
+     `render/package.artifact_hash`와 다르면 차단된다 — 검토 이후 가격·기간이 바뀐 파일에
+     과거 판정을 재사용할 수 없다. 해시는 `deck_check.py --emit-render`가 만들어 준다.
+   - `mode=submission` audit은 `--stage submission`으로만 검사한다(`--stage draft`는 exit 2).
+   - `SUBMISSION-READY`(≡READY, **mode=submission audit + 파일 해시 일치**) / `AUDIT-VALID`
+     (`--audit-only`: audit만 유효, 제출 판정 아님) / `DRAFT-READY` / `CONDITIONAL-GO`
      (draft·review만, submission이면 BLOCKED) / `BLOCKED` / `DECISION_MEMO_ONLY` / `INVALID`
    - no-bid·intake-incomplete → **DECISION_MEMO_ONLY** (작성 실패와 구분)
    - audit 불리언은 JSON true/false만 유효 — `"yes"`/`"pending"` 문자열은 INVALID

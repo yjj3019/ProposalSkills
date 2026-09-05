@@ -46,6 +46,28 @@ def _validate_meta_types(meta: dict) -> None:
     for k in ("submission", "render", "package", "checks", "flags"):
         if k in meta and meta[k] is not None and not isinstance(meta[k], dict):
             raise ValueError(f"meta field must be an object: {k}")
+    # 원장 항목은 객체여야 한다. 문자열 요구 하나가 섞이면 조용히 버려져
+    # 필수 요구 3건이 2건이 된 채 통과하던 유실 경로를 위치와 함께 막는다.
+    for name in ("requirements", "claims", "win_themes", "eligibility", "attachments",
+                 "inputs", "defects", "bid_conditions", "slides"):
+        for i, item in enumerate(_as_list(meta.get(name))):
+            if not isinstance(item, dict):
+                raise ValueError(f"{name}[{i}] must be an object (got {item!r}) — "
+                                 "항목을 조용히 버리지 않는다")
+
+
+def _str_list(container: dict, key: str, where: str) -> list:
+    """리스트만 받는다. 문자열을 list()로 감싸면 글자 단위로 쪼개져
+    'TBD' → ['T','B','D']가 되고, 각 글자가 플레이스홀더 검사를 빠져나갔다."""
+    value = container.get(key)
+    if value is None:
+        return []
+    if isinstance(value, str):
+        raise ValueError(f"{where}.{key} must be an array of strings "
+                         f"(got a string: {value!r} — 배열로 감싼다)")
+    if not isinstance(value, list):
+        raise ValueError(f"{where}.{key} must be an array (got {type(value).__name__})")
+    return list(value)
 
 
 def _bool(container: dict, key: str, default: bool, where: str) -> bool:
@@ -177,9 +199,9 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
     deadline = submission_in.get("deadline") or meta.get("deadline")
     submission = {
         "cleared": _bool(submission_in, "cleared", False, "submission"),
-        "rehearsal_evidence": list(submission_in.get("rehearsal_evidence") or []),
+        "rehearsal_evidence": _str_list(submission_in, "rehearsal_evidence", "submission"),
         "receipt_plan": submission_in.get("receipt_plan") or "",
-        "receipt_evidence": list(submission_in.get("receipt_evidence") or []),
+        "receipt_evidence": _str_list(submission_in, "receipt_evidence", "submission"),
     }
     if deadline:
         submission["deadline"] = deadline
@@ -189,7 +211,7 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "verified": _bool(render_in, "verified", False, "render"),
         "artifact_hash": render_in.get("artifact_hash") or "",
         "tool": render_in.get("tool") or "",
-        "evidence": list(render_in.get("evidence") or []),
+        "evidence": _str_list(render_in, "evidence", "render"),
     }
 
     package_in = meta.get("package") if isinstance(meta.get("package"), dict) else {}
@@ -205,7 +227,7 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "reviewer": package_in.get("reviewer") or "",
     }
 
-    conflicts = list(meta.get("source_conflicts") or [])
+    conflicts = _str_list(meta, "source_conflicts", "meta")
     conflicts.extend(_req_conflicts(meta))
     win_themes = _normalize_win_themes(meta, strict, warnings)
 

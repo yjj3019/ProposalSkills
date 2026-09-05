@@ -27,6 +27,8 @@ INPUT_CLASSES = {"blocking", "non-blocking", "assumption"}
 DEFECT_SEVERITIES = {"critical", "major", "minor", "note"}
 ITEM_STATUSES = {"open", "closed"}
 ARTIFACT_MODES = {"submission-candidate", "simulation-only"}
+# 의도된 정지 결정 — 결함이 아니라 결정 메모로 제시한다.
+DECISION_STOP = {"no-bid", "intake-incomplete"}
 REQUIRED_PACKAGE_CHECKS = {
     "metadata", "notes", "comments", "hidden-content", "embedded-files",
     "external-links", "macros", "stale-customer-data", "price-leakage",
@@ -113,6 +115,12 @@ def is_iso_datetime(value: object) -> bool:
         return False
 
 
+def _enum_ok(value: object, allowed: "set[str] | frozenset[str]") -> bool:
+    """열거값 검사. 비문자열(list·dict 등)은 조용히 거부한다 —
+    `value in allowed`가 unhashable 입력에서 TypeError로 터지던 결함 해소."""
+    return isinstance(value, str) and value in allowed
+
+
 def validate_schema(data: object) -> list[str]:
     if not isinstance(data, dict):
         return ["audit root must be an object"]
@@ -123,7 +131,7 @@ def validate_schema(data: object) -> list[str]:
                  if name in data and not isinstance(data[name], dict)]
     if "artifact_required" in data and not isinstance(data["artifact_required"], bool):
         failures.append("artifact_required must be a boolean")
-    if "artifact_mode" in data and data["artifact_mode"] not in ARTIFACT_MODES:
+    if "artifact_mode" in data and not _enum_ok(data["artifact_mode"], ARTIFACT_MODES):
         failures.append(f"unsupported artifact_mode: {data['artifact_mode']}")
     for name in ("bid_conditions", "requirements", "claims", "attachments", "inputs", "defects"):
         if isinstance(data.get(name), list) and any(not isinstance(item, dict) for item in data[name]):
@@ -131,24 +139,24 @@ def validate_schema(data: object) -> list[str]:
     for condition in data.get("bid_conditions", []) if isinstance(data.get("bid_conditions"), list) else []:
         if isinstance(condition, dict) and not is_iso_datetime(condition.get("deadline")):
             failures.append(f"bid condition {condition.get('id', '?')} lacks ISO deadline with timezone")
-    if "mode" in data and data["mode"] not in MODES:
+    if "mode" in data and not _enum_ok(data["mode"], MODES):
         failures.append(f"unsupported mode: {data['mode']}")
-    if "bid_decision" in data and data["bid_decision"] not in BID_DECISIONS:
+    if "bid_decision" in data and not _enum_ok(data["bid_decision"], BID_DECISIONS):
         failures.append(f"unsupported bid_decision: {data['bid_decision']}")
     for item in data.get("inputs", []) if isinstance(data.get("inputs"), list) else []:
         if not isinstance(item, dict):
             continue
-        if item.get("class") not in INPUT_CLASSES:
+        if not _enum_ok(item.get("class"), INPUT_CLASSES):
             failures.append(f"input {item.get('id', '?')} has unsupported class: {item.get('class')}")
-        if item.get("status") not in ITEM_STATUSES:
+        if not _enum_ok(item.get("status"), ITEM_STATUSES):
             failures.append(f"input {item.get('id', '?')} has unsupported status: {item.get('status')}")
     for defect in data.get("defects", []) if isinstance(data.get("defects"), list) else []:
         if not isinstance(defect, dict):
             continue
-        if defect.get("severity") not in DEFECT_SEVERITIES:
+        if not _enum_ok(defect.get("severity"), DEFECT_SEVERITIES):
             failures.append(
                 f"defect {defect.get('id', '?')} has unsupported severity: {defect.get('severity')}")
-        if defect.get("status") not in ITEM_STATUSES:
+        if not _enum_ok(defect.get("status"), ITEM_STATUSES):
             failures.append(f"defect {defect.get('id', '?')} has unsupported status: {defect.get('status')}")
         if defect.get("severity") in {"critical", "major"} and defect.get("status") == "closed":
             if not _evidence_ok(defect.get("closure_evidence")):
@@ -205,7 +213,68 @@ def validate_schema(data: object) -> list[str]:
     for claim in data.get("claims", []) if isinstance(data.get("claims"), list) else []:
         if isinstance(claim, dict) and "kind" in claim and claim["kind"] not in CLAIM_KINDS:
             failures.append(f"claim {claim.get('id', '?')} has unsupported kind: {claim['kind']}")
+    # ID 무결성: 원장 항목은 식별자가 있어야 추적·대조가 성립한다. ID를 지우면
+    # "요구 ?가 미승인"처럼 지목 불가능한 결함이 되거나, 중복 ID로 근거가 뒤섞인다.
+    for name in ("requirements", "claims"):
+        items = data.get(name)
+        if not isinstance(items, list):
+            continue
+        seen: set[str] = set()
+        for i, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue
+            rid = item.get("id")
+            if not isinstance(rid, str) or not rid.strip():
+                failures.append(f"{name}[{i}] lacks a non-empty id")
+            elif rid in seen:
+                failures.append(f"duplicate id in {name}: {rid}")
+            else:
+                seen.add(rid)
     return sorted(set(failures), key=failures.index)
+
+
+_DIGEST_RE = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$", re.IGNORECASE)
+
+
+def is_digest(value: object) -> bool:
+    """sha256:<64 hex> 형식인지. 제출 모드의 artifact_hash는 실제 파일에 대조 가능해야 한다."""
+    return isinstance(value, str) and _DIGEST_RE.match(value.strip()) is not None
+
+
+def normalize_digest(value: object) -> str:
+    """비교용 정규화 — 접두사 제거 + 소문자. 형식이 아니면 빈 문자열."""
+    if not is_digest(value):
+        return ""
+    return str(value).strip().lower().removeprefix("sha256:")
+
+
+def _exception_granted(item: object) -> bool:
+    """발주처가 허용한 예외인지 — 승인자와 근거가 모두 있어야 인정한다."""
+    if not isinstance(item, dict):
+        return False
+    return not _is_placeholder(item.get("granted_by")) and _evidence_ok(item.get("evidence"))
+
+
+UNSUPPORTED_CODES = {"X", "미지원", "NO", "N", "불가"}
+
+
+def readiness(data: dict, failures: list[str]) -> tuple[str, int]:
+    """(표시 라벨, 종료 코드) — 목적·단계·차단 여부의 단일 판정 지점.
+
+    CLI·explain·점수 보고서가 모두 이 함수를 쓴다. 라벨이 갈라져 draft audit이
+    "제출 가능"으로 설명되던 불일치를 구조적으로 막는다.
+    """
+    decision = str(data.get("bid_decision", ""))
+    mode = str(data.get("mode", "")) or "draft"
+    if any(str(f).startswith("DECISION_MEMO_ONLY") for f in failures):
+        return "DECISION_MEMO_ONLY", 1
+    if decision in DECISION_STOP and failures:
+        return "DECISION_MEMO_ONLY", 1
+    if failures:
+        return "BLOCKED", 1
+    if decision == "conditional-bid":
+        return "CONDITIONAL-GO", 0
+    return ("SUBMISSION-READY" if mode == "submission" else f"{mode.upper()}-READY"), 0
 
 
 def evaluate(data: dict) -> list[str]:
@@ -241,6 +310,15 @@ def evaluate(data: dict) -> list[str]:
             # 반낙관: approved 자기선언만으로는 통과 불가. 비어있지 않은 문자열 근거 필수.
             if not _evidence_ok(item.get("evidence_refs")):
                 failures.append(f"requirement {item.get('id', '?')} approved without evidence_refs")
+            # 검토 상태(approved)와 준수 상태(support/fit)는 다른 축이다. "미지원임을
+            # 검토자가 확인했다"가 "필수 요구를 충족했다"로 승격되면 안 된다.
+            support = str(item.get("support", "")).strip().upper()
+            fit = str(item.get("fit", "")).strip().upper()
+            if (support in UNSUPPORTED_CODES or fit == "GAP") and not _exception_granted(item.get("exception")):
+                failures.append(
+                    f"requirement {item.get('id', '?')} is approved but not met "
+                    f"(support={item.get('support', '')!r}, fit={item.get('fit', '')!r}); "
+                    "needs a buyer-granted exception with evidence")
             continue
         if item.get("state") == "not-applicable" and item.get("rationale") and item.get("reviewer"):
             continue
@@ -257,6 +335,12 @@ def evaluate(data: dict) -> list[str]:
             failures.append(f"claim {claim.get('id', '?')} is unsupported")
         if kind == "commitment" and not _true(claim.get("owner_approved")):
             failures.append(f"commitment {claim.get('id', '?')} lacks owner approval")
+        # 제출 모드에서는 'supported/qualified' 선언에 실제 근거가 따라와야 한다.
+        # 상태 문자열만으로 통과하면 근거 없는 성능·실적 주장이 그대로 나간다.
+        if mode == "submission" and claim.get("status") in {"supported", "qualified"} \
+                and not _evidence_ok(claim.get("evidence_refs")):
+            failures.append(
+                f"claim {claim.get('id', '?')} is {claim.get('status')} without evidence_refs")
 
     failures.extend(f"unresolved token: {token}" for token in data["unresolved_tokens"])
     failures.extend(f"source conflict: {item}" for item in data["source_conflicts"])
@@ -280,6 +364,10 @@ def evaluate(data: dict) -> list[str]:
         if data["checks"].get(name) is not True:
             failures.append(f"check failed or missing: {name}")
 
+    # 시뮬레이션 산출물은 내부 확인용이다 — 외부 제출 준비 상태로 승격하지 않는다.
+    if mode == "submission" and data.get("artifact_mode") == "simulation-only":
+        failures.append("artifact_mode 'simulation-only' cannot clear submission "
+                        "(use 'submission-candidate' with a real artifact)")
     if data["artifact_required"] and not _true(data["render"].get("verified")):
         failures.append("render verification is missing or failed")
     if data["artifact_required"] and _true(data["render"].get("verified")):
@@ -288,6 +376,19 @@ def evaluate(data: dict) -> list[str]:
                 failures.append(f"render verification lacks {field}")
         if not _evidence_ok(data["render"].get("evidence")):
             failures.append("render verification lacks evidence")
+    # 제출 모드의 해시는 실제 파일에 대조 가능해야 한다. 형식이 아니거나 render와
+    # package가 서로 다른 파일을 가리키면, 검토 기록이 어느 산출물의 것인지 알 수 없다.
+    if mode == "submission" and data["artifact_required"]:
+        render_hash = data["render"].get("artifact_hash")
+        package_hash = data["package"].get("artifact_hash")
+        for field, value in (("render", render_hash), ("package", package_hash)):
+            if not is_digest(value):
+                failures.append(
+                    f"{field}.artifact_hash must be a sha256 digest for submission (got {value!r})")
+        if is_digest(render_hash) and is_digest(package_hash) \
+                and normalize_digest(render_hash) != normalize_digest(package_hash):
+            failures.append("render and package artifact_hash differ — "
+                            "두 검사가 서로 다른 파일을 대상으로 했다")
     package_required = _true(data["package"].get("required")) or mode == "submission"
     if package_required and not _true(data["package"].get("inspected")):
         failures.append("package inspection is missing or failed")
@@ -356,7 +457,6 @@ def evaluate(data: dict) -> list[str]:
     return failures
 
 
-DECISION_STOP = {"no-bid", "intake-incomplete"}
 
 
 def remediation_hint(failure: str) -> str:
@@ -403,7 +503,20 @@ def explain_markdown(data: dict, schema_failures: list[str], failures: list[str]
         return "\n".join(lines)
     decision = data.get("bid_decision")
     if not failures:
-        return "## 게이트 결과: READY\n\n제출 가능. 모든 결정론적 게이트를 통과했다."
+        # 라벨과 설명은 같은 판정 함수에서 나온다 — draft audit이 "제출 가능"으로
+        # 설명되던 불일치(라벨 DRAFT-READY vs 본문 READY)를 구조적으로 차단한다.
+        label, _ = readiness(data, failures)
+        mode = str(data.get("mode", "")) or "draft"
+        if label == "SUBMISSION-READY":
+            body = ("제출 가능. 모든 결정론적 게이트를 통과했다. "
+                    "단, 실제 제출 파일과의 해시 대조는 unified_gate `--doc`로 수행한다.")
+        elif label == "CONDITIONAL-GO":
+            body = ("내부 계속 진행만 가능하다 — 외부 제출 클리어가 아니다. "
+                    "조건 해소 후 mode=submission audit으로 다시 판정한다.")
+        else:
+            body = (f"{mode} 단계 게이트를 통과했다 — 내부 진행용이다. 제출 판정은 "
+                    "mode=submission audit + 실제 파일 대조로 별도로 받는다.")
+        return f"## 게이트 결과: {label}\n\n{body}"
     # no-bid·intake-incomplete는 '의도된 정지'이므로 결함이 아니라 결정 메모로 제시한다.
     if decision in DECISION_STOP:
         residual = [f for f in failures if "must be 'bid'" not in f.lower()

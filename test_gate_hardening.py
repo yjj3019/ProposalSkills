@@ -5,6 +5,7 @@ python-pptx/python-docx/openpyxl 없이 zipfile로 OOXML을 직접 조립한다(
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -43,6 +44,9 @@ def pptx(path: Path, parts: dict[str, str]) -> None:
     """parts: {zip 내부 경로: 문단 텍스트}. 텍스트는 run 분할 상태로 기록한다."""
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("[Content_Types].xml", PPTX_CT)
+        # 유효한 PPTX 패키지의 최소 요건. 이 파트가 없으면 quality_gate가 "확장자만
+        # 바꾼 ZIP"으로 보고 사용 오류를 낸다(이름만 .pptx인 파일의 통과 차단).
+        z.writestr("ppt/presentation.xml", "<p:presentation/>")
         for name, text in parts.items():
             z.writestr(name, f"<p:sld><p:txBody><a:p>{_runs(text)}</a:p></p:txBody></p:sld>")
 
@@ -70,6 +74,7 @@ class QualityGateScanScopeTests(unittest.TestCase):
     def test_split_runs_and_nbsp_are_detected(self):
         p = self.dir / "d.pptx"
         with zipfile.ZipFile(p, "w") as z:
+            z.writestr("ppt/presentation.xml", "<p:presentation/>")
             z.writestr("ppt/slides/slide1.xml",
                        "<a:p><a:r><a:t>업계 최</a:t></a:r><a:r><a:t>고 수준</a:t></a:r></a:p>"
                        "<a:p><a:r><a:t>[NEEDS INPUT: PM]</a:t></a:r></a:p>"
@@ -215,10 +220,45 @@ class UnifiedGateModeTests(unittest.TestCase):
             self.assertIn("STATUS: DRAFT-READY", proc.stdout)
             self.assertIn("NOTE: audit.mode='draft'", proc.stdout)
 
-    def test_submission_audit_shows_submission_ready(self):
-        proc = self._run(FIXTURES / "audit_ready_financial.json", "--no-explain")
-        self.assertEqual(proc.returncode, 0)
-        self.assertIn("STATUS: SUBMISSION-READY", proc.stdout)
+    def _audit_bound_to(self, doc: Path, tmp: str) -> Path:
+        """audit의 render/package 해시를 실제 파일 해시로 맞춘 사본을 만든다."""
+        data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
+        digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
+        data["render"]["artifact_hash"] = digest
+        data["package"]["artifact_hash"] = digest
+        audit = Path(tmp) / "bound.json"
+        audit.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        return audit
+
+    def test_submission_ready_requires_the_matching_document(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            doc = Path(tmp) / "final.pptx"
+            pptx(doc, {"ppt/slides/slide1.xml": "정상 문서"})
+            audit = self._audit_bound_to(doc, tmp)
+            ok = self._run(audit, "--doc", str(doc), "--no-explain")
+            self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+            self.assertIn("STATUS: SUBMISSION-READY", ok.stdout)
+
+            # 1) 문서 없이 제출 판정을 받으려 하면 차단된다.
+            none = self._run(audit, "--no-explain")
+            self.assertEqual(none.returncode, 1)
+            self.assertIn("--doc", none.stdout)
+            # 2) --audit-only는 통과하되 SUBMISSION-READY로 표시하지 않는다.
+            only = self._run(audit, "--audit-only", "--no-explain")
+            self.assertEqual(only.returncode, 0, only.stdout)
+            self.assertIn("STATUS: AUDIT-VALID", only.stdout)
+            self.assertNotIn("STATUS: SUBMISSION-READY", only.stdout)
+            # 3) 검토 이후 내용이 바뀐 파일은 과거 판정을 재사용하지 못한다.
+            changed = Path(tmp) / "changed.pptx"
+            pptx(changed, {"ppt/slides/slide1.xml": "가격이 바뀐 문서"})
+            drift = self._run(audit, "--doc", str(changed), "--no-explain")
+            self.assertEqual(drift.returncode, 1)
+            self.assertIn("전달된 문서와 다르다", drift.stdout)
+
+    def test_submission_audit_rejects_draft_stage(self):
+        proc = self._run(FIXTURES / "audit_ready_financial.json", "--stage", "draft", "--no-explain")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--stage submission", proc.stdout + proc.stderr)
 
     def test_bogus_gate_path_is_invalid_not_crash(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -235,7 +275,8 @@ class UnifiedGateModeTests(unittest.TestCase):
             p = Path(tmp) / "d.pptx"
             pptx(p, {"ppt/slides/slide1.xml": "정상 — 문서"})
             env = {**os.environ, "PYTHONIOENCODING": "cp949"}
-            proc = subprocess.run([sys.executable, str(UG), str(FIXTURES / "audit_ready_financial.json"),
+            audit = self._audit_bound_to(p, tmp)
+            proc = subprocess.run([sys.executable, str(UG), str(audit),
                                    "--doc", str(p), "--no-explain"],
                                   capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)

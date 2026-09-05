@@ -11,8 +11,10 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -64,6 +66,43 @@ def _load_gate_module(path: Path):
     return mod
 
 
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _norm_digest(value: object) -> str:
+    """비교용 정규화 — 'sha256:' 접두사 제거 + 소문자. 64 hex가 아니면 빈 문자열."""
+    if not isinstance(value, str):
+        return ""
+    v = value.strip().lower().removeprefix("sha256:")
+    return v if re.fullmatch(r"[0-9a-f]{64}", v) else ""
+
+
+def bind_document(data: dict, doc: Path) -> list[str]:
+    """전달된 실제 파일과 audit의 검사 대상 해시를 대조한다.
+
+    audit은 사람이 한 검토의 기록이다. 그 기록이 '어느 바이트'에 적용되는지
+    확인하지 않으면, 검토 이후 가격·기간이 바뀐 파일에 과거 판정을 재사용하게 된다.
+    """
+    actual = sha256_file(doc)
+    problems: list[str] = []
+    for field in ("render", "package"):
+        block = data.get(field)
+        if not isinstance(block, dict):
+            continue
+        declared = _norm_digest(block.get("artifact_hash"))
+        if declared and declared != actual:
+            problems.append(
+                f"{field}.artifact_hash가 전달된 문서와 다르다 "
+                f"(audit {declared[:12]}… vs {doc.name} {actual[:12]}…) — "
+                "검토 이후 파일이 바뀌었다. 재검사 후 audit을 갱신한다")
+    return problems
+
+
 def classify(decision: str, failures: list[str]) -> tuple[str, int]:
     """Return (label, exit_code). READY ≡ SUBMISSION-READY (S8)."""
     if any(f.startswith("DECISION_MEMO_ONLY") for f in failures):
@@ -100,8 +139,11 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("audit", type=Path, help="Audit JSON path")
-    ap.add_argument("--doc", type=Path, help="Optional PPTX/DOCX for quality_gate")
+    ap.add_argument("--doc", type=Path,
+                    help="PPTX/DOCX to inspect and hash-bind (required when audit.mode=submission)")
     ap.add_argument("--stage", choices=["draft", "submission"], default="submission")
+    ap.add_argument("--audit-only", action="store_true",
+                    help="문서 없이 audit만 점검한다. 통과해도 SUBMISSION-READY가 아니라 AUDIT-VALID다")
     ap.add_argument("--lang", choices=["ko", "en", "both"], default="ko")
     ap.add_argument("--names", type=Path, help="Banned residual names file")
     ap.add_argument("--palette", help="Allowed hex palette comma-list")
@@ -114,17 +156,6 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
-
-    if args.doc:
-        code, qout = run_quality_gate(args.doc, args.stage, args.lang, args.names, args.palette)
-        print("=== quality_gate ===")
-        print(qout.rstrip() or "(no output)")
-        if code == 2:
-            print("INVALID: quality_gate usage/dependency failure")
-            return 2
-        if code != 0:
-            print("BLOCKED: document quality_gate failed")
-            return 1
 
     gate_path = _find_proposal_gate()
     if gate_path is None:
@@ -148,7 +179,11 @@ def main(argv: list[str] | None = None) -> int:
     except (ImportError, SyntaxError, OSError) as exc:
         print(f"INVALID: cannot load proposal_gate: {exc}", file=sys.stderr)
         return 2
-    schema_failures = mod.validate_schema(data)
+    try:
+        schema_failures = mod.validate_schema(data)
+    except Exception as exc:  # 스키마 검사가 터지면 트레이스백이 아니라 사용 오류로 반환
+        print(f"INVALID: schema check failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
     if schema_failures:
         if explain and hasattr(mod, "explain_markdown"):
             print(mod.explain_markdown(data, schema_failures, []))
@@ -157,6 +192,33 @@ def main(argv: list[str] | None = None) -> int:
             for f in schema_failures:
                 print(f"- {f}")
         return 2
+
+    audit_mode = str(data.get("mode", ""))
+    # 단계 강제: submission audit을 draft 기준으로 검사하면 [NEEDS INPUT]이 경고로
+    # 내려가 SUBMISSION-READY가 나온다. 목적과 검사 강도를 어긋나게 두지 않는다.
+    if audit_mode == "submission" and args.stage != "submission":
+        print(f"INVALID: audit.mode=submission인데 --stage {args.stage} — "
+              "제출 audit은 --stage submission으로만 검사한다", file=sys.stderr)
+        return 2
+
+    doc_failures: list[str] = []
+    if args.doc:
+        if not args.doc.is_file():
+            print(f"INVALID: 문서 없음: {args.doc}", file=sys.stderr)
+            return 2
+        code, qout = run_quality_gate(args.doc, args.stage, args.lang, args.names, args.palette)
+        print("=== quality_gate ===")
+        print(qout.rstrip() or "(no output)")
+        if code == 2:
+            print("INVALID: quality_gate usage/dependency failure")
+            return 2
+        if code != 0:
+            print("BLOCKED: document quality_gate failed")
+            return 1
+        doc_failures = bind_document(data, args.doc)
+    elif audit_mode == "submission" and data.get("artifact_required") is True and not args.audit_only:
+        doc_failures = ["제출 판정에는 실제 산출물이 필요하다 — --doc <최종파일>로 다시 실행한다 "
+                        "(문서 없이 audit만 보려면 --audit-only)"]
 
     try:
         failures = mod.evaluate(data)
@@ -175,28 +237,33 @@ def main(argv: list[str] | None = None) -> int:
                 enriched.append(f)
         failures = enriched
 
-    label, exit_code = classify(str(decision), failures)
-    # S8: READY ≡ SUBMISSION-READY — 단, audit.mode가 submission일 때만.
-    # draft/review/analysis 모드 audit은 제출 검사(cleared·리허설·패키지)를 거치지
-    # 않았으므로 SUBMISSION-READY를 표시하지 않는다(P0 허위 라벨 차단).
-    audit_mode = str(data.get("mode", ""))
-    if label == "READY" and audit_mode != "submission":
-        display = f"{audit_mode.upper() or 'DRAFT'}-READY"
-    else:
-        display = "SUBMISSION-READY" if label == "READY" else label
+    # 문서 대조 실패는 게이트 차단 사유로 합류시킨다(라벨·종료코드가 함께 움직인다).
+    failures = list(failures) + doc_failures
+
+    # 라벨은 proposal_gate.readiness 하나에서 나온다 — CLI·explain·점수 보고서가
+    # 같은 판정을 쓰도록 단일화(예전엔 여기서 별도 계산해 설명문과 어긋났다).
+    if hasattr(mod, "readiness"):
+        display, exit_code = mod.readiness(data, failures)
+    else:  # 구버전 proposal_gate 호환
+        label, exit_code = classify(str(decision), failures)
+        display = "SUBMISSION-READY" if label == "READY" and audit_mode == "submission" else \
+            (f"{audit_mode.upper() or 'DRAFT'}-READY" if label == "READY" else label)
+    if display == "SUBMISSION-READY" and not args.doc:
+        # --audit-only 경로: 실제 파일을 보지 않았으므로 제출 준비로 표시하지 않는다.
+        display = "AUDIT-VALID"
+        print("NOTE: 문서 미검사(--audit-only) — audit 자체만 유효하다. "
+              "제출 판정은 --doc <최종파일>로 다시 받는다.")
     if args.stage == "submission" and audit_mode != "submission":
         print(f"NOTE: audit.mode={audit_mode!r} — 제출 판정이 아니다. "
               "제출 게이트는 mode=submission audit으로 다시 실행한다.")
     print(f"=== proposal_gate → {display} ===")
     if explain and hasattr(mod, "explain_markdown"):
-        # Rebuild failures list for explain: restore raw evaluate for clean table
-        raw = mod.evaluate(data)
-        print(mod.explain_markdown(data, [], raw))
+        print(mod.explain_markdown(data, [], failures))
     elif failures:
         for f in failures:
             print(f"- {f}")
     else:
-        if label == "CONDITIONAL-GO":
+        if display == "CONDITIONAL-GO":
             print("internal continuation only — not external submission clearance")
         else:
             print("all deterministic checks passed")
