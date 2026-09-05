@@ -258,7 +258,12 @@ def main(argv: list[str] | None = None) -> int:
               "제출 게이트는 mode=submission audit으로 다시 실행한다.")
     print(f"=== proposal_gate → {display} ===")
     if explain and hasattr(mod, "explain_markdown"):
-        print(mod.explain_markdown(data, [], failures))
+        # 최종 판정(display)을 설명에도 그대로 넘긴다. 설명이 audit으로 상태를 다시
+        # 계산하면 STATUS: AUDIT-VALID 옆에 "제출 가능"이 찍히는 모순이 생긴다.
+        try:
+            print(mod.explain_markdown(data, [], failures, display))
+        except TypeError:  # 구버전 proposal_gate 호환
+            print(mod.explain_markdown(data, [], failures))
     elif failures:
         for f in failures:
             print(f"- {f}")

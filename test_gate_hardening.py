@@ -26,37 +26,19 @@ import quality_gate as qg  # noqa: E402
 import build_audit_from_meta as bam  # noqa: E402
 import bulk_matrix as bm  # noqa: E402
 import install_skill  # noqa: E402
+import ooxml_fixtures as fixtures  # noqa: E402
 
 QG = REPO / "skills/create-proposal-document/scripts/quality_gate.py"
 UG = REPO / "skills/create-best-proposal/scripts/unified_gate.py"
 FIXTURES = REPO / "skills/create-best-proposal/fixtures"
 
-PPTX_CT = ('<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-           '<Default Extension="xml" ContentType="application/xml"/></Types>')
-
-
-def _runs(text: str, tag: str = "a") -> str:
-    """텍스트를 글자 단위 run으로 쪼갠 XML(최|고 분할 재현)."""
-    return "".join(f"<{tag}:r><{tag}:t>{ch}</{tag}:t></{tag}:r>" for ch in text)
-
-
 def pptx(path: Path, parts: dict[str, str]) -> None:
     """parts: {zip 내부 경로: 문단 텍스트}. 텍스트는 run 분할 상태로 기록한다."""
-    with zipfile.ZipFile(path, "w") as z:
-        z.writestr("[Content_Types].xml", PPTX_CT)
-        # 유효한 PPTX 패키지의 최소 요건. 이 파트가 없으면 quality_gate가 "확장자만
-        # 바꾼 ZIP"으로 보고 사용 오류를 낸다(이름만 .pptx인 파일의 통과 차단).
-        z.writestr("ppt/presentation.xml", "<p:presentation/>")
-        for name, text in parts.items():
-            z.writestr(name, f"<p:sld><p:txBody><a:p>{_runs(text)}</a:p></p:txBody></p:sld>")
+    fixtures.pptx(path, parts)
 
 
 def docx(path: Path, body_xml: str, extra: dict[str, str] | None = None) -> None:
-    with zipfile.ZipFile(path, "w") as z:
-        z.writestr("[Content_Types].xml", PPTX_CT)
-        z.writestr("word/document.xml", f"<w:document><w:body>{body_xml}</w:body></w:document>")
-        for name, text in (extra or {}).items():
-            z.writestr(name, f"<w:hdr><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:hdr>")
+    fixtures.docx(path, body_xml, extra)
 
 
 def blockers(path: Path, names=(), lang="ko", stage="submission") -> list[str]:
@@ -73,12 +55,12 @@ class QualityGateScanScopeTests(unittest.TestCase):
 
     def test_split_runs_and_nbsp_are_detected(self):
         p = self.dir / "d.pptx"
-        with zipfile.ZipFile(p, "w") as z:
-            z.writestr("ppt/presentation.xml", "<p:presentation/>")
-            z.writestr("ppt/slides/slide1.xml",
-                       "<a:p><a:r><a:t>업계 최</a:t></a:r><a:r><a:t>고 수준</a:t></a:r></a:p>"
-                       "<a:p><a:r><a:t>[NEEDS INPUT: PM]</a:t></a:r></a:p>"
-                       "<a:p><a:r><a:t>10</a:t></a:r><a:r><a:t>0% 무중</a:t></a:r><a:r><a:t>단</a:t></a:r></a:p>")
+        fixtures.pptx(p, raw={
+            "ppt/slides/slide1.xml":
+                "<a:p><a:r><a:t>업계 최</a:t></a:r><a:r><a:t>고 수준</a:t></a:r></a:p>"
+                "<a:p><a:r><a:t>[NEEDS INPUT: PM]</a:t></a:r></a:p>"
+                "<a:p><a:r><a:t>10</a:t></a:r><a:r><a:t>0% 무중</a:t></a:r>"
+                "<a:r><a:t>단</a:t></a:r></a:p>"})
         found = " ".join(blockers(p))
         for needle in ("'최고'", "'100%'", "'무중단'", "needs input"):
             self.assertIn(needle, found)
@@ -102,13 +84,14 @@ class QualityGateScanScopeTests(unittest.TestCase):
 
     def test_hidden_or_orphan_slide_parts_are_scanned(self):
         p = self.dir / "d.pptx"
-        with zipfile.ZipFile(p, "w") as z:
-            z.writestr("ppt/presentation.xml",
-                       '<p:presentation><p:sldIdLst><p:sldId id="256" r:id="rId2"/></p:sldIdLst></p:presentation>')
-            z.writestr("ppt/_rels/presentation.xml.rels",
-                       '<Relationships><Relationship Id="rId2" Target="slides/slide2.xml"/></Relationships>')
-            z.writestr("ppt/slides/slide2.xml", "<a:p><a:r><a:t>표지</a:t></a:r></a:p>")
-            z.writestr("ppt/slides/slide1.xml", "<a:p><a:r><a:t>고아 슬라이드 ABC은행</a:t></a:r></a:p>")
+        fixtures.pptx(
+            p,
+            presentation='<p:presentation><p:sldIdLst><p:sldId id="256" r:id="rId2"/>'
+                         '</p:sldIdLst></p:presentation>',
+            raw={"ppt/_rels/presentation.xml.rels":
+                 '<Relationships><Relationship Id="rId2" Target="slides/slide2.xml"/></Relationships>',
+                 "ppt/slides/slide2.xml": "<a:p><a:r><a:t>표지</a:t></a:r></a:p>",
+                 "ppt/slides/slide1.xml": "<a:p><a:r><a:t>고아 슬라이드 ABC은행</a:t></a:r></a:p>"})
         found = blockers(p, names=["ABC은행"])
         self.assertTrue(any("[금지 명칭]" in f and "슬라이드 2" in f for f in found), found)
 
@@ -137,14 +120,13 @@ class QualityGateScanScopeTests(unittest.TestCase):
 
     def test_xlsx_cells_are_scanned(self):
         p = self.dir / "q.xlsx"
-        with zipfile.ZipFile(p, "w") as z:
-            z.writestr("[Content_Types].xml", PPTX_CT)
-            z.writestr("xl/workbook.xml", '<workbook><sheets><sheet name="보안질의" sheetId="1"/></sheets></workbook>')
-            z.writestr("xl/sharedStrings.xml",
-                       "<sst><si><t>무중단 100%</t></si><si><r><t>ABC</t></r><r><t>은행</t></r></si></sst>")
-            z.writestr("xl/worksheets/sheet1.xml",
-                       '<worksheet><sheetData><row><c t="s"><v>0</v></c><c t="s"><v>1</v></c>'
-                       '<c t="inlineStr"><is><t>[NEEDS INPUT: 보안팀]</t></is></c></row></sheetData></worksheet>')
+        fixtures.xlsx(p, {
+            "xl/workbook.xml": '<workbook><sheets><sheet name="보안질의" sheetId="1"/></sheets></workbook>',
+            "xl/sharedStrings.xml":
+                "<sst><si><t>무중단 100%</t></si><si><r><t>ABC</t></r><r><t>은행</t></r></si></sst>",
+            "xl/worksheets/sheet1.xml":
+                '<worksheet><sheetData><row><c t="s"><v>0</v></c><c t="s"><v>1</v></c>'
+                '<c t="inlineStr"><is><t>[NEEDS INPUT: 보안팀]</t></is></c></row></sheetData></worksheet>'})
         found = blockers(p, names=["ABC은행"])
         joined = " ".join(found)
         self.assertIn("시트 보안질의", joined)

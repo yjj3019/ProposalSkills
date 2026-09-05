@@ -66,6 +66,12 @@ python skills/create-proposal-document/scripts/deck_check.py 제안서.pptx --ma
   --exclude-cover-toc --require-req-ids --render --png-dir out/png --emit-render render.json
 ```
 
+제작기 안전장치: 슬라이드가 남아 있는 템플릿은 **거부**합니다(이전 고객명·금액이 그대로 남고
+페이지 수가 어긋납니다 — 마스터·레이아웃만 있는 빈 템플릿을 씁니다). `rows_per_slide`는 양의
+정수만 허용하고, 조견표는 입력 행 수와 출력 행 수를 대조해 유실을 차단합니다. 페이지 제한은
+내부 카운터가 아니라 실제 슬라이드 수로 검사합니다. `deck_check.py`는 화면 밖으로 나가거나
+25% 넘게 잘린 텍스트 도형을 차단합니다.
+
 레이아웃 12종(표지·목차·간지·조견표(자동 분할)·표·프로세스·구성도·간트·인력·카드·불릿·마무리),
 스키마와 페이지 배분 공식은 [deck-production.md](skills/create-proposal-document/references/deck-production.md).
 전 구간 골든 예제: [fixtures/e2e-mini-rfp](skills/create-proposal-document/fixtures/e2e-mini-rfp/).
@@ -112,13 +118,21 @@ python .../unified_gate.py audit.json --doc 제안서.pptx --stage submission
 
 지켜지는 규칙:
 
-- `mode=submission` + `artifact_required=true`인데 `--doc`이 없으면 **차단**합니다.
+- `mode=submission`인데 `--doc`이 없으면 **차단**합니다. `artifact_required: false`를 넣어도
+  제출 모드의 렌더·해시 검증 의무는 취소되지 않습니다 — 입력값 하나로 검사를 끄지 못합니다.
 - 전달한 파일의 해시가 audit과 다르면 차단합니다(검토 이후 변경 감지).
 - 제출 모드의 `artifact_hash`는 실제 `sha256:<64 hex>`여야 하고, render와 package가 같은 파일을
   가리켜야 합니다. `sha256:proposal` 같은 문자열 라벨은 거절됩니다.
+- 전달한 파일이 **실제로 열리는 OOXML 패키지**여야 합니다. `[Content_Types].xml`·`_rels/.rels`·
+  본문 파트가 없거나 XML이 깨지면 사용 오류(exit 2)입니다 — 확장자만 `.pptx`인 ZIP은 통과하지
+  못합니다.
+- **렌더 성공과 육안 승인은 다른 사실입니다.** 제출 모드는 `render.visual_review_approved`와
+  `visual_reviewer`를 요구합니다. `deck_check.py`는 이 값을 항상 `false`로 기록하고, 썸네일을
+  본 사람이 직접 바꿉니다. PDF 변환이 됐다는 것은 디자인 승인이 아닙니다.
 - `mode=submission` audit을 `--stage draft`로 낮춰 검사하는 우회는 사용 오류(exit 2)입니다.
-- 라벨은 `proposal_gate.readiness()` 한 곳에서 나옵니다 — CLI·조치표·점수 보고서가 같은 판정을
-  씁니다. `score_completeness.py`는 파일을 보지 않으므로 최대 `AUDIT-VALID`까지만 보고합니다.
+- 라벨은 `proposal_gate.readiness()` 한 곳에서 나옵니다 — CLI·**조치표 본문**·점수 보고서가 같은
+  판정을 씁니다. `score_completeness.py`는 파일을 보지 않으므로 최대 `AUDIT-VALID`까지만
+  보고합니다.
 
 검토 상태와 준수 상태도 분리됩니다. `support: X`(미지원)이거나 `fit: GAP`인 요구를
 `state: approved`로 둘 수 없고, 발주처가 허용한 예외만 `exception: {granted_by, evidence}`로
@@ -150,6 +164,13 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
   audit→unified_gate 전 구간 고정.
 - `test_gate_integrity.py` — 산출물 해시 결속, 판정 단일화, 스키마 유실, 근거·준수 분리,
   차트 범주값 추출. 정상 대조군을 함께 둬서 과민 차단도 잡는다.
+- `test_gate_integrity2.py` — 검증 의무 우회(`artifact_required:false`), 열리지 않는 패키지,
+  설명문 모순(`--explain` 경로 포함), 미수용 별칭, 템플릿 잔존 슬라이드, 조견표 행 유실,
+  화면 밖 배치, enum 타입 오류.
+
+OOXML 픽스처는 `ooxml_fixtures.py` 한 곳에서 만든다. 각 테스트가 zipfile로 조립하다 보니 필수
+파트가 빠진 '열리지 않는 파일'이 양성 대조군으로 쓰였기 때문이다 — 실제 로더로 열리는지까지
+테스트가 확인한다.
 
 게이트 스크립트 공통 규약: exit 0=통과, 1=차단, 2=사용 오류·손상 파일·스키마 오류. audit JSON의
 불리언은 `true`/`false`만 유효하며 `"yes"` 같은 문자열은 INVALID다. 확장자만 `.pptx`인 일반
@@ -162,8 +183,8 @@ ZIP은 "텍스트 없음" 통과가 아니라 사용 오류로 거절한다.
 - **주장의 진위** — 근거가 첨부됐는지는 보지만 그 근거가 사실인지는 사람이 판단합니다.
 - **산술 일관성** — `checks.arithmetic`은 사람이 기록하는 값이고, 게이트가 본문 숫자를 다시
   계산해 대조하지는 않습니다.
-- **좌표·오버플로** — `deck_check.py`가 최소 폰트·밀도·표 구조는 잡지만, 슬라이드 밖 배치나
-  표 셀 넘침은 PNG 썸네일로 사람이 확인해야 합니다.
+- **표 셀 넘침·가림** — `deck_check.py`가 화면 밖 배치와 큰 잘림은 잡지만, 셀 안에서 글자가
+  넘치거나 도형끼리 겹쳐 가리는 것은 PNG 썸네일로 사람이 확인해야 합니다.
 - **렌더 차이** — LibreOffice와 PowerPoint는 줄바꿈·폰트 대체가 다릅니다. 최종본은 발주처가
   쓰는 PowerPoint에서 한 번 열어 확인합니다.
 - **업종 적합성** — 공공·기업·학교·병원별 판단 기준은 아직 스킬에 내장되어 있지 않습니다.

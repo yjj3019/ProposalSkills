@@ -17,7 +17,7 @@
 판정은 기계 검사일 뿐이며, 문장 맥락·설득력·법적 적정성은 사람이 검토한다.
 """
 from __future__ import annotations
-import argparse, re, sys, zipfile
+import argparse, re, sys, xml.etree.ElementTree as ET, zipfile
 from pathlib import Path
 
 BANNED_KO = ["최고", "완벽", "혁신적", "획기적", "100%", "무중단", "완전 자동화",
@@ -124,9 +124,41 @@ def chart_text(xml: str) -> str:
     return "\n".join(p for p in parts if p.strip())
 
 
-# 확장자별 필수 파트 — 이름만 .pptx인 일반 ZIP을 "텍스트 없음"으로 통과시키지 않는다.
-REQUIRED_PARTS = {".pptx": "ppt/presentation.xml", ".docx": "word/document.xml",
-                  ".xlsx": "xl/workbook.xml"}
+# 확장자별 최소 요건 — 이름만 .pptx인 ZIP이나 파트가 빠진 반쪽 패키지를 통과시키지 않는다.
+# (main part, 슬라이드/시트 파트 정규식) — 관계 파트와 [Content_Types].xml은 공통 필수.
+REQUIRED_PARTS = {
+    ".pptx": ("ppt/presentation.xml", r"ppt/slides/slide\d+\.xml$"),
+    ".docx": ("word/document.xml", None),
+    ".xlsx": ("xl/workbook.xml", r"xl/worksheets/sheet\d+\.xml$"),
+}
+
+
+def validate_package(z: zipfile.ZipFile, suffix: str) -> None:
+    """OOXML 패키지로서 실제 열 수 있는 구조인지 확인한다. 아니면 KeyError.
+
+    파일명 하나의 존재 확인과 '정상 패키지'는 다르다. python-pptx 같은 로더는
+    [Content_Types].xml이 없으면 열기를 거부하는데, 게이트가 그런 파일을 검사해
+    통과시키면 열리지도 않는 산출물이 제출 준비로 올라간다.
+    """
+    spec = REQUIRED_PARTS.get(suffix)
+    if spec is None:
+        return
+    main, part_pattern = spec
+    names = set(z.namelist())
+    missing = [n for n in ("[Content_Types].xml", "_rels/.rels", main) if n not in names]
+    if missing:
+        raise KeyError(f"{suffix} 패키지 필수 파트 없음: {', '.join(missing)} "
+                       "(확장자만 바꾼 ZIP이나 손상된 패키지는 검사 대상이 아니다)")
+    if part_pattern and not any(re.match(part_pattern, n) for n in names):
+        raise KeyError(f"{suffix} 패키지에 본문 파트가 없다 (기대: {part_pattern})")
+    bad = z.testzip()
+    if bad is not None:
+        raise KeyError(f"손상된 ZIP 항목: {bad}")
+    for name in (main, "[Content_Types].xml"):
+        try:
+            ET.fromstring(z.read(name))
+        except ET.ParseError as exc:
+            raise KeyError(f"{name} XML 파싱 실패: {exc}") from exc
 
 
 def _num(name: str) -> str:
@@ -171,10 +203,7 @@ def extract_labeled_blocks(path: Path) -> list[tuple[str, str]]:
     suffix = path.suffix.lower()
     blocks: list[tuple[str, str]] = []
     with zipfile.ZipFile(path) as z:
-        required = REQUIRED_PARTS.get(suffix)
-        if required and required not in z.namelist():
-            raise KeyError(f"{required} 없음 — 유효한 {suffix} 패키지가 아니다"
-                           " (확장자만 바꾼 ZIP은 검사 대상이 아니다)")
+        validate_package(z, suffix)
 
         def add(label: str, name: str, extract=xml_text) -> None:
             text = extract(z.read(name).decode("utf-8", "ignore"))

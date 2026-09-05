@@ -25,6 +25,7 @@ FIXTURES = BEST / "fixtures"
 
 sys.path.insert(0, str(REPO / "skills/create-winning-proposal/scripts"))
 sys.path.insert(0, str(BEST / "scripts"))
+import ooxml_fixtures as fixtures  # noqa: E402
 import proposal_gate as pg  # noqa: E402
 import build_audit_from_meta as bam  # noqa: E402
 
@@ -35,10 +36,9 @@ def run(*args: object, **kw) -> subprocess.CompletedProcess:
 
 
 def make_pptx(path: Path, text: str = "정상 문서") -> Path:
-    with zipfile.ZipFile(path, "w") as z:
-        z.writestr("ppt/presentation.xml", "<p:presentation/>")
-        z.writestr("ppt/slides/slide1.xml", f"<a:p><a:r><a:t>{text}</a:t></a:r></a:p>")
-    return path
+    """정상 패키지. 열리지 않는 파일을 양성 대조군으로 쓰지 않는다."""
+    return fixtures.pptx(path, raw={"ppt/slides/slide1.xml":
+                                    f"<a:p><a:r><a:t>{text}</a:t></a:r></a:p>"})
 
 
 def digest_of(path: Path) -> str:
@@ -220,16 +220,13 @@ class DocumentScanTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def _chart_deck(self, title_xml: str) -> Path:
-        p = self.dir / "chart.pptx"
-        with zipfile.ZipFile(p, "w") as z:
-            z.writestr("ppt/presentation.xml", "<p:presentation/>")
-            z.writestr("ppt/slides/slide1.xml", "<a:p><a:r><a:t>정상 본문</a:t></a:r></a:p>")
-            z.writestr("ppt/charts/chart1.xml",
-                       f"<c:chartSpace>{title_xml}<c:cat><c:strRef><c:strCache>"
-                       "<c:pt idx=\"0\"><c:v>ABC은행</c:v></c:pt>"
-                       "<c:pt idx=\"1\"><c:v>기타</c:v></c:pt>"
-                       "</c:strCache></c:strRef></c:cat></c:chartSpace>")
-        return p
+        return fixtures.pptx(self.dir / "chart.pptx", raw={
+            "ppt/slides/slide1.xml": "<a:p><a:r><a:t>정상 본문</a:t></a:r></a:p>",
+            "ppt/charts/chart1.xml":
+                f"<c:chartSpace>{title_xml}<c:cat><c:strRef><c:strCache>"
+                "<c:pt idx=\"0\"><c:v>ABC은행</c:v></c:pt>"
+                "<c:pt idx=\"1\"><c:v>기타</c:v></c:pt>"
+                "</c:strCache></c:strRef></c:cat></c:chartSpace>"})
 
     def _names(self) -> Path:
         p = self.dir / "names.txt"
@@ -249,13 +246,11 @@ class DocumentScanTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 1, proc.stdout)
 
     def test_clean_chart_passes(self):
-        p = self.dir / "clean.pptx"
-        with zipfile.ZipFile(p, "w") as z:
-            z.writestr("ppt/presentation.xml", "<p:presentation/>")
-            z.writestr("ppt/slides/slide1.xml", "<a:p><a:r><a:t>정상 본문</a:t></a:r></a:p>")
-            z.writestr("ppt/charts/chart1.xml",
-                       "<c:chartSpace><c:cat><c:strCache><c:pt><c:v>2025년</c:v></c:pt>"
-                       "</c:strCache></c:cat></c:chartSpace>")
+        p = fixtures.pptx(self.dir / "clean.pptx", raw={
+            "ppt/slides/slide1.xml": "<a:p><a:r><a:t>정상 본문</a:t></a:r></a:p>",
+            "ppt/charts/chart1.xml":
+                "<c:chartSpace><c:cat><c:strCache><c:pt><c:v>2025년</c:v></c:pt>"
+                "</c:strCache></c:cat></c:chartSpace>"})
         proc = run(QG, p, "--names", self._names())
         self.assertEqual(proc.returncode, 0, proc.stdout)
 
@@ -265,7 +260,7 @@ class DocumentScanTests(unittest.TestCase):
             z.writestr("readme.txt", "hello")
         proc = run(QG, fake)
         self.assertEqual(proc.returncode, 2)
-        self.assertIn("유효한 .pptx 패키지가 아니다", proc.stdout + proc.stderr)
+        self.assertIn("필수 파트 없음", proc.stdout + proc.stderr)
 
 
 if __name__ == "__main__":

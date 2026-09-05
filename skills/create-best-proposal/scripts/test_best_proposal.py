@@ -21,6 +21,8 @@ REPO_ROOT = SKILLS_ROOT.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 import build_audit_from_meta  # noqa: E402
 import bulk_matrix  # noqa: E402
+sys.path.insert(0, str(REPO_ROOT))
+import ooxml_fixtures  # noqa: E402
 
 
 class BuildAuditTests(unittest.TestCase):
@@ -127,10 +129,8 @@ class UnifiedGateTests(unittest.TestCase):
         import hashlib
         data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as tmp:
-            doc = Path(tmp) / "final.pptx"
-            with zipfile.ZipFile(doc, "w") as z:
-                z.writestr("ppt/presentation.xml", "<p:presentation/>")
-                z.writestr("ppt/slides/slide1.xml", "<a:p><a:r><a:t>정상 문서</a:t></a:r></a:p>")
+            doc = ooxml_fixtures.pptx(Path(tmp) / "final.pptx", raw={
+                "ppt/slides/slide1.xml": "<a:p><a:r><a:t>정상 문서</a:t></a:r></a:p>"})
             digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
             data["render"]["artifact_hash"] = digest
             data["package"]["artifact_hash"] = digest

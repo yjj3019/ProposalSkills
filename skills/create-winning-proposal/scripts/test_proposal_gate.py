@@ -28,7 +28,9 @@ def ready_data():
         "checks": {"consistency": True, "arithmetic": True, "submission": True},
         "artifact_required": True,
         "render": {
-            "verified": True, "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tool": "renderer-v1",
+            "verified": True, "render_succeeded": True, "layout_checked": True,
+            "visual_review_approved": True, "visual_reviewer": "QA",
+            "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "tool": "renderer-v1",
             "evidence": ["all pages reviewed"],
         },
         "package": {
@@ -258,9 +260,10 @@ class ProposalGateTests(unittest.TestCase):
             render={"verified": False},
         )
         failures = evaluate(data)
-        self.assertEqual(len(failures), 11)
+        self.assertEqual(len(failures), 12)
         self.assertIn("requirement R1 is not approved", failures)
         self.assertIn("render.artifact_hash must be a sha256 digest for submission (got None)", failures)
+        self.assertTrue(any("visual review is not approved" in f for f in failures))
 
 
     # --- #6 종합 개선: 규제/제조사 확약 게이트 (후방호환) ---

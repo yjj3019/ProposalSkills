@@ -12,9 +12,10 @@ python scripts/deck_check.py 제안서.pptx --max-pages 40 --exclude-cover-toc \
 python scripts/quality_gate.py 제안서.pptx --stage draft                    # 텍스트 검수
 ```
 
-`render.json`을 meta의 `render` 블록에 넣으면 audit의 `render.verified/artifact_hash/tool/evidence`가
-채워진다(deck_check가 렌더 성공 + 차단 0일 때만 `verified:true`). 사람은 `out/png`의 썸네일로
-잘림·겹침·폰트 대체를 육안 확인한다 — 스크립트는 그것을 대신하지 않는다.
+`render.json`을 meta의 `render` 블록에 넣으면 audit의 render 필드가 채워진다(deck_check가 렌더
+성공 + 차단 0일 때만 `verified:true`). **`visual_review_approved`는 항상 `false`로 기록된다** —
+`out/png` 썸네일을 전 장 확인한 사람이 `true`와 `visual_reviewer`(실명)를 직접 넣어야 제출
+모드가 통과한다. 렌더가 됐다는 사실과 사람이 보고 승인했다는 사실은 다르다.
 
 ## 1. slides.json 스키마
 
@@ -41,7 +42,7 @@ python scripts/quality_gate.py 제안서.pptx --stage draft                    #
 | `cover` | 표지 | (meta 사용) `title`,`subtitle` 재정의 가능 |
 | `toc` | 목차 | `items[]` — 2열 자동 배치 |
 | `section` | 간지 | `no`(Ⅰ…), `title`, `items[]` |
-| `matrix` | 조견표 | `rows[{id,text,support,response_loc,note}]`, `rows_per_slide`(기본 12) — 자동 분할·헤더 반복·"(계속 n/N)" |
+| `matrix` | 조견표 | `rows[{id,text,support,response_loc,note}]`, `rows_per_slide`(기본 12, **양의 정수만**) — 자동 분할·헤더 반복·"(계속 n/N)". 입력 행 수와 출력 행 수를 대조해 유실을 차단한다 |
 | `table` | 표 1개 | `columns[]`, `rows[[…]]`, `col_widths[]`, `right_cols[]`(숫자열 우측정렬) |
 | `process` | 단계 프로세스 | `steps[{title,desc[]}]` — ≤6단계 셰브론, 초과 시 박스 |
 | `zones` | 구성도 | `zones[{title,items[{title,desc[]}]}]`, `legend[]` — 계층 위→아래, 영역 라벨+카드 |
@@ -65,7 +66,9 @@ quality_gate가 도식 안의 잔존 고객명·과장어까지 읽어야 한다
 ## 3. 사내 양식 템플릿 사용
 
 `--template 사내양식.pptx`를 주면 그 파일의 마스터(배경·로고)를 사용한다. 조건: 16:9(13.333×7.5in),
-"빈 화면(Blank)" 레이아웃 존재. 좌표 그리드는 동일하므로 로고가 헤더/푸터 영역(상단 0.25~0.55in,
+"빈 화면(Blank)" 레이아웃 존재, **슬라이드가 하나도 없을 것**. 장표가 남아 있는 템플릿은 거부한다
+— 이전 제안서의 고객명·금액이 최종 덱에 그대로 남고 페이지 수 계산도 어긋나기 때문이다.
+기존 양식을 쓰려면 장표를 모두 지운 사본을 만든다. 좌표 그리드는 동일하므로 로고가 헤더/푸터 영역(상단 0.25~0.55in,
 하단 6.95~7.25in)과 겹치면 템플릿 쪽 로고 위치를 조정한다. 브랜드 토큰은 `meta.palette`로 넘긴다.
 
 ## 4. 페이지 배분 — 배점표 → 절대 페이지
@@ -85,9 +88,12 @@ RFP 규정으로 확인, 보통 표지·목차 제외).
 3. 제출 후보 → `deck_check.py --stage submission --require-req-ids --render --emit-render` +
    `quality_gate.py --stage submission --names 금지명.txt` → render.json을 meta에 반영 → unified_gate.
 4. 사람: PNG 썸네일 전 장 육안 확인, 발주처 PowerPoint 버전에서 1회 열어 폰트 대체 확인.
+   확인 후 render 블록의 `visual_review_approved: true`와 `visual_reviewer`(실명)를 기록한다
+   — 이 값이 없으면 제출 모드는 통과하지 않는다.
 
 ## 6. 한계 (통과로 추정하지 않는다)
 
 - LibreOffice 렌더는 PowerPoint와 줄바꿈·폰트 대체가 다를 수 있다 → 최종은 PowerPoint 확인.
-- deck_check는 텍스트 오버플로를 밀도(600자)와 폰트로만 추정한다. 표 셀 넘침은 썸네일로 확인.
+- deck_check는 화면 밖 배치와 25% 초과 잘림은 좌표로 잡지만, 표 셀 안의 글자 넘침과 도형 간
+  가림은 밀도(600자)·폰트로만 추정한다. 최종 확인은 썸네일 육안 검토다.
 - 이미지 전용 장표는 텍스트 검사가 불가능하므로 `[경고]`로 표시되고 렌더 육안 확인이 필수다.

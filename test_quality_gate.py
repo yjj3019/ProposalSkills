@@ -5,15 +5,15 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "skills/create-proposal-document/scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ooxml_fixtures as fixtures  # noqa: E402
 from quality_gate import read_names, run, blocking  # noqa: E402
 
 
 def pptx(path: Path, texts: dict[int, str], extra: str = "") -> None:
-    with zipfile.ZipFile(path, "w") as z:
-        # 유효한 PPTX 패키지의 최소 요건(없으면 quality_gate가 사용 오류로 거절한다).
-        z.writestr("ppt/presentation.xml", "<p:presentation/>")
-        for number, text in texts.items():
-            z.writestr(f"ppt/slides/slide{number}.xml", f"<p><t>{text}</t>{extra}</p>")
+    """공용 픽스처로 정상 패키지를 만든다(필수 파트 누락 파일을 양성 대조군으로 쓰지 않는다)."""
+    fixtures.pptx(path, raw={f"ppt/slides/slide{number}.xml": f"<p><t>{text}</t>{extra}</p>"
+                             for number, text in texts.items()})
 
 
 class QualityGateTests(unittest.TestCase):

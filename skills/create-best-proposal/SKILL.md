@@ -126,10 +126,14 @@ description: "제안서(PPTX 장표형 기본, DOCX·XLSX 지원) 작성·검토
    python scripts/unified_gate.py audit.json --doc 제안서.pptx --stage submission
    python scripts/unified_gate.py audit.json --audit-only --no-explain   # 문서 없이 audit만
    ```
-   - **제출 판정에는 실제 파일이 필요하다.** `mode=submission` + `artifact_required=true`인
-     audit을 `--doc` 없이 실행하면 차단된다. 전달한 파일의 sha256이 audit의
-     `render/package.artifact_hash`와 다르면 차단된다 — 검토 이후 가격·기간이 바뀐 파일에
-     과거 판정을 재사용할 수 없다. 해시는 `deck_check.py --emit-render`가 만들어 준다.
+   - **제출 판정에는 실제 파일이 필요하다.** `mode=submission` audit을 `--doc` 없이 실행하면
+     차단된다(`artifact_required: false`를 넣어도 검증 의무는 취소되지 않는다). 전달한 파일의
+     sha256이 audit의 `render/package.artifact_hash`와 다르면 차단된다 — 검토 이후 가격·기간이
+     바뀐 파일에 과거 판정을 재사용할 수 없다. 해시는 `deck_check.py --emit-render`가 만든다.
+   - 전달 파일은 실제로 열리는 OOXML 패키지여야 한다(필수 파트·XML 파싱 확인, 아니면 exit 2).
+   - **렌더 성공 ≠ 육안 승인.** 제출 모드는 `render.visual_review_approved: true`와
+     `visual_reviewer`(실명)를 요구한다. `deck_check.py`는 항상 false로 기록하므로, PNG 썸네일을
+     전 장 확인한 사람이 직접 바꾼다.
    - `mode=submission` audit은 `--stage submission`으로만 검사한다(`--stage draft`는 exit 2).
    - `SUBMISSION-READY`(≡READY, **mode=submission audit + 파일 해시 일치**) / `AUDIT-VALID`
      (`--audit-only`: audit만 유효, 제출 판정 아님) / `DRAFT-READY` / `CONDITIONAL-GO`
