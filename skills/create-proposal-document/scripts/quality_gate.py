@@ -13,6 +13,11 @@
          submission(기본)=차단. 생성 도구 테마색 NOT INSPECTED는 항상 비차단 경고다.
 종료 코드: 0=통과(경고만 있을 수 있음), 1=차단(차단 목록 출력), 2=사용 오류.
 판정은 기계 검사일 뿐이며, 문장 맥락·설득력·법적 적정성은 사람이 검토한다.
+
+연관 스크립트(별도 실행):
+  mapping_check.py  — 조견표 ↔ 본문 REQ-ID 양방향
+  package_inspect.py — 원본 패키지 메타·노트·링크 힌트 (§8)
+  ../../runtime_check.py — LibreOffice/Poppler/파이썬 모듈 준비도
 """
 from __future__ import annotations
 import argparse, re, sys, zipfile
@@ -146,15 +151,24 @@ def blocking(items: list[str]) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("file", type=Path)
+    ap.add_argument("file", type=Path, nargs="?")
     ap.add_argument("--names", type=Path, help="잔존 검사할 금지 명칭 목록(줄당 1개)")
     ap.add_argument("--palette", help="허용 색상 hex 콤마 목록(미지정 시 색 검사 생략)")
     ap.add_argument("--lang", choices=["ko", "en", "both"], default="ko",
                     help="과장어 사전 언어(기본 ko)")
     ap.add_argument("--stage", choices=["draft", "submission"], default="submission",
                     help="draft: 미확정 마커를 경고로 허용 / submission(기본): 차단")
+    ap.add_argument("--list-related", action="store_true",
+                    help="연관 검수 스크립트 경로만 출력하고 종료")
     a = ap.parse_args()
-    if not a.file.is_file():
+    if a.list_related:
+        here = Path(__file__).resolve().parent
+        root = here.parents[2]
+        print(here / "mapping_check.py")
+        print(here / "package_inspect.py")
+        print(root / "runtime_check.py")
+        return 0
+    if a.file is None or not a.file.is_file():
         print(f"파일 없음: {a.file}", file=sys.stderr); return 2
     names = read_names(a.names) if a.names else []
     palette = {c.strip().upper().lstrip("#") for c in a.palette.split(",")} if a.palette else set()

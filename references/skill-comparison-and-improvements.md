@@ -1,4 +1,4 @@
-# 스킬 대조 분석과 상호 개선 반영 (2026-07-18, 통합 갱신 2026-08-08)
+# 스킬 대조 분석과 상호 개선 반영 (2026-07-18, 통합 갱신 2026-09-05)
 
 `create-winning-proposal`(ChatGPT 기반 제작, 영문·모델 중립·프로세스 통제 중심)과
 `create-proposal-document`(Claude 기반 제작, 한국어·장표 중심·내용 패턴 중심)를
@@ -35,6 +35,23 @@
 | S9 | sibling-map 환경변수 정합 |
 
 선택 가이드: 실전 원패스 → **create-best-proposal --with-deps** (또는 `--all`).
+
+
+## 2026-09 create-proposal-document 완결 + portable review runtime
+
+PR 아이디어(`codex/add-review-runtime`)를 현재 3스킬 레이아웃에 재기반하고,
+문서 스킬을 템플릿·섹터·수락기준·패키지/조견표 스크립트까지 보강했다.
+
+| ID | 반영 |
+|---|---|
+| CPD-R1 | 루트 `Dockerfile` + pinned `requirements.txt` + `runtime_check.py` |
+| CPD-R2 | README 런타임 절(플래그십 3스킬), dead `simulation/` 링크 정리 |
+| CPD-D1 | SKILL 완료 선언 조건 + 제출은 `--with-deps`/형제 게이트 |
+| CPD-D2 | anti-patterns · acceptance-criteria · sectors(public-kr, cloud-msp) |
+| CPD-D3 | templates · synthetic-public-cloud 예제(실고객 데이터 없음) |
+| CPD-D4 | `mapping_check.py` · `package_inspect.py` (+ 단위 테스트) |
+
+범위 밖: winrate/RAG/Vale, 실고객 PPTX, winning/best 오케스트레이션 재작성.
 
 ## 역할 비교
 

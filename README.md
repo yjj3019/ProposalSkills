@@ -69,11 +69,46 @@ python skills/create-winning-proposal/scripts/test_proposal_gate.py -q
 python skills/create-best-proposal/scripts/test_best_proposal.py -q
 ```
 
+
+## 문서 검토 실행 환경 (portable runtime)
+
+공통 검토 환경에는 Python 문서 라이브러리, LibreOffice, Poppler, Noto CJK(한글) 폰트가
+포함됩니다. 세 스킬(`create-best-proposal` 플래그십 · `create-proposal-document` ·
+`create-winning-proposal`)의 게이트·변환을 같은 이미지에서 실행할 수 있습니다.
+
+```bash
+docker build -t proposal-skills .
+docker run --rm proposal-skills                  # runtime_check.py JSON
+docker run --rm proposal-skills python runtime_check.py --python-only
+```
+
+작업 폴더를 마운트해 검사기를 실행합니다.
+
+```bash
+docker run --rm -v "$PWD:/workspace" proposal-skills \
+  python skills/create-proposal-document/scripts/quality_gate.py /workspace/proposal.pptx
+docker run --rm -v "$PWD:/workspace" proposal-skills \
+  python skills/create-proposal-document/scripts/mapping_check.py \
+    /workspace/matrix.md --doc /workspace/proposal.pptx
+docker run --rm -v "$PWD:/workspace" proposal-skills \
+  python skills/create-proposal-document/scripts/package_inspect.py /workspace/proposal.pptx
+docker run --rm -v "$PWD:/workspace" proposal-skills \
+  python skills/create-winning-proposal/scripts/proposal_gate.py /workspace/audit.json
+docker run --rm -v "$PWD:/workspace" proposal-skills \
+  libreoffice --headless --convert-to pdf --outdir /workspace/output /workspace/proposal.pptx
+```
+
+Windows PowerShell 마운트: `-v "${PWD}:/workspace"`.
+
+Docker 없이 라이브러리만: `python -m pip install -r requirements.txt` 후
+`python runtime_check.py --python-only`. LibreOffice/Poppler가 없으면 §8 렌더 항목은
+`[NOT INSPECTED]`로 남기고, **최종 쪽수·인쇄 품질이 MS Word/PowerPoint 기준인 제출은
+해당 애플리케이션에서 별도 최종 검수**합니다.
+
 ## 자료
 
 - [스킬 대조 분석과 상호 개선 반영](references/skill-comparison-and-improvements.md)
 - [스킬 자료 수집 노트](references/proposal-skill-materials-research.md)
 - [관련 공개 Git 저장소](references/proposal-related-git-repositories.md)
 - [39개 저장소·Gist 정밀 분석](references/repository-deep-audit.md)
-- [10회 시뮬레이션과 개선 결과](references/simulation-report-10-runs.md)
-- [종류별 시뮬레이션 리포트](simulation/output/SIMULATION_REPORT.md)
+- [10회 시뮬레이션과 개선 결과](references/simulation-report-10-runs.md) — 로컬 `simulation/` 픽스처는 `.gitignore` 대상이며 배포본에 포함하지 않음

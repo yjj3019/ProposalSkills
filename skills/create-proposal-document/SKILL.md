@@ -99,10 +99,44 @@ Critical·Major·BLOCKING INPUT이 닫히고 제출 리허설·접수 증적 계
 ## 자료 위치
 
 - `references/` — 단계별 상세 가이드(구조·문장·근거·시각·검수 + 내용 패턴 뱅크)
+  - `references/anti-patterns.md` — 탈락·감점 반복 실패 모드
+  - `references/acceptance-criteria.md` — 8대 항목 × 사람/기계/런타임 수락 기준
+  - `references/sectors/public-procurement-kr.md` — 공공조달·나라장터 보강
+  - `references/sectors/cloud-msp.md` — 클라우드·MSP 보강
+- `assets/templates/` — 조견표·메시지맵·목차 골격(민감정보 없음)
+- `assets/examples/synthetic-public-cloud/` — 허구 공공 클라우드 합성 예제(실고객 데이터 없음)
 - `assets/approved-examples/` — 사용 조직의 승인(수주) 제안서를 두는 자리.
   스킬 배포본에는 비어 있다(민감 정보 비포함 원칙).
 - `assets/brand-assets/` — 사용 조직의 브랜드 자산(로고·템플릿)을 두는 자리.
   브랜드 문서 스킬이 있으면 그 토큰이 단일 출처다.
-- `scripts/quality_gate.py` — 기계 검수(과장어·플레이스홀더·잔존 명칭·팔레트).
-  시뮬레이션 4회에서 동일한 grep 검사가 반복되어 "같은 코드 2회 이상" 원칙에 따라 추가.
-  그 외 스크립트는 같은 기준을 충족할 때만 추가한다.
+- `scripts/quality_gate.py` — 기계 검수(과장어·플레이스홀더·잔존 명칭·팔레트·AI-slop).
+- `scripts/mapping_check.py` — 조견표 ↔ 본문 REQ-ID 양방향 검사.
+- `scripts/package_inspect.py` — PPTX/DOCX 원본 패키지 힌트(메타·노트·댓글·링크 등).
+- 저장소 루트 `runtime_check.py` / `Dockerfile` — 휴대용 검토 런타임(LibreOffice·Poppler·CJK).
+
+## 완료 선언 조건 (Done criteria)
+
+다음을 **모두** 만족할 때만 이 스킬 작업을 "문서 작성 완료"로 선언한다.
+
+1. **8대 검수 통과**: `references/review-checklist.md` + `references/acceptance-criteria.md`
+   의 사람/기계/런타임 층이 닫힘(실패한 항목 0).
+2. **기계 게이트**: `quality_gate.py --stage submission` 차단 0건.
+   조견표가 있으면 `mapping_check.py` 양방향 일치.
+   원본 패키지는 `package_inspect.py` 힌트를 검토·처리.
+3. **렌더**: PDF 변환 후 육안(또는 `pdftoppm` 이미지)으로 잘림·폰트 깨짐·표 넘침 0건.
+   런타임 준비는 `python runtime_check.py`(또는 Docker). 최종 쪽수·인쇄 품질이
+   계약상 MS Word/PowerPoint 기준이면 **MS Office에서 별도 최종 확인**.
+4. **민감정보·재사용**: 이전 고객명·시크릿·가격 누출(분리 제출 시) 0건.
+5. **미확정 해소**: 제출본에 `[NEEDS INPUT]` / `입력요망` 잔존 0건.
+
+### 제출 준비(SUBMISSION-READY)는 이 스킬만으로 선언하지 않는다
+
+문서 품질이 높아도 **입찰 거버넌스·승인·증적·통합 게이트**가 필요한 실제출 건은
+형제 스킬을 함께 쓴다.
+
+- 권장: `python install_skill.py --dest <dir> --name create-best-proposal --with-deps`
+  (document + winning 게이트 동시 설치)
+- 또는 `create-winning-proposal`의 audit/`proposal_gate.py`,
+  `create-best-proposal`의 `unified_gate.py`로 제출 준비도를 판정.
+- 이 스킬 단독 완료 문구 예: **"문서 스킬 완료(작성 품질 게이트 통과).
+  제출 준비도는 형제 게이트·증적 확인 후 선언."**

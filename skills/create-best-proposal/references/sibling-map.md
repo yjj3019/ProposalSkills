@@ -16,7 +16,12 @@
 | 근거·주장 | `../create-proposal-document/references/evidence-and-claims.md` |
 | 시각 토큰 | `../create-proposal-document/references/visual-style.md` |
 | 8대 검수 | `../create-proposal-document/references/review-checklist.md` |
+| 수락 기준(H/M/R) | `../create-proposal-document/references/acceptance-criteria.md` |
+| 안티패턴 | `../create-proposal-document/references/anti-patterns.md` |
+| 공공·클라우드 섹터 | `../create-proposal-document/references/sectors/` |
 | 기계 검수 | `../create-proposal-document/scripts/quality_gate.py` |
+| 조견표 양방향 | `../create-proposal-document/scripts/mapping_check.py` |
+| 패키지 힌트 | `../create-proposal-document/scripts/package_inspect.py` |
 
 ## create-winning-proposal (거버넌스)
 
@@ -37,6 +42,7 @@
 | 주제 | 파일 |
 |---|---|
 | 완성도 2축 점수 | `../../score_completeness.py` |
+| 런타임 준비 검사 | `../../runtime_check.py` |
 | 설치기 | `../../install_skill.py` |
 
 ## 단독 설치 시
