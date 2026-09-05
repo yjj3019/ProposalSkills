@@ -18,36 +18,43 @@
 > 저장소에 표기된 점수는 **구조 검사 지표**(파일·키워드·스키마 충족률)입니다. 제안서의 수주
 > 가능성이나 시각 품질을 측정한 값이 아니며 외부 블라인드 평가로 검증된 바 없습니다.
 
-## AI에게 전달했을 때 설치
+## 설치
 
-AI에게 이 저장소와 함께 **“README의 설치 지침에 따라 스킬을 설치해줘”**라고 요청합니다.
+AI(Claude Code·Codex·Grok)에게 이 저장소를 주고 **"설치해줘"**라고 하면 됩니다. 저장소 루트의
+[AGENTS.md](AGENTS.md)·[CLAUDE.md](CLAUDE.md)를 AI가 읽고 아래를 실행합니다.
 
 ```bash
-# 권장: 세 스킬 모두
-python install_skill.py --dest <AI의 스킬 상위 디렉터리> --all
-
-# 플래그십 + sibling 게이트(권장)
-python install_skill.py --dest <AI의 스킬 상위 디렉터리> --with-deps
-
-# 개별
-python install_skill.py --dest <AI의 스킬 상위 디렉터리> --name create-proposal-document
-python install_skill.py --dest <AI의 스킬 상위 디렉터리> --name create-winning-proposal
+git clone https://github.com/yjj3019/ProposalSkills.git
+cd ProposalSkills
+python install_skill.py --auto
 ```
 
-`--name` 기본값은 `create-best-proposal`입니다. `--with-deps`는 document·winning 게이트를
-함께 설치합니다(이미 있으면 Skip). `AI_SKILLS_DIR` 또는 `CODEX_HOME`이 있으면 `--dest`를
-생략할 수 있습니다. 기존 설치는 덮어쓰지 않습니다.
+`--auto`는 이 컴퓨터에 설치된 AI CLI를 찾아 각각의 스킬 디렉터리에 세 스킬을 모두 넣습니다.
+경로를 되묻지 않습니다.
+
+| 감지 | 설치 경로 |
+|---|---|
+| `~/.claude/` | `~/.claude/skills/` |
+| `~/.codex/` | `~/.agents/skills/` (AGENTS.md 공용 규약) |
+| `~/.grok/` | `~/.grok/skills/` |
+| `~/.agents/` | `~/.agents/skills/` |
+| 없음 | `~/.agents/skills/` |
+
+설치 전에 대상만 보려면 `--list-targets`, 특정 경로에 넣으려면 `--dest <경로> --all`,
+최신본으로 교체하려면 `--force`를 씁니다(기본은 기존 설치를 건드리지 않고 `Skip`).
+환경변수 `AI_SKILLS_DIR`·`CODEX_HOME`이 있으면 그 경로도 대상에 포함됩니다. 설치 직후
+스킬별로 `SKILL.md`·`scripts/`·`references/` 존재를 검증해 결과를 출력합니다.
+
+세 스킬을 모두 설치하는 것이 기본입니다. 플래그십만 깔면 통합 게이트가 형제 게이트를 찾지
+못해 제출 판정 경로가 끊깁니다. 개별 설치는 `--name create-proposal-document`처럼 지정합니다.
+
+**ChatGPT 웹처럼 파일 시스템이 없는 환경**에서는 스크립트를 실행할 수 없습니다.
+`skills/create-best-proposal/` 폴더를 프로젝트 지식 파일로 업로드해 작성 지침으로 쓰고,
+게이트 검증은 로컬 CLI에서 수행합니다.
 
 비판적 선정·반영 기록: [critical-selection-2026-08.md](references/critical-selection-2026-08.md) ·
 게이트 신뢰성 감사·수정 3회(2026-09): [gate-hardening-2026-09.md](references/gate-hardening-2026-09.md)
 — 허위 통과 하드닝 → 장표 생산 레이어 → 산출물 해시 결속·판정 단일화
-
-Grok 사용자 스킬 예:
-```bash
-python install_skill.py --dest "%USERPROFILE%\.grok\skills" --all
-```
-
-`agents/openai.yaml`은 OpenAI 계열 UI용 선택 메타데이터입니다.
 
 ## 장표 생산 파이프라인 (PPTX)
 

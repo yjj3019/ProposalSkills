@@ -94,3 +94,87 @@ class InstallSkillSimulations(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoInstallTests(unittest.TestCase):
+    """--auto: 호스트 감지 → 각 스킬 디렉터리에 설치 (경로를 되묻지 않는다)."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.home = Path(self.temp.name)
+        self.addCleanup(self.temp.cleanup)
+
+    def _run(self, *args: str, home: Path | None = None) -> subprocess.CompletedProcess:
+        env = {k: v for k, v in os.environ.items() if k not in {"AI_SKILLS_DIR", "CODEX_HOME"}}
+        env["HOME"] = env["USERPROFILE"] = str(home or self.home)
+        return subprocess.run(
+            [sys.executable, str(Path(__file__).with_name("install_skill.py")), *args],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
+
+    def test_detects_each_host_skill_directory(self):
+        for marker, expected in ((".claude", ".claude/skills"), (".codex", ".agents/skills"),
+                                 (".grok", ".grok/skills"), (".agents", ".agents/skills")):
+            with self.subTest(marker=marker):
+                home = Path(tempfile.mkdtemp(dir=self.home))
+                (home / marker).mkdir()
+                with patch.dict(os.environ, {}, clear=True):
+                    targets = install_skill.detect_targets(home)
+                self.assertEqual([p for _, p in targets], [home / expected])
+
+    def test_detects_nothing_on_a_bare_home(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(install_skill.detect_targets(self.home), [])
+
+    def test_auto_installs_all_three_skills_into_every_host(self):
+        (self.home / ".claude").mkdir()
+        (self.home / ".grok").mkdir()
+        proc = self._run("--auto")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        for host in (".claude/skills", ".grok/skills"):
+            for name in install_skill.available_skills():
+                self.assertTrue((self.home / host / name / "SKILL.md").is_file(),
+                                f"{host}/{name} 미설치: {proc.stdout}")
+
+    def test_auto_falls_back_to_the_shared_agents_directory(self):
+        proc = self._run("--auto")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("감지된 AI CLI 없음", proc.stdout)
+        self.assertTrue((self.home / ".agents/skills/create-best-proposal/SKILL.md").is_file())
+
+    def test_auto_is_idempotent(self):
+        (self.home / ".claude").mkdir()
+        self._run("--auto")
+        again = self._run("--auto")
+        self.assertEqual(again.returncode, 0, again.stdout)
+        self.assertIn("Skip (exists)", again.stdout)
+
+    def test_list_targets_installs_nothing(self):
+        (self.home / ".claude").mkdir()
+        proc = self._run("--list-targets")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn(".claude", proc.stdout)
+        self.assertFalse((self.home / ".claude/skills").exists())
+
+    def test_verify_reports_a_gutted_install(self):
+        target = install_skill.install(self.home, "create-best-proposal")
+        self.assertEqual(install_skill.verify(target), [])
+        (target / "scripts" / "unified_gate.py").unlink()
+        self.assertTrue(any("unified_gate.py" in p for p in install_skill.verify(target)))
+
+    def test_agent_instructions_name_the_auto_command(self):
+        repo = Path(__file__).resolve().parent
+        for doc in ("AGENTS.md", "CLAUDE.md"):
+            self.assertIn("install_skill.py --auto", (repo / doc).read_text(encoding="utf-8"), doc)
+
+    def test_cp949_console_does_not_crash(self):
+        """한글·em dash 출력이 기본 코드페이지에서 UnicodeEncodeError로 죽지 않는다."""
+        env = {k: v for k, v in os.environ.items() if k not in {"AI_SKILLS_DIR", "CODEX_HOME"}}
+        env.update(HOME=str(self.home), USERPROFILE=str(self.home), PYTHONIOENCODING="cp949")
+        env.pop("PYTHONUTF8", None)
+        for args in (["--list-targets"], ["--auto"]):
+            with self.subTest(args=args):
+                proc = subprocess.run(
+                    [sys.executable, str(Path(__file__).with_name("install_skill.py")), *args],
+                    capture_output=True, env=env)
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertNotIn(b"UnicodeEncodeError", proc.stderr)
