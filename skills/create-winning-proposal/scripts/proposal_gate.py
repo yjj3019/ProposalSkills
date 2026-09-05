@@ -49,7 +49,7 @@ STRICT_BOOL_FIELDS = {
     "eligibility": ("met", "curable", "mandatory"),
 }
 STRICT_BOOL_OBJECT_FIELDS = {
-    "render": ("verified",),
+    "render": ("verified", "render_succeeded", "layout_checked", "visual_review_approved"),
     "package": ("required", "inspected"),
     "submission": ("cleared",),
 }
@@ -158,7 +158,7 @@ def validate_schema(data: object) -> list[str]:
                 f"defect {defect.get('id', '?')} has unsupported severity: {defect.get('severity')}")
         if not _enum_ok(defect.get("status"), ITEM_STATUSES):
             failures.append(f"defect {defect.get('id', '?')} has unsupported status: {defect.get('status')}")
-        if defect.get("severity") in {"critical", "major"} and defect.get("status") == "closed":
+        if _enum_ok(defect.get("severity"), {"critical", "major"}) and defect.get("status") == "closed":
             if not _evidence_ok(defect.get("closure_evidence")):
                 failures.append(f"defect {defect.get('id', '?')} lacks closure evidence")
             if not defect.get("reviewer"):
@@ -181,10 +181,10 @@ def validate_schema(data: object) -> list[str]:
     if "flags" in data and not isinstance(data["flags"], dict):
         failures.append("flags must be an object")
     for check in data.get("regulatory_checks", []) if isinstance(data.get("regulatory_checks"), list) else []:
-        if isinstance(check, dict) and check.get("status") not in REGULATORY_STATUSES:
+        if isinstance(check, dict) and not _enum_ok(check.get("status"), REGULATORY_STATUSES):
             failures.append(f"regulatory check {check.get('id', '?')} has unsupported status: {check.get('status')}")
     for vc in data.get("vendor_confirmations", []) if isinstance(data.get("vendor_confirmations"), list) else []:
-        if isinstance(vc, dict) and vc.get("kind") not in VENDOR_KINDS:
+        if isinstance(vc, dict) and not _enum_ok(vc.get("kind"), VENDOR_KINDS):
             failures.append(f"vendor confirmation {vc.get('id', '?')} has unsupported kind: {vc.get('kind')}")
     # eligibility met/curable 불리언 검증은 STRICT_BOOL_FIELDS에서 일괄 수행한다.
     sub = data.get("submission")
@@ -211,7 +211,7 @@ def validate_schema(data: object) -> list[str]:
             if key in obj and not isinstance(obj[key], bool):
                 failures.append(f"{obj_name}.{key} must be a boolean (got {obj[key]!r})")
     for claim in data.get("claims", []) if isinstance(data.get("claims"), list) else []:
-        if isinstance(claim, dict) and "kind" in claim and claim["kind"] not in CLAIM_KINDS:
+        if isinstance(claim, dict) and "kind" in claim and not _enum_ok(claim["kind"], CLAIM_KINDS):
             failures.append(f"claim {claim.get('id', '?')} has unsupported kind: {claim['kind']}")
     # ID 무결성: 원장 항목은 식별자가 있어야 추적·대조가 성립한다. ID를 지우면
     # "요구 ?가 미승인"처럼 지목 불가능한 결함이 되거나, 중복 ID로 근거가 뒤섞인다.
@@ -255,7 +255,23 @@ def _exception_granted(item: object) -> bool:
     return not _is_placeholder(item.get("granted_by")) and _evidence_ok(item.get("evidence"))
 
 
-UNSUPPORTED_CODES = {"X", "미지원", "NO", "N", "불가"}
+UNSUPPORTED_CODES = {"X", "미지원", "NO", "N", "불가", "미수용", "부적합"}
+
+
+def is_unsupported(value: object) -> bool:
+    """수용여부 표기가 '미지원'을 뜻하는지 판정한다.
+
+    조견표는 기호와 한글 라벨을 함께 쓰므로('X', 'X 미수용', '미수용', '✗') 표기 변형을
+    하나로 본다 — 별칭 하나로 승인 모순 검사를 빠져나가지 못하게 한다.
+    'N/A'(해당없음)는 미지원이 아니다.
+    """
+    if not isinstance(value, str):
+        return False
+    text = value.strip().upper().replace("✗", "X").replace("Ｘ", "X")
+    if not text or text in {"N/A", "NA", "해당없음", "해당 없음"}:
+        return False
+    tokens = {t.strip(" ()[]·-") for t in re.split(r"[\s/,]+", text)}
+    return bool({t for t in tokens if t} & {c.upper() for c in UNSUPPORTED_CODES})
 
 
 def readiness(data: dict, failures: list[str]) -> tuple[str, int]:
@@ -312,9 +328,9 @@ def evaluate(data: dict) -> list[str]:
                 failures.append(f"requirement {item.get('id', '?')} approved without evidence_refs")
             # 검토 상태(approved)와 준수 상태(support/fit)는 다른 축이다. "미지원임을
             # 검토자가 확인했다"가 "필수 요구를 충족했다"로 승격되면 안 된다.
-            support = str(item.get("support", "")).strip().upper()
             fit = str(item.get("fit", "")).strip().upper()
-            if (support in UNSUPPORTED_CODES or fit == "GAP") and not _exception_granted(item.get("exception")):
+            if (is_unsupported(item.get("support")) or fit == "GAP") \
+                    and not _exception_granted(item.get("exception")):
                 failures.append(
                     f"requirement {item.get('id', '?')} is approved but not met "
                     f"(support={item.get('support', '')!r}, fit={item.get('fit', '')!r}); "
@@ -331,13 +347,13 @@ def evaluate(data: dict) -> list[str]:
         kind = claim.get("kind", "material")
         if kind not in {"material", "commitment"}:
             continue
-        if claim.get("status") not in {"supported", "qualified", "removed"}:
+        if not _enum_ok(claim.get("status"), {"supported", "qualified", "removed"}):
             failures.append(f"claim {claim.get('id', '?')} is unsupported")
         if kind == "commitment" and not _true(claim.get("owner_approved")):
             failures.append(f"commitment {claim.get('id', '?')} lacks owner approval")
         # 제출 모드에서는 'supported/qualified' 선언에 실제 근거가 따라와야 한다.
         # 상태 문자열만으로 통과하면 근거 없는 성능·실적 주장이 그대로 나간다.
-        if mode == "submission" and claim.get("status") in {"supported", "qualified"} \
+        if mode == "submission" and _enum_ok(claim.get("status"), {"supported", "qualified"}) \
                 and not _evidence_ok(claim.get("evidence_refs")):
             failures.append(
                 f"claim {claim.get('id', '?')} is {claim.get('status')} without evidence_refs")
@@ -350,7 +366,7 @@ def evaluate(data: dict) -> list[str]:
             failures.append(f"blocking input {item.get('id', '?')} is open")
 
     for defect in data["defects"]:
-        if defect.get("severity") in {"critical", "major"} and defect.get("status") != "closed":
+        if _enum_ok(defect.get("severity"), {"critical", "major"}) and defect.get("status") != "closed":
             failures.append(f"{defect.get('severity')} defect {defect.get('id', '?')} is open")
 
     for attachment in data["attachments"]:
@@ -368,17 +384,32 @@ def evaluate(data: dict) -> list[str]:
     if mode == "submission" and data.get("artifact_mode") == "simulation-only":
         failures.append("artifact_mode 'simulation-only' cannot clear submission "
                         "(use 'submission-candidate' with a real artifact)")
-    if data["artifact_required"] and not _true(data["render"].get("verified")):
+    # 제출 모드에서는 artifact_required 입력값이 검증 의무를 취소하지 못한다.
+    # (외부 입력 하나로 렌더·해시 검사를 통째로 건너뛰던 우회 경로 차단)
+    artifact_required = data["artifact_required"] or mode == "submission"
+    if artifact_required and not _true(data["render"].get("verified")):
         failures.append("render verification is missing or failed")
-    if data["artifact_required"] and _true(data["render"].get("verified")):
+    if artifact_required and _true(data["render"].get("verified")):
         for field in ("artifact_hash", "tool"):
             if _is_placeholder(data["render"].get(field)):
                 failures.append(f"render verification lacks {field}")
         if not _evidence_ok(data["render"].get("evidence")):
             failures.append("render verification lacks evidence")
+    # 제출 모드는 자동 레이아웃 검사와 사람의 육안 승인을 둘 다 요구한다.
+    # 렌더 성공(PDF 변환)은 디자인 승인이 아니다 — 미검사를 통과로 추정하지 않는다.
+    if mode == "submission":
+        render_block = data["render"]
+        if "layout_checked" in render_block and not _true(render_block.get("layout_checked")):
+            failures.append("layout check is missing — deck_check.py로 레이아웃을 검사한다")
+        if not _true(render_block.get("visual_review_approved")):
+            failures.append(
+                "visual review is not approved — 렌더 썸네일을 사람이 확인한 뒤 "
+                "render.visual_review_approved=true와 visual_reviewer를 기록한다")
+        elif _is_placeholder(render_block.get("visual_reviewer")):
+            failures.append("visual review lacks a named reviewer (render.visual_reviewer)")
     # 제출 모드의 해시는 실제 파일에 대조 가능해야 한다. 형식이 아니거나 render와
     # package가 서로 다른 파일을 가리키면, 검토 기록이 어느 산출물의 것인지 알 수 없다.
-    if mode == "submission" and data["artifact_required"]:
+    if mode == "submission":
         render_hash = data["render"].get("artifact_hash")
         package_hash = data["package"].get("artifact_hash")
         for field, value in (("render", render_hash), ("package", package_hash)):
@@ -399,7 +430,7 @@ def evaluate(data: dict) -> list[str]:
         if not data["package"].get("checks"):
             failures.append("package inspection lacks checks")
         for name, status in data["package"].get("checks", {}).items():
-            if status not in {"pass", "fail", "not-inspected", "not-applicable"}:
+            if not _enum_ok(status, {"pass", "fail", "not-inspected", "not-applicable"}):
                 failures.append(f"package check {name} has unsupported status: {status}")
             elif status == "fail" or (data["mode"] == "submission" and status == "not-inspected"):
                 failures.append(f"package check {name} is {status}")
@@ -493,8 +524,14 @@ def remediation_hint(failure: str) -> str:
     return "해당 항목을 audit-schema.md 기준으로 완결한다"
 
 
-def explain_markdown(data: dict, schema_failures: list[str], failures: list[str]) -> str:
-    """게이트 결과를 사람이 바로 고칠 수 있는 마크다운으로 설명한다."""
+def explain_markdown(data: dict, schema_failures: list[str], failures: list[str],
+                     label: str | None = None) -> str:
+    """게이트 결과를 사람이 바로 고칠 수 있는 마크다운으로 설명한다.
+
+    label을 주면 그 판정을 그대로 쓴다. 호출자(unified_gate)는 audit만으로는 알 수 없는
+    사실 — 실제 문서를 검사했는지 — 을 알기 때문이다. 설명이 audit으로 상태를 다시
+    계산하면 제목은 AUDIT-VALID인데 본문은 "제출 가능"이라고 말하는 모순이 생겼다.
+    """
     if schema_failures:
         lines = ["## 게이트 결과: INVALID AUDIT (스키마 오류)", "",
                  "| # | 스키마 오류 | 조치 |", "|---|---|---|"]
@@ -503,13 +540,15 @@ def explain_markdown(data: dict, schema_failures: list[str], failures: list[str]
         return "\n".join(lines)
     decision = data.get("bid_decision")
     if not failures:
-        # 라벨과 설명은 같은 판정 함수에서 나온다 — draft audit이 "제출 가능"으로
-        # 설명되던 불일치(라벨 DRAFT-READY vs 본문 READY)를 구조적으로 차단한다.
-        label, _ = readiness(data, failures)
+        # 라벨과 설명은 같은 판정에서 나온다. 호출자가 준 label이 우선한다.
+        label = label or readiness(data, failures)[0]
         mode = str(data.get("mode", "")) or "draft"
         if label == "SUBMISSION-READY":
-            body = ("제출 가능. 모든 결정론적 게이트를 통과했다. "
-                    "단, 실제 제출 파일과의 해시 대조는 unified_gate `--doc`로 수행한다.")
+            body = ("제출 가능. 모든 결정론적 게이트를 통과했고 실제 파일과 해시가 일치한다. "
+                    "최종 수치·화면·패키지는 사람이 한 번 더 확인한다.")
+        elif label == "AUDIT-VALID":
+            body = ("audit 자체는 유효하다 — **제출 판정이 아니다.** 실제 문서를 검사하지 "
+                    "않았으므로 제출 준비 상태로 볼 수 없다. `--doc <최종파일>`로 다시 실행한다.")
         elif label == "CONDITIONAL-GO":
             body = ("내부 계속 진행만 가능하다 — 외부 제출 클리어가 아니다. "
                     "조건 해소 후 mode=submission audit으로 다시 판정한다.")

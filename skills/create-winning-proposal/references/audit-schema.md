@@ -17,7 +17,7 @@ Create every top-level field; do not omit empty arrays.
   "defects": [{"id": "D1", "severity": "major", "status": "closed", "closure_evidence": ["sha256:fixed", "page 12 rechecked"], "reviewer": "QA lead", "closed_at": "2026-07-19T12:00:00+09:00", "reverified_scope": ["R1", "page 12"]}],
   "checks": {"consistency": true, "arithmetic": true, "submission": true},
   "artifact_required": true,
-  "render": {"verified": true, "artifact_hash": "sha256:<64 hex>", "tool": "renderer version", "evidence": ["all pages reviewed"]},
+  "render": {"verified": true, "render_succeeded": true, "layout_checked": true, "visual_review_approved": true, "visual_reviewer": "제안PM 김검토", "artifact_hash": "sha256:<64 hex>", "tool": "renderer version", "evidence": ["all pages reviewed"]},
   "package": {"required": true, "inspected": true, "artifact_hash": "sha256:<64 hex>", "tool": "package inspector version", "checks": {"metadata": "pass", "notes": "pass", "comments": "pass", "hidden-content": "pass", "embedded-files": "not-applicable", "external-links": "pass", "macros": "not-applicable", "stale-customer-data": "pass", "price-leakage": "pass"}, "reviewer": "QA lead"},
   "submission": {"cleared": true, "rehearsal_evidence": ["test upload opened"], "receipt_plan": "save portal confirmation", "receipt_evidence": []},
   "flags": {"financial": false},
@@ -67,9 +67,19 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   `state: approved`로 두면 차단된다 — "미지원임을 검토자가 확인했다"가 "충족했다"로
   승격되지 않는다. 발주처가 허용한 예외만 인정하며, 그때는
   `exception: {granted_by, evidence: []}`를 기록한다.
+- **미수용 표기의 별칭**: `X`, `X 미수용`, `미수용`, `미지원`, `✗`, `부적합`은 모두 같은 상태로
+  본다 — 표기 변형 하나로 승인 모순 검사를 빠져나가지 못한다(`N/A`·`해당없음`은 미지원이 아니다).
+  `exception`과 `response_refs`는 meta→audit 변환에서 그대로 보존된다.
 - **응답 위치 ≠ 근거**: 조견표의 응답 위치는 `response_refs`에 넣는다. `evidence_refs`는
   주장을 뒷받침하는 출처(확인서·시험성적서·제조사 회신)다. `bulk_matrix.py`도 두 필드를
   분리해 생성한다 — `slide:99`가 사실의 증거로 승격되지 않는다.
+- **검증 의무는 취소되지 않는다**: `mode: submission`이면 `artifact_required` 값과 무관하게
+  렌더 검증·해시 형식·패키지 검사를 요구한다. `artifact_required: false`는 draft/review에서만
+  의미가 있다 — 입력값 하나로 제출 검사를 끄지 못한다.
+- **렌더 성공 ≠ 육안 승인**: 제출 모드는 `render.visual_review_approved: true`와
+  `render.visual_reviewer`(실명)를 요구한다. `deck_check.py`는 이 값을 항상 false로 기록하며,
+  PNG 썸네일을 확인한 사람이 직접 바꾼다. `render.layout_checked`가 false이면 차단한다.
+  PDF 변환 성공은 디자인 승인이 아니다.
 - **산출물 해시 결속(artifact binding)**: submission 모드에서 `artifact_required: true`이면
   `render.artifact_hash`와 `package.artifact_hash`는 실제 sha256 값(`sha256:<64 hex>`)이어야
   하고 서로 같아야 한다. 문자열 라벨(`sha256:proposal`)은 차단된다. 판정은

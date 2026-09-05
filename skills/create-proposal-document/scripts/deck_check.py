@@ -113,6 +113,36 @@ def min_font_pt(slide) -> float | None:
     return min(sizes) if sizes else None
 
 
+def out_of_bounds(prs, slide) -> list[str]:
+    """슬라이드 경계를 벗어난 텍스트 도형을 찾는다.
+
+    폰트·글자 수 규칙만 보면 정상인데 상자가 화면 밖에 있어 아무것도 안 보이는 장표가
+    통과했다. 렌더 PDF에도 안 나오므로 페이지 수 대조로도 걸리지 않는다.
+    배경·장식(선·그림)은 의도적으로 걸칠 수 있으므로 텍스트가 있는 도형만 본다.
+    """
+    sw, sh_ = int(prs.slide_width), int(prs.slide_height)
+    problems: list[str] = []
+    for shape in iter_shapes(slide.shapes):
+        if not shape_text(shape).strip():
+            continue
+        try:
+            left, top = int(shape.left), int(shape.top)
+            width, height = int(shape.width), int(shape.height)
+        except (TypeError, ValueError):
+            continue  # 좌표를 못 읽는 도형(플레이스홀더 상속 등)은 건너뛴다
+        right, bottom = left + width, top + height
+        if right <= 0 or bottom <= 0 or left >= sw or top >= sh_:
+            problems.append(f"'{shape.name}' 완전히 화면 밖")
+            continue
+        over = max(0, -left) + max(0, right - sw)
+        over_v = max(0, -top) + max(0, bottom - sh_)
+        if width and over / width > 0.25:
+            problems.append(f"'{shape.name}' 가로 {over / width:.0%} 잘림")
+        elif height and over_v / height > 0.25:
+            problems.append(f"'{shape.name}' 세로 {over_v / height:.0%} 잘림")
+    return problems
+
+
 def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float,
          require_req_ids: bool, stage: str) -> list[str]:
     items: list[str] = []
@@ -125,6 +155,8 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
         all_text = "\n".join(t for t in texts if t)
         if not (exclude_cover_toc and kind in {"cover", "toc", "closing"}):
             counted += 1
+        for problem in out_of_bounds(prs, slide):
+            items.append(f"[차단] 슬라이드 {idx}: {problem} — 화면 밖 내용은 렌더에도 보이지 않는다")
         if not all_text.strip():
             pics = [sh for sh in iter_shapes(slide.shapes) if sh.shape_type == 13]
             items.append(f"{'[차단]' if not pics else WARN} 슬라이드 {idx}: "
@@ -277,6 +309,12 @@ def main(argv: list[str] | None = None) -> int:
     if a.emit_render:
         block = {
             "verified": rendered and not blockers,
+            # 렌더 성공(기계)과 육안 승인(사람)은 다른 사실이다. PDF 변환이 됐다는 것이
+            # 장표를 사람이 보고 승인했다는 뜻은 아니므로 따로 기록한다.
+            "render_succeeded": rendered,
+            "layout_checked": True,
+            "visual_review_approved": False,
+            "visual_reviewer": "",
             "artifact_hash": sha256(a.pptx),
             "tool": f"deck_check.py + {evidence.get('tool') or 'no-renderer'}",
             "evidence": [i for i in items if not i.startswith(WARN)] + (
@@ -284,6 +322,9 @@ def main(argv: list[str] | None = None) -> int:
         }
         if not rendered:
             block["evidence"].append("NOT INSPECTED: PDF 렌더 미수행 — verified=false")
+        block["evidence"].append(
+            "육안 검토 미완료: 썸네일을 확인한 뒤 visual_review_approved=true와 "
+            "visual_reviewer를 사람이 기록한다")
         a.emit_render.write_text(json.dumps(block, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"[정보] render 블록 → {a.emit_render} (verified={block['verified']})")
     if blockers:

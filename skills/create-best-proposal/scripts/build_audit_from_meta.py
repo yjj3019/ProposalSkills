@@ -170,6 +170,23 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
             if strict:
                 raise ValueError(msg)
             warnings.append(msg)
+        # 응답 위치는 근거와 별도 필드로 보존한다(둘을 섞으면 위치가 증거로 승격된다).
+        if "response_refs" in req:
+            item["response_refs"] = _str_list(req, "response_refs", f"requirement {item['id']}")
+        # 발주처가 허용한 예외. 게이트가 이 필드로 '미지원인데 approved'를 판정하므로
+        # 변환에서 사라지면 정당한 예외가 허위 차단된다.
+        if "exception" in req:
+            exc = req["exception"]
+            if not isinstance(exc, dict):
+                raise ValueError(f"requirement {item['id']}.exception must be an object "
+                                 f"(got {type(exc).__name__})")
+            item["exception"] = {
+                "granted_by": exc.get("granted_by") or "",
+                "evidence": _str_list(exc, "evidence", f"requirement {item['id']}.exception"),
+            }
+            for key in ("note", "granted_at", "scope"):
+                if key in exc:
+                    item["exception"][key] = exc[key]
         # Optional S2 matrix fields passthrough
         for key in ("fit", "eval_weight", "win_theme_id", "risk", "support", "text", "basis"):
             if key in req and key not in item:

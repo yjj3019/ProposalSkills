@@ -42,19 +42,37 @@ jobs:
           if python "$GATE" "$READY" --no-explain; then exit 1; fi
           # 실제 파일과 해시가 일치할 때만 SUBMISSION-READY
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
-          import hashlib, json, sys, zipfile
+          import hashlib, json, sys
           from pathlib import Path
+          from pptx import Presentation
+          from pptx.util import Inches
           audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          # 양성 대조군은 실제 로더가 여는 파일이어야 한다(필수 파트 빠진 ZIP 금지).
           doc = tmp / "final.pptx"
-          with zipfile.ZipFile(doc, "w") as z:
-              z.writestr("ppt/presentation.xml", "<p:presentation/>")
-              z.writestr("ppt/slides/slide1.xml", "<a:p><a:r><a:t>정상 문서</a:t></a:r></a:p>")
+          prs = Presentation()
+          slide = prs.slides.add_slide(prs.slide_layouts[6])
+          slide.shapes.add_textbox(Inches(1), Inches(1), Inches(6), Inches(1)).text_frame.text = "정상 문서"
+          prs.save(str(doc))
           data = json.loads(audit_path.read_text(encoding="utf-8"))
           digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
           data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest
           (tmp / "bound.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           python "$GATE" "${RUNNER_TEMP}/bound.json" --doc "${RUNNER_TEMP}/final.pptx" --no-explain | grep -q "STATUS: SUBMISSION-READY"
+          # audit-only는 설명 본문에서도 제출 가능이라고 말하지 않는다
+          python "$GATE" "$READY" --audit-only | grep -q "게이트 결과: AUDIT-VALID"
+          if python "$GATE" "$READY" --audit-only | grep -q "제출 가능\."; then exit 1; fi
+          # artifact_required=false로 검증 의무를 끄지 못한다
+          python - "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          tmp = Path(sys.argv[1])
+          data = json.loads((tmp / "bound.json").read_text(encoding="utf-8"))
+          data["artifact_required"] = False
+          data["render"].update(verified=False, artifact_hash="", tool="", evidence=[])
+          (tmp / "bypass.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+          PY
+          if python "$GATE" "${RUNNER_TEMP}/bypass.json" --doc "${RUNNER_TEMP}/final.pptx" --no-explain; then exit 1; fi
           # 검토 이후 바뀐 파일에는 과거 판정을 재사용하지 못한다
           printf 'drift' >> "${RUNNER_TEMP}/final.pptx"
           if python "$GATE" "${RUNNER_TEMP}/bound.json" --doc "${RUNNER_TEMP}/final.pptx" --no-explain; then exit 1; fi
@@ -68,6 +86,30 @@ jobs:
           set -e
           python skills/create-proposal-document/scripts/build_deck.py skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json -o "${RUNNER_TEMP}/draft.pptx" --strict
           python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/draft.pptx" --max-pages 40 --exclude-cover-toc --require-req-ids --stage draft
+          # 음성 대조군: 슬라이드가 남은 템플릿과 잘못된 행 분할은 거부한다
+          python - "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          from pptx import Presentation
+          from pptx.util import Inches
+          tmp = Path(sys.argv[1])
+          tpl = Presentation()
+          tpl.slide_width, tpl.slide_height = Inches(13.333), Inches(7.5)
+          s = tpl.slides.add_slide(tpl.slide_layouts[6])
+          s.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(1)).text_frame.text = "이전고객 37억원"
+          tpl.save(str(tmp / "dirty_template.pptx"))
+          (tmp / "bad_rows.json").write_text(json.dumps({
+              "meta": {"title": "t", "bidder": "b"},
+              "slides": [{"type": "matrix", "title": "조견표", "lead": "요구 대응 현황.",
+                          "rows_per_slide": -1,
+                          "rows": [{"id": "R1", "text": "필수", "support": "O",
+                                    "response_loc": "p.1", "note": ""}]}]}, ensure_ascii=False),
+              encoding="utf-8")
+          PY
+          BUILD=skills/create-proposal-document/scripts/build_deck.py
+          SPEC=skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json
+          if python "$BUILD" "$SPEC" -o "${RUNNER_TEMP}/x.pptx" --template "${RUNNER_TEMP}/dirty_template.pptx"; then exit 1; fi
+          if python "$BUILD" "${RUNNER_TEMP}/bad_rows.json" -o "${RUNNER_TEMP}/y.pptx"; then exit 1; fi
       - name: Auto-install smoke test
         shell: bash
         env:

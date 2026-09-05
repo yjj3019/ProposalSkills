@@ -62,7 +62,11 @@
     "tool": "renderer-v1",
     "evidence": [
       "all pages reviewed"
-    ]
+    ],
+    "render_succeeded": true,
+    "layout_checked": true,
+    "visual_review_approved": true,
+    "visual_reviewer": "제안PM 김검토"
   },
   "package": {
     "required": true,

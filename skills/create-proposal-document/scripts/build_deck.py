@@ -78,11 +78,20 @@ class DeckBuilder:
         self.violations: list[str] = []
         self.warnings: list[str] = []
         self.page = 0
+        # (slides.json의 matrix 스펙, 실제로 표에 들어간 행 수) — 유실 대조용
+        self.matrix_rows: list[tuple[dict, int]] = []
         if template:
             self.prs = Presentation(str(template))
             self.warnings.append(f"사용자 템플릿 사용: {template.name} — 마스터 배경·로고는 템플릿 것을 따른다")
             if abs(int(self.prs.slide_width) - W) > IN // 10 or abs(int(self.prs.slide_height) - H) > IN // 10:
                 raise ValueError("템플릿은 16:9(13.333in×7.5in)여야 한다 — 다른 비율은 좌표 그리드와 맞지 않는다")
+            # 슬라이드가 든 템플릿은 거부한다. 그대로 두면 이전 고객명·금액이 최종 덱에
+            # 남고(기밀 유출), 페이지 카운터도 새 장만 세어 제한 검사가 거짓이 된다.
+            if len(self.prs.slides._sldIdLst) > 0:
+                raise ValueError(
+                    f"템플릿에 슬라이드 {len(self.prs.slides._sldIdLst)}장이 이미 있다 — "
+                    "이전 제안서 내용이 그대로 남는다. 마스터·레이아웃만 있는 빈 템플릿을 쓰거나 "
+                    "기존 장표를 삭제한 사본을 지정한다")
         else:
             self.prs = Presentation()
             self.prs.slide_width, self.prs.slide_height = Emu(W), Emu(H)
@@ -297,8 +306,16 @@ class DeckBuilder:
         rows = s.get("rows", [])
         columns = s.get("columns") or ["ID", "제안요건", "수용여부", "제안내용/응답위치", "비고"]
         keys = s.get("keys") or ["id", "text", "support", "response_loc", "note"]
-        per = int(s.get("rows_per_slide") or MATRIX_ROWS_PER_SLIDE)
+        per_raw = s.get("rows_per_slide")
+        if per_raw is None or per_raw == "":
+            per = MATRIX_ROWS_PER_SLIDE
+        else:
+            # 0·음수·문자열은 행을 통째로 날린다. 조용히 넘기지 않고 입력 오류로 세운다.
+            if isinstance(per_raw, bool) or not isinstance(per_raw, int) or per_raw < 1:
+                raise ValueError(f"matrix.rows_per_slide must be a positive integer (got {per_raw!r})")
+            per = per_raw
         chunks = [rows[i:i + per] for i in range(0, len(rows), per)] or [[]]
+        self.matrix_rows.append((s, sum(len(c) for c in chunks)))
         for i, chunk in enumerate(chunks):
             title = s.get("title", "요구사항 대응표(조견표)") + (f" (계속 {i + 1}/{len(chunks)})" if len(chunks) > 1 and i else
                                                           (f" (1/{len(chunks)})" if len(chunks) > 1 else ""))
@@ -407,8 +424,16 @@ class DeckBuilder:
                 dia = self._rect(slide, f"BODY_GMS{ti + 1}", mx - int(0.09 * IN), y + int(row_h * 0.2),
                                  int(0.18 * IN), int(row_h * 0.6), self.pal["warn"], shape=MSO_SHAPE.DIAMOND)
                 if ms.get("label"):
-                    self._text(slide, f"BODY_GMSL{ti + 1}", mx + int(0.1 * IN), y, int(1.6 * IN), row_h,
-                               ms["label"], SIZE["table"] - 1, color=self.pal["warn"], anchor=MSO_ANCHOR.MIDDLE)
+                    # 마지막 달의 마일스톤은 라벨이 오른쪽 여백을 넘어간다 → 다이아몬드
+                    # 왼쪽에 붙여 뒤집는다(화면 밖으로 나가면 렌더에도 안 보인다).
+                    lw = int(1.6 * IN)
+                    lx = mx + int(0.1 * IN)
+                    align = PP_ALIGN.LEFT
+                    if lx + lw > W - M:
+                        lx, align = mx - int(0.1 * IN) - lw, PP_ALIGN.RIGHT
+                    self._text(slide, f"BODY_GMSL{ti + 1}", max(M, lx), y, lw, row_h,
+                               ms["label"], SIZE["table"] - 1, color=self.pal["warn"],
+                               anchor=MSO_ANCHOR.MIDDLE, align=align)
         return slide
 
     def staff(self, s):
@@ -484,9 +509,22 @@ class DeckBuilder:
             if t not in ALL_TYPES:
                 raise ValueError(f"slide {i}: unsupported type {t!r} (allowed: {sorted(ALL_TYPES)})")
             getattr(self, t)(s)
+        # 페이지 수는 실제 파일 기준으로 센다. 내부 카운터만 믿으면 템플릿에 남은
+        # 장이나 분할로 늘어난 장을 놓쳐 제한 검사가 거짓이 된다.
+        actual = len(self.prs.slides._sldIdLst)
+        if actual != self.page:
+            self.violations.append(f"내부 카운터 {self.page}장 ≠ 실제 슬라이드 {actual}장 — 생성 로직 확인")
+        self.page = actual
         limit = self.meta.get("page_limit")
-        if limit and self.page > int(limit):
-            self.violations.append(f"총 {self.page}장 > 페이지 제한 {limit}장 (표지·간지 포함 여부는 RFP 규정 확인)")
+        if limit and actual > int(limit):
+            self.violations.append(f"총 {actual}장 > 페이지 제한 {limit}장 (표지·간지 포함 여부는 RFP 규정 확인)")
+        # 조견표 행이 조용히 사라지지 않았는지 대조한다(입력 행 수 = 출력 행 수).
+        for slide_spec, produced in self.matrix_rows:
+            expected = len(slide_spec.get("rows", []))
+            if produced != expected:
+                self.violations.append(
+                    f"조견표 '{slide_spec.get('title', '')}': 입력 {expected}행 → 출력 {produced}행 "
+                    "— 요구사항이 유실됐다")
 
     def save(self, out: Path) -> None:
         out.parent.mkdir(parents=True, exist_ok=True)
