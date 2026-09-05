@@ -234,6 +234,11 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
 계약 자체를 검사한다 — 문서 없는 제출 판정·해시 불일치·단계 우회가 각각 차단되는지, 파일과
 해시가 맞을 때만 `SUBMISSION-READY`가 나오는지 확인한다.
 
+루트에서 `python -m unittest discover -s . -p "test_*.py" -t .` 한 번이면 **스킬 안의 테스트까지**
+전부 돈다(`test_skill_scripts.py`가 `skills/*/scripts/test_*.py`를 끌어온다). `discover`는
+패키지가 아닌 하위 디렉터리를 재귀하지 않아서, 예전에는 그 파일들이 CI에서만 돌았고 로컬
+전체 통과가 CI 실패와 공존했다.
+
 회귀 테스트는 세 묶음이다.
 
 - `test_gate_hardening.py` — 허위 통과·fail-open(노트·마스터·머리말 미검사, run 분할 과장어,
@@ -264,6 +269,8 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
   해시 대조, 통합 게이트의 원장↔문서 수치 대조.
 - `test_outline_archetypes.py` — 사업 성격 ↔ 목차 뼈대 대조, 뼈대별 필수 절, 근거 없는
   업종에 유형을 강제하지 않는지, 읽기 환경과 문서 역할의 분리.
+- `test_skill_scripts.py` — 스킬 안의 테스트를 루트 실행에 합류시키고, 어느 실행 경로에도
+  들어가지 않는 테스트 파일이 생기지 않았는지 확인한다.
 
 OOXML 픽스처는 `ooxml_fixtures.py` 한 곳에서 만든다. 각 테스트가 zipfile로 조립하다 보니 필수
 파트가 빠진 '열리지 않는 파일'이 양성 대조군으로 쓰였기 때문이다 — 실제 로더로 열리는지까지

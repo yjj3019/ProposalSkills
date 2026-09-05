@@ -129,8 +129,11 @@ class UnifiedGateTests(unittest.TestCase):
         import hashlib
         data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as tmp:
+            # 통합 게이트가 원장 수치를 문서와 대조하므로, 양성 대조군은 audit 원장과
+            # 같은 금액을 담아야 한다 — 원장과 어긋난 문서를 '정상'이라 부르면 대조가 무의미하다.
+            ledger = "총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"
             doc = ooxml_fixtures.pptx(Path(tmp) / "final.pptx", raw={
-                "ppt/slides/slide1.xml": "<a:p><a:r><a:t>정상 문서</a:t></a:r></a:p>"})
+                "ppt/slides/slide1.xml": f"<a:p><a:r><a:t>정상 문서 {ledger}</a:t></a:r></a:p>"})
             digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
             data["render"]["artifact_hash"] = digest
             data["package"]["artifact_hash"] = digest
