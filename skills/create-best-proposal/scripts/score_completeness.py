@@ -25,7 +25,7 @@ for _cand in (_HERE.parent.parent / "create-winning-proposal" / "scripts",
     if (_cand / "proposal_gate.py").is_file():
         sys.path.insert(0, str(_cand))
         break
-from proposal_gate import evaluate, validate_schema  # noqa: E402
+from proposal_gate import evaluate, readiness, validate_schema  # noqa: E402
 
 
 def readiness_dimensions(d: dict) -> list[tuple[str, bool]]:
@@ -92,7 +92,7 @@ def score(audit: dict, metrics: dict | None) -> dict:
         return {"status": "INVALID", "blocking": schema_failures}
     dims = readiness_dimensions(audit)
     satisfied = sum(1 for _, ok in dims if ok)
-    readiness = round(100 * satisfied / len(dims), 1)
+    readiness_pct = round(100 * satisfied / len(dims), 1)
     blocking = evaluate(audit)
     decision = audit.get("bid_decision")
     downgraded_from = None
@@ -101,15 +101,16 @@ def score(audit: dict, metrics: dict | None) -> dict:
         # 조건부입찰이 미결 항목으로 막히면 '결정 거부'가 아니라 다운그레이드임을 표기.
         if decision == "conditional-bid":
             downgraded_from = "CONDITIONAL-GO"
-    elif decision == "conditional-bid":
-        status = "CONDITIONAL-GO"
-    elif audit.get("mode") == "submission":
-        status = "SUBMISSION-READY"
     else:
-        status = "DRAFT"
+        # 라벨은 게이트와 같은 판정 함수에서 나온다. 다만 이 스크립트는 실제 파일을
+        # 보지 않으므로 제출 준비(SUBMISSION-READY)로 승격하지 않는다 —
+        # 그 판정은 unified_gate --doc <최종파일>의 해시 대조로만 받는다.
+        status, _ = readiness(audit, blocking)
+        if status == "SUBMISSION-READY":
+            status = "AUDIT-VALID"
     result = {
         "status": status,
-        "readiness_score": readiness,
+        "readiness_score": readiness_pct,
         "readiness_dimensions": {k: ok for k, ok in dims},
         "blocking_count": len(blocking),
         "blocking": blocking,
@@ -146,7 +147,9 @@ def main(argv: list[str]) -> int:
     print(json.dumps(out, ensure_ascii=False, indent=2))
     if out.get("status") == "INVALID":
         return 2
-    return 0 if out.get("status") in {"SUBMISSION-READY", "CONDITIONAL-GO", "DRAFT"} else 1
+    # 통과 상태: 문서 미검사(AUDIT-VALID)·조건부·각 모드의 <MODE>-READY.
+    status = str(out.get("status", ""))
+    return 0 if status in {"AUDIT-VALID", "CONDITIONAL-GO"} or status.endswith("-READY") else 1
 
 
 if __name__ == "__main__":

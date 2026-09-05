@@ -8,11 +8,20 @@ from score_completeness import score, quality_score  # noqa: E402
 
 
 class ScoreCompletenessTests(unittest.TestCase):
-    def test_ready_is_submission_ready_full_readiness(self):
+    def test_ready_audit_is_audit_valid_not_submission_ready(self):
+        """이 스크립트는 실제 파일을 보지 않으므로 제출 준비로 승격하지 않는다."""
         out = score(ready_data(), None)
-        self.assertEqual(out["status"], "SUBMISSION-READY")
+        self.assertEqual(out["status"], "AUDIT-VALID")
         self.assertEqual(out["readiness_score"], 100.0)
         self.assertEqual(out["blocking_count"], 0)
+
+    def test_draft_audit_keeps_its_mode_label(self):
+        d = ready_data()
+        d.update(mode="draft", artifact_required=False)
+        d["checks"]["submission"] = False
+        d["package"]["required"] = False
+        d["submission"]["cleared"] = False
+        self.assertEqual(score(d, None)["status"], "DRAFT-READY")
 
     def test_quality_high_but_gate_block_is_no_go(self):
         d = ready_data()
