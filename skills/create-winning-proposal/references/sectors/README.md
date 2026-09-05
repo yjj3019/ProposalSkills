@@ -26,6 +26,10 @@
 | `stage` | `explore` `internal-review` `rfp-response` `presentation` `final-submission` | 제출 단계 검사 적용 시점 |
 | `reading_mode` | `screen-presentation` `print-evaluation` `individual-review` `appendix` | 장표 규격(deck_profiles)과 대조 |
 | `constraints[]` | `sensitive-data` `business-continuity` `closed-network` `regulated-industry` | 민감정보면 패키지 검사 3종 `pass` 필수 |
+| `rfx_type` | `rfp`(기본) `rfi` `rfq` | RFI면 평가표를 요구하지 않고 확약(`commitment`)을 차단. 자격·형식 검사는 유지 |
+
+제출 모드(`mode: submission`)에서는 `buyer_types`와 `stage`가 **필수**다. 분류가 없으면 위 표의
+검사가 전부 조용히 꺼지므로, 누락을 정상값으로 두지 않는다.
 
 RFP·계약·제출 양식의 명시 요구가 언제나 이 분류보다 우선한다. 분류가 애매하면 추정하지
 말고 미확정으로 두고 질문한다.

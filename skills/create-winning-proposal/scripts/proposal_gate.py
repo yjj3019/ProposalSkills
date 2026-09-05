@@ -38,6 +38,19 @@ OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibili
 REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
 VENDOR_KINDS = {"support", "supply"}
 CLAIM_KINDS = {"material", "commitment", "informational"}
+# 요구 강도. 실제 공고는 필수/권장/선택/조건부/참고를 구분하는데 mandatory 불리언 하나로는
+# 권장 분량 초과와 필수 위반이 같은 무게가 된다. mandatory는 후방호환으로 남긴다.
+STRENGTHS = {"required", "recommended", "optional", "conditional", "informational"}
+MANDATORY_STRENGTHS = {"required", "conditional"}
+STRENGTH_OF_MANDATORY = {True: "required", False: "optional"}
+
+
+def requirement_strength(item: dict) -> str:
+    """요구 강도. strength가 없으면 mandatory에서 유도한다(미기재 = 필수, fail-closed)."""
+    strength = item.get("strength")
+    if isinstance(strength, str) and strength in STRENGTHS:
+        return strength
+    return STRENGTH_OF_MANDATORY[item.get("mandatory", True) is not False]
 # 원장 항목이 무엇인지 사람이 읽을 수 있는 필드. 하나라도 있으면 된다.
 LEDGER_TEXT_FIELDS = ("text", "label", "title", "summary", "description")
 # 엄격 불리언 필드: JSON true만 참. "yes"/"pending"/"no" 같은 문자열은 스키마 오류로
@@ -213,6 +226,23 @@ def validate_schema(data: object) -> list[str]:
             if key in obj and not isinstance(obj[key], bool):
                 failures.append(f"{obj_name}.{key} must be a boolean (got {obj[key]!r})")
     failures += validate_context(data.get("context"))
+    for i, req in enumerate(data.get("requirements", []) if isinstance(data.get("requirements"), list) else []):
+        if not isinstance(req, dict) or "strength" not in req:
+            continue
+        rid = req.get("id", i)
+        strength = req["strength"]
+        if not _enum_ok(strength, STRENGTHS):
+            failures.append(f"requirement {rid} has unsupported strength: {strength!r} "
+                            f"(allowed: {', '.join(sorted(STRENGTHS))})")
+            continue
+        # 두 표현이 어긋나면 어느 쪽이 맞는지 게이트가 고를 수 없다.
+        if "mandatory" in req and isinstance(req["mandatory"], bool) \
+                and (strength in MANDATORY_STRENGTHS) != req["mandatory"]:
+            failures.append(f"requirement {rid} strength={strength} contradicts "
+                            f"mandatory={req['mandatory']} — 한쪽을 지운다")
+        if strength == "conditional" and _is_placeholder(req.get("condition")):
+            failures.append(f"requirement {rid} is conditional but lacks a condition "
+                            "— 어떤 조건에서 필수가 되는지 적는다")
     for claim in data.get("claims", []) if isinstance(data.get("claims"), list) else []:
         if isinstance(claim, dict) and "kind" in claim and not _enum_ok(claim["kind"], CLAIM_KINDS):
             failures.append(f"claim {claim.get('id', '?')} has unsupported kind: {claim['kind']}")
@@ -406,6 +436,10 @@ READING_MODE_PROFILE = {
     "individual-review": "executive-summary",
 }
 SUBMISSION_STAGES = {"rfp-response", "final-submission"}
+# 문서 종류는 구매 단계와 다른 축이다. RFI 응답은 입찰이 아니지만 자격·형식 요구는
+# 있을 수 있으므로, "RFI니까 검사를 끈다"가 아니라 무엇이 달라지는지를 명시한다.
+RFX_TYPES = {"rfp", "rfi", "rfq"}
+KNOWN_DECK_PROFILES = set(READING_MODE_PROFILE.values())
 
 
 def validate_context(context: object) -> list[str]:
@@ -426,7 +460,7 @@ def validate_context(context: object) -> list[str]:
                 failures.append(f"context.buyer_types has unsupported values: {bad} "
                                 f"(allowed: {', '.join(sorted(BUYER_TYPES))})")
     for field, allowed in (("engagement", ENGAGEMENTS), ("stage", STAGES),
-                           ("reading_mode", READING_MODES)):
+                           ("reading_mode", READING_MODES), ("rfx_type", RFX_TYPES)):
         value = context.get(field)
         if value is not None and not _enum_ok(value, allowed):
             failures.append(f"context.{field} has unsupported value: {value!r} "
@@ -446,8 +480,15 @@ def validate_context(context: object) -> list[str]:
 def check_evaluation_criteria(data: dict) -> list[str]:
     """평가표 원장. 공공 제안에서 배점표는 목차·분량·근거의 기준이다.
 
-    배점 항목에 대응하는 요구가 하나도 없으면 그 배점을 통째로 놓친 것인데,
-    지금까지는 요구사항에 흩어진 eval_weight 숫자뿐이라 게이트가 알 수 없었다.
+    항목 = {id, label, weight, parent?, stage?, minimum_ratio?, minimum_score?,
+            disclosed?(기본 true), source?}
+    원문의 평가 방식은 "합계 100"으로 환원되지 않는다 — 기술 90 + 가격 별책 10, 1단계
+    기술평가 안의 정량 20·정성 80, 부문별 과락이 한 공고에 같이 있다. 그래서:
+    - 최상위 항목의 합은 data.evaluation_total(기본 100)과 같아야 한다.
+    - 하위 항목(parent)의 합은 상위 항목의 배점과 같아야 한다 — 상·하위를 한 번에 더해
+      100을 넘기던 이중 합산을 막는다.
+    - 배점 미공개(disclosed:false)는 weight 없이 기록한다. 게이트가 80:20을 지어내지 않는다.
+    - 과락(minimum_ratio/minimum_score)은 보존만 한다. 게이트는 심사 점수를 예측하지 않는다.
     """
     entries = data.get("evaluation_criteria")
     if entries is None:
@@ -455,8 +496,11 @@ def check_evaluation_criteria(data: dict) -> list[str]:
     if not isinstance(entries, list):
         return ["evaluation_criteria must be an array"]
     failures: list[str] = []
-    seen: set[str] = set()
-    total = 0.0
+    total_scale = data.get("evaluation_total", 100)
+    if not _is_number(total_scale) or total_scale <= 0:
+        failures.append(f"evaluation_total must be a positive number (got {total_scale!r})")
+        total_scale = 100
+    by_id: dict[str, dict] = {}
     for i, item in enumerate(entries):
         if not isinstance(item, dict):
             failures.append(f"evaluation_criteria[{i}] must be an object")
@@ -465,32 +509,100 @@ def check_evaluation_criteria(data: dict) -> list[str]:
         if not isinstance(cid, str) or not cid.strip():
             failures.append(f"evaluation_criteria[{i}] lacks a non-empty id")
             continue
-        if cid in seen:
+        if cid in by_id:
             failures.append(f"duplicate id in evaluation_criteria: {cid}")
             continue
-        seen.add(cid)
+        by_id[cid] = item
         if _is_placeholder(item.get("label")):
             failures.append(f"evaluation criterion {cid} lacks a label")
+        disclosed = item.get("disclosed", True)
+        if not isinstance(disclosed, bool):
+            failures.append(f"evaluation criterion {cid} disclosed must be a boolean")
+            disclosed = True
         weight = item.get("weight")
-        if not _is_number(weight) or weight < 0:
-            failures.append(f"evaluation criterion {cid} weight must be a non-negative number "
-                            f"(got {weight!r})")
-        else:
-            total += weight
-    if seen and abs(total - 100.0) > 0.5:
-        failures.append(f"evaluation_criteria weights sum to {total:g}, not 100 "
-                        "— 배점표를 그대로 옮겼는지 확인한다(가격 포함 여부 명시)")
+        if disclosed:
+            if not _is_number(weight) or weight < 0:
+                failures.append(f"evaluation criterion {cid} weight must be a non-negative number "
+                                f"(got {weight!r}) — 배점이 공개되지 않았으면 disclosed:false로 적는다")
+        elif weight is not None:
+            failures.append(f"evaluation criterion {cid} is undisclosed but carries a weight "
+                            f"({weight!r}) — 미공개 배점을 지어내지 않는다")
+        ratio = item.get("minimum_ratio")
+        if ratio is not None and (not _is_number(ratio) or not 0 < ratio <= 1):
+            failures.append(f"evaluation criterion {cid} minimum_ratio must be in (0, 1] "
+                            f"(got {ratio!r}) — 85%는 0.85로 적는다")
+        score = item.get("minimum_score")
+        if score is not None:
+            if not _is_number(score) or score < 0:
+                failures.append(f"evaluation criterion {cid} minimum_score must be a non-negative number")
+            elif _is_number(weight) and score > weight:
+                failures.append(f"evaluation criterion {cid} minimum_score {score} exceeds its weight {weight}")
+        for field in ("source", "stage", "method"):
+            if field in item and not isinstance(item[field], str):
+                failures.append(f"evaluation criterion {cid} {field} must be a string")
+    # 상·하위 구조
+    for cid, item in by_id.items():
+        parent = item.get("parent")
+        if parent is None:
+            continue
+        if not isinstance(parent, str) or parent not in by_id:
+            failures.append(f"evaluation criterion {cid} references unknown parent: {parent!r}")
+            item["_bad_parent"] = True
+            continue
+        seen_chain = {cid}
+        node = parent
+        while node is not None:
+            if node in seen_chain:
+                failures.append(f"evaluation criterion {cid} has a cyclic parent chain")
+                item["_bad_parent"] = True
+                break
+            seen_chain.add(node)
+            node = by_id[node].get("parent") if isinstance(by_id[node].get("parent"), str) else None
+
+    def _weights(items: list[dict]) -> tuple[float, bool]:
+        """(합계, 전부 공개·숫자였는가)."""
+        total, complete = 0.0, True
+        for it in items:
+            w = it.get("weight")
+            if it.get("disclosed", True) is False or not _is_number(w):
+                complete = False
+            else:
+                total += w
+        return total, complete
+
+    top = [it for it in by_id.values() if it.get("parent") is None]
+    children: dict[str, list[dict]] = {}
+    for cid, it in by_id.items():
+        if isinstance(it.get("parent"), str) and not it.get("_bad_parent"):
+            children.setdefault(it["parent"], []).append(it)
+    if top:
+        total, complete = _weights(top)
+        if complete and abs(total - total_scale) > 0.5:
+            failures.append(
+                f"evaluation_criteria top-level weights sum to {total:g}, not {total_scale:g} "
+                "— 배점표를 그대로 옮겼는지 확인한다(가격 별책이면 evaluation_total로 만점을 적는다)")
+    for pid, subs in children.items():
+        parent_w = by_id[pid].get("weight")
+        total, complete = _weights(subs)
+        if complete and _is_number(parent_w) and abs(total - parent_w) > 0.5:
+            failures.append(
+                f"evaluation criterion {pid} is {parent_w:g} but its sub-criteria sum to {total:g} "
+                "— 하위 배점의 합이 상위 배점과 다르다")
+    for it in by_id.values():
+        it.pop("_bad_parent", None)
     # 배점 항목 ↔ 요구사항 연결. 대응 요구가 없는 배점은 통째로 비어 있는 목차다.
+    # 하위 항목이 있는 상위는 하위로 대응하므로 말단 항목만 본다.
     referenced: set[str] = set()
     for req in data.get("requirements", []) if isinstance(data.get("requirements"), list) else []:
         if isinstance(req, dict):
             for cid in _as_str_list(req.get("criterion_ids")):
                 referenced.add(cid)
-    unknown = sorted(referenced - seen)
+    unknown = sorted(referenced - set(by_id))
     if unknown:
         failures.append(f"requirements reference unknown evaluation criteria: {unknown}")
-    orphan = sorted(seen - referenced)
-    if seen and orphan:
+    leaves = {cid for cid in by_id if cid not in children}
+    orphan = sorted(leaves - referenced)
+    if by_id and orphan:
         failures.append(f"evaluation criteria with no requirement mapped: {orphan} "
                         "— 배점 항목에 대응하는 요구가 없다(목차 누락 가능성)")
     return failures
@@ -565,8 +677,15 @@ def evaluate(data: dict) -> list[str]:
 
     mandatory_count = 0
     for item in data["requirements"]:
-        # fail-closed: mandatory 미기재는 필수로 취급한다(생략으로 우회 방지).
-        if item.get("mandatory", True) is False:
+        # fail-closed: 강도 미기재는 필수로 취급한다(생략으로 우회 방지).
+        strength = requirement_strength(item)
+        if strength not in MANDATORY_STRENGTHS:
+            # 권장은 안 해도 되지만, 제출 기록에는 안 한 이유가 남아야 한다 — 권장 조건이
+            # 조용히 사라지면 "권장 분량 초과"와 "잊어버림"을 구분할 수 없다.
+            if strength == "recommended" and mode == "submission" \
+                    and item.get("state") != "approved" and _is_placeholder(item.get("rationale")):
+                failures.append(f"recommended requirement {item.get('id', '?')} is not met "
+                                "and lacks a rationale — 권장 사항을 따르지 않은 사유를 적는다")
             continue
         mandatory_count += 1
         if item.get("state") == "approved":
@@ -632,8 +751,22 @@ def evaluate(data: dict) -> list[str]:
     buyers = {b for b in _as_str_list(context.get("buyer_types"))}
     stage_ctx = context.get("stage")
     limits = set(_as_str_list(context.get("constraints")))
+    rfx = context.get("rfx_type", "rfp")
+    if mode == "submission":
+        # 제출 기록에 분류가 없으면 분류가 바꾸는 요구사항이 전부 꺼진다. 누락은 정상값이
+        # 아니라 미기재다(초안·검토 단계는 후방호환으로 허용).
+        for field in ("buyer_types", "stage"):
+            if context.get(field) is None:
+                failures.append(f"submission requires context.{field} "
+                                "— 분류가 없으면 공공 평가표·규격 대조 같은 검사가 조용히 꺼진다")
     failures.extend(check_evaluation_criteria(data))
-    if "public" in buyers and (mode == "submission" or stage_ctx in SUBMISSION_STAGES):
+    if rfx == "rfi":
+        # RFI 응답은 계약 제안이 아니다. 추정치가 확약 문장으로 승격되면 안 된다.
+        for claim in data["claims"]:
+            if claim.get("kind") == "commitment":
+                failures.append(f"claim {claim.get('id', '?')} is a commitment in an RFI response "
+                                "— RFI에는 확약을 싣지 않는다(material + 추정 범위로 기술)")
+    if "public" in buyers and rfx != "rfi" and (mode == "submission" or stage_ctx in SUBMISSION_STAGES):
         # 공공 입찰에서 배점표는 목차·분량·근거 배분의 기준이다. 없으면 무엇에 점수가
         # 걸려 있는지 모르는 채로 쓴 것이다.
         if not data.get("evaluation_criteria"):
@@ -643,7 +776,17 @@ def evaluate(data: dict) -> list[str]:
     # 읽는 조건과 실제 장표 규격이 어긋나면 잡는다(발표라면서 인쇄용 밀도로 만든 덱).
     expected_profile = READING_MODE_PROFILE.get(str(context.get("reading_mode", "")))
     actual_profile = data["render"].get("output_profile")
-    if expected_profile and isinstance(actual_profile, str) and actual_profile != expected_profile:
+    if actual_profile is not None and not _enum_ok(actual_profile, KNOWN_DECK_PROFILES):
+        failures.append(f"render.output_profile has unsupported value: {actual_profile!r} "
+                        f"(allowed: {', '.join(sorted(KNOWN_DECK_PROFILES))})")
+    elif expected_profile and actual_profile is None and mode == "submission":
+        # 값이 틀리면 잡고 지우면 통과하던 구멍. 누락 = 미검사 = 차단(layout_checked와 동일).
+        # 초안은 아직 산출물이 없을 수 있으므로 제출 기록에만 요구한다.
+        failures.append(
+            f"reading_mode={context.get('reading_mode')} expects deck profile "
+            f"'{expected_profile}' but render.output_profile is missing "
+            "— deck_check.py --emit-render 결과의 output_profile을 옮긴다")
+    elif expected_profile and actual_profile is not None and actual_profile != expected_profile:
         failures.append(
             f"reading_mode={context.get('reading_mode')} expects deck profile "
             f"'{expected_profile}' but the artifact was built as '{actual_profile}' "

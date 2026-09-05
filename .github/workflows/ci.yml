@@ -116,6 +116,30 @@ jobs:
           (tmp / "no_ledger.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           if python "$GATE" "${RUNNER_TEMP}/no_ledger.json" --audit-only --no-explain; then exit 1; fi
+          # 원문 기반 평가 규칙: 가격 별책(만점 90)은 통과, 분류 누락·규격 누락·RFI 확약은 차단
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          base = json.loads(audit_path.read_text(encoding="utf-8"))
+          d = json.loads(json.dumps(base))
+          d["context"] = {"buyer_types": ["public"], "stage": "final-submission"}
+          d["evaluation_total"] = 90
+          d["evaluation_criteria"] = [{"id": "T", "label": "기술", "weight": 90, "minimum_ratio": 0.85}]
+          for r in d["requirements"]: r["criterion_ids"] = ["T"]
+          (tmp / "price_separate.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d = json.loads(json.dumps(base)); d.pop("context")
+          (tmp / "no_context.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d = json.loads(json.dumps(base))
+          d["context"]["reading_mode"] = "screen-presentation"; d["render"].pop("output_profile", None)
+          (tmp / "no_profile.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d = json.loads(json.dumps(base)); d["context"]["rfx_type"] = "rfi"
+          (tmp / "rfi_commitment.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          PY
+          python "$GATE" "${RUNNER_TEMP}/price_separate.json" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
+          for BAD in no_context no_profile rfi_commitment; do
+            if python "$GATE" "${RUNNER_TEMP}/$BAD.json" --audit-only --no-explain; then exit 1; fi
+          done
           python score_completeness.py "$READY" | grep -q '"status": "AUDIT-VALID"'
       - name: Deck pipeline golden
         shell: bash

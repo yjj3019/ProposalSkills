@@ -164,5 +164,16 @@
       "amount": 1200000000,
       "must_appear": false
     }
-  ]
+  ],
+  "context": {
+    "buyer_types": [
+      "private"
+    ],
+    "engagement": "build",
+    "stage": "final-submission",
+    "rfx_type": "rfp",
+    "constraints": [
+      "regulated-industry"
+    ]
+  }
 }
