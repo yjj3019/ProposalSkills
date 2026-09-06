@@ -10,3 +10,6 @@ __pycache__/
 /*.pptx
 /*.docx
 /*.xlsx
+
+# 테스트가 만든 덱 캐시(결정적 산출물, 재생성 가능)
+/.pytest_cache/

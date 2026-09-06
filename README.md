@@ -239,6 +239,11 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
 패키지가 아닌 하위 디렉터리를 재귀하지 않아서, 예전에는 그 파일들이 CI에서만 돌았고 로컬
 전체 통과가 CI 실패와 공존했다.
 
+테스트는 스킬 스크립트를 **같은 프로세스에서** 부른다(`test_support.run_script`). 스크립트가
+모두 `main(argv) -> int`라 그대로 호출할 수 있고, 호출마다 인터프리터를 새로 띄우지 않는다.
+자식 프로세스는 그 자체가 검사 대상일 때만 쓴다 — 콘솔 인코딩(cp949), 종료 코드가 셸에
+전달되는지, 설치본 직접 실행. 이 계약은 테스트가 지킨다(`SpeedContractTests`).
+
 회귀 테스트는 세 묶음이다.
 
 - `test_gate_hardening.py` — 허위 통과·fail-open(노트·마스터·머리말 미검사, run 분할 과장어,

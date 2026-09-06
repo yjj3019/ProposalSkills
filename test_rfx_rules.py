@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO))
+from test_support import run_script  # noqa: E402
 BEST = REPO / "skills/create-best-proposal"
 WIN = REPO / "skills/create-winning-proposal"
 sys.path.insert(0, str(WIN / "scripts"))
@@ -96,9 +98,7 @@ class EvaluationLedgerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             mp, ap = Path(d) / "m.json", Path(d) / "a.json"
             mp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
-            proc = subprocess.run([sys.executable, str(BEST / "scripts/build_audit_from_meta.py"),
-                                   str(mp), "-o", str(ap)], capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace")
+            proc = run_script(BEST / "scripts/build_audit_from_meta.py", mp, "-o", ap)
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
             self.assertEqual(json.loads(ap.read_text(encoding="utf-8"))["evaluation_total"], 90)
 
@@ -157,8 +157,8 @@ class RequirementStrengthTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             mp, ap = Path(d) / "m.json", Path(d) / "a.json"
             mp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
-            subprocess.run([sys.executable, str(BEST / "scripts/build_audit_from_meta.py"),
-                            str(mp), "-o", str(ap)], check=True, capture_output=True)
+            self.assertEqual(run_script(BEST / "scripts/build_audit_from_meta.py",
+                                        mp, "-o", ap).returncode, 0)
             req = json.loads(ap.read_text(encoding="utf-8"))["requirements"][0]
         self.assertEqual((req["strength"], req["condition"]), ("conditional", "옵션 제안 시"))
 

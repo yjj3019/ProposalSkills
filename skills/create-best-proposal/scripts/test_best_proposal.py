@@ -23,6 +23,7 @@ import build_audit_from_meta  # noqa: E402
 import bulk_matrix  # noqa: E402
 sys.path.insert(0, str(REPO_ROOT))
 import ooxml_fixtures  # noqa: E402
+from test_support import run_script  # noqa: E402
 
 
 class BuildAuditTests(unittest.TestCase):
@@ -104,12 +105,8 @@ class BulkMatrixTests(unittest.TestCase):
 
 
 class UnifiedGateTests(unittest.TestCase):
-    def _run_unified(self, audit: Path, *extra: str) -> subprocess.CompletedProcess:
-        cmd = [sys.executable, str(SCRIPT_DIR / "unified_gate.py"), str(audit), *extra]
-        return subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=str(REPO_ROOT),
-        )
+    def _run_unified(self, audit: Path, *extra: str):
+        return run_script(SCRIPT_DIR / "unified_gate.py", audit, *extra)
 
     def test_financial_ready_fixture(self):
         # 문서 없이 제출 판정을 받을 수 없다 — audit만 볼 때는 AUDIT-VALID다.
@@ -147,10 +144,7 @@ class UnifiedGateTests(unittest.TestCase):
         gate = SKILLS_ROOT / "create-winning-proposal" / "scripts" / "proposal_gate.py"
         if not gate.is_file():
             self.skipTest("proposal_gate missing")
-        proc = subprocess.run(
-            [sys.executable, str(gate), str(FIXTURES / "audit_ready_financial.json")],
-            capture_output=True, text=True, encoding="utf-8",
-        )
+        proc = run_script(gate, FIXTURES / "audit_ready_financial.json")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("READY", proc.stdout)
 

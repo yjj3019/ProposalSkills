@@ -67,3 +67,41 @@ class CoverageContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpeedContractTests(unittest.TestCase):
+    """검사 내용과 무관한 비용을 다시 들이지 않는다.
+
+    스킬 스크립트 호출은 기본이 같은 프로세스다. 자식 프로세스는 그 자체가 검사 대상일
+    때만 쓴다(인코딩·종료 코드·설치본 실행). 이 계약이 깨지면 로컬 전체 실행이 다시
+    수십 분이 되고, 그러면 CI만 보고 밀게 된다.
+    """
+
+    def test_scripts_are_called_in_process_by_default(self):
+        import test_support
+        before = test_support.SPAWNS
+        result = test_support.run_script(
+            REPO / "skills/create-best-proposal/scripts/unified_gate.py",
+            REPO / "skills/create-best-proposal/fixtures/audit_ready_financial.json",
+            "--audit-only", "--no-explain")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(test_support.SPAWNS, before, "기본 호출이 자식 프로세스를 띄웠다")
+
+    def test_isolated_and_env_still_spawn(self):
+        """인코딩 계약처럼 실제 프로세스가 필요한 경로는 남아 있어야 한다."""
+        import test_support
+        before = test_support.SPAWNS
+        test_support.run_script(REPO / "skills/create-winning-proposal/scripts/proposal_gate.py",
+                                "--help", isolated=True)
+        self.assertEqual(test_support.SPAWNS, before + 1)
+
+    def test_in_process_and_subprocess_agree(self):
+        """같은 입력에 두 경로가 같은 판정을 내야 in-process 전환이 안전하다."""
+        import test_support
+        gate = REPO / "skills/create-best-proposal/scripts/unified_gate.py"
+        audit = REPO / "skills/create-best-proposal/fixtures/audit_ready_financial.json"
+        for extra in (("--audit-only", "--no-explain"), ("--no-explain",)):
+            with self.subTest(extra=extra):
+                a = test_support.run_script(gate, audit, *extra)
+                b = test_support.run_script(gate, audit, *extra, isolated=True)
+                self.assertEqual((a.returncode, a.stdout), (b.returncode, b.stdout))

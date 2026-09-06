@@ -17,6 +17,8 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO))
+from test_support import run_script  # noqa: E402
 sys.path.insert(0, str(REPO / "skills/create-proposal-document/scripts"))
 sys.path.insert(0, str(REPO / "skills/create-winning-proposal/scripts"))
 sys.path.insert(0, str(REPO / "skills/create-best-proposal/scripts"))
@@ -188,9 +190,8 @@ class QualityGateMatchingTests(unittest.TestCase):
 
 
 class UnifiedGateModeTests(unittest.TestCase):
-    def _run(self, audit: Path, *extra: str) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, str(UG), str(audit), *extra],
-                              capture_output=True, text=True, encoding="utf-8", cwd=str(REPO))
+    def _run(self, audit: Path, *extra: str):
+        return run_script(UG, audit, *extra)
 
     def test_draft_audit_never_shows_submission_ready(self):
         data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
