@@ -189,6 +189,14 @@ python .../unified_gate.py audit.json --doc 제안서.pptx --stage submission
   인정하며(노트·레이아웃·마스터에만 있는 값은 차단), 소수·단위·부호를 구분합니다 —
   `37.5개월`은 `37`의 근거가 아니고, `37개월`은 `37원`의 근거가 아닙니다. 금액 합계는 상대
   오차가 아니라 1원 단위 절대 오차로 검산합니다.
+- **제조사에 기대는 약속은 확약을 요구합니다.** `claims[].depends_on_vendor`에 제조사를 적으면
+  제출 모드에서 같은 이름의 `vendor_confirmations`가 제출돼 있어야 합니다 — 제조사 공개 SLA를
+  인용하는 것과, 그 SLA가 이 계약에 적용된다는 확약을 받는 것은 다릅니다.
+- **시점에 묶인 주장은 기준일을 요구합니다.** 라이프사이클·EOL·버전 주장에
+  `time_sensitive: true`와 `as_of`(YYYY-MM)를 적습니다. 재사용된 장표가 조용히 낡는 것을 막습니다.
+- **수치 사이의 관계도 봅니다.** `numbers[].at_most`/`at_least`로 "최초 응답 ≤ 지속 응답" 같은
+  순서를 적으면 게이트가 검사합니다. 기간 단위는 시간으로 환산하므로 `4시간` vs `2일`처럼 단위가
+  바뀌는 자리에서 뒤바뀐 값도 잡습니다.
 - **사업 성격이 목차를 바꿉니다.** `context.engagement`가 목차 뼈대를 정하고
   (`build`/`migrate`→구축, `operate`/`service-improvement`→유지보수,
   `product-selection`→기술답변서), audit의 `proposal_archetype`에 실제로 쓴 뼈대를 남깁니다.
@@ -272,6 +280,9 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
   데이터로 재현, 요구 강도, RFI 응답 규칙. 원문은 싣지 않는다.
 - `test_submission_bundle.py` — 역할별 첨부 규칙(익명 사본·가격 별책·중복 역할), `--bundle`
   해시 대조, 통합 게이트의 원장↔문서 수치 대조.
+- `test_real_proposal_findings.py` — 실제 공공 제안서 한 건을 게이트에 태워 찾은 구멍
+  (제조사 의존 확약, 시점 주장의 기준일, SLA 표의 관계, 최상급 수식어). 원문은 싣지 않고
+  규칙만 합성 데이터로 재현한다.
 - `test_outline_archetypes.py` — 사업 성격 ↔ 목차 뼈대 대조, 뼈대별 필수 절, 근거 없는
   업종에 유형을 강제하지 않는지, 읽기 환경과 문서 역할의 분리.
 - `test_skill_scripts.py` — 스킬 안의 테스트를 루트 실행에 합류시키고, 어느 실행 경로에도

@@ -222,6 +222,33 @@ jobs:
           for OK in outline_explained outline_complete; do
             python "$GATE" "${RUNNER_TEMP}/$OK.json" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
           done
+          # 실제 제안서에서 찾은 구멍: 제조사 의존 확약·시점 주장의 기준일·SLA 표의 관계
+          python - "$READY" "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
+          base = json.loads(audit_path.read_text(encoding="utf-8"))
+          d = json.loads(json.dumps(base))
+          d["claims"][0]["depends_on_vendor"] = "제조사(가상)"
+          (tmp / "vendor_unconfirmed.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d = json.loads(json.dumps(d))
+          d["vendor_confirmations"] = [{"id": "V1", "vendor": "제조사(가상)", "kind": "support",
+                                        "required": True, "present": True}]
+          (tmp / "vendor_confirmed.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d = json.loads(json.dumps(base))
+          d["claims"].append({"id": "C9", "text": "2032년까지 지원", "kind": "material",
+                              "status": "supported", "time_sensitive": True,
+                              "evidence_refs": ["제조사 문서"]})
+          (tmp / "no_as_of.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          d = json.loads(json.dumps(base))
+          d["numbers"] = [{"id": "F", "label": "최초 응답", "value": 12, "unit": "시간", "at_most": "C"},
+                          {"id": "C", "label": "지속 응답", "value": 8, "unit": "시간"}]
+          (tmp / "sla_swapped.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+          PY
+          for BAD in vendor_unconfirmed no_as_of sla_swapped; do
+            if python "$GATE" "${RUNNER_TEMP}/$BAD.json" --audit-only --no-explain; then exit 1; fi
+          done
+          python "$GATE" "${RUNNER_TEMP}/vendor_confirmed.json" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
           python score_completeness.py "$READY" | grep -q '"status": "AUDIT-VALID"'
       - name: Deck pipeline golden
         shell: bash

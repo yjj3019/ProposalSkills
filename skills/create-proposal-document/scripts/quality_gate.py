@@ -21,7 +21,10 @@ import argparse, re, sys, xml.etree.ElementTree as ET, zipfile
 from pathlib import Path
 
 BANNED_KO = ["최고", "완벽", "혁신적", "획기적", "100%", "무중단", "완전 자동화",
-             "위험 제로", "유일한", "업계 1위"]
+             "위험 제로", "유일한", "업계 1위",
+             # 실제 제안서 검토에서 나온 보강 — 근거를 붙일 수 없는 최상급 수식어.
+             # '최상위 등급'처럼 사실 명칭인 경우는 아래 BANNED_EXCEPTIONS로 뺀다.
+             "최첨단", "압도적", "탁월한", "독보적", "최상위", "차원이 다른"]
 # 영문 관용 과장어(writing-style.md 영문 금지어 사전과 동기화). 단어 경계로 매칭한다.
 BANNED_EN = ["best-in-class", "best", "world-class", "industry-leading", "market-leading",
              "leading provider", "leading solution",
@@ -53,6 +56,9 @@ WARNING_PREFIXES = ("[NOT INSPECTED]", "[검토필요]")
 BANNED_EXCEPTIONS = {
     "최고": [r"최고\s*(?:경영|정보|기술|보안|재무|운영|책임|위험|데이터)\s*(?:책임자|자|임원)?",
              r"최고\s*(?:등급|점수|배점|사양|버전)", r"최고\s*[0-9]"],
+    # 파트너·인증 등급의 실제 명칭은 사실 서술이다("최상위 파트너 등급"). 자기 자랑으로
+    # 쓰인 '최상위'(최상위의 품질)만 남긴다.
+    "최상위": [r"최상위\s*(?:파트너\s*)?(?:등급|레벨|티어|인증|자격)"],
     "best": [r"best[\s-]+practices?", r"best[\s-]+effort"],
     "unique": [r"unique\s+(?:id|identifier|key|constraint|index|name|value)s?"],
     "innovative": [r"innovative\s+procurement"],

@@ -37,6 +37,10 @@ REQUIRED_PACKAGE_CHECKS = {
 OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibility", "numbers"}
 REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
 VENDOR_KINDS = {"support", "supply"}
+# 시간 단위 환산 — SLA 표는 시간·영업일·개월을 섞어 쓴다. 환산 없이 값만 보면
+# "4시간 → 2일"처럼 단위가 바뀌는 자리에서 뒤바뀐 값을 잡지 못한다.
+DURATION_HOURS = {"분": 1 / 60, "시간": 1.0, "일": 24.0, "영업일": 24.0,
+                  "주": 168.0, "개월": 730.0, "월": 730.0, "년": 8760.0}
 CLAIM_KINDS = {"material", "commitment", "informational"}
 # 요구 강도. 실제 공고는 필수/권장/선택/조건부/참고를 구분하는데 mandatory 불리언 하나로는
 # 권장 분량 초과와 필수 위반이 같은 무게가 된다. mandatory는 후방호환으로 남긴다.
@@ -368,6 +372,16 @@ def _tolerance_for(item: dict, value: float, tol: float) -> float:
     return max(tol * max(abs(value), 1), 1e-9)
 
 
+def _to_hours(item: dict) -> float | None:
+    """기간 값을 시간으로 환산한다. 기간 단위가 아니면 None(비교하지 않는다)."""
+    unit = str(item.get("unit", "")).strip()
+    factor = DURATION_HOURS.get(unit)
+    value = item.get("value")
+    if factor is None or not _is_finite(value):
+        return None
+    return float(value) * factor
+
+
 def check_numbers(entries: object) -> list[str]:
     """수치 원장의 산술을 실제로 계산해 검증한다.
 
@@ -434,6 +448,37 @@ def check_numbers(entries: object) -> list[str]:
                 failures.append(
                     f"number {nid} ({item.get('label', '')}) is {item['value']} but its components "
                     f"sum to {total} — 합계가 맞지 않는다")
+        # 수치 사이의 관계. SLA 표는 "최초 응답 ≤ 지속 응답", 단계가 낮아질수록 길어지는
+        # 순서가 성립해야 하는데, 값을 따로만 보면 표를 옮기다 뒤바뀐 값이 그대로 나간다.
+        for field, comparator, label in (("at_most", "<=", "이하"), ("at_least", ">=", "이상")):
+            other_id = item.get(field)
+            if other_id is None:
+                continue
+            if not isinstance(other_id, str) or other_id not in by_id:
+                failures.append(f"number {nid} references unknown {field}: {other_id!r}")
+                continue
+            if other_id == nid:
+                failures.append(f"number {nid} compares itself with {field}")
+                continue
+            other = by_id[other_id]
+            mine = _to_hours(item)
+            theirs = _to_hours(other)
+            if mine is None or theirs is None:
+                # 시간 단위가 아니면 같은 단위끼리만 비교한다(사과와 오렌지를 재지 않는다).
+                if item.get("unit") != other.get("unit"):
+                    failures.append(
+                        f"number {nid} cannot be compared with {other_id}: units differ "
+                        f"({item.get('unit')!r} vs {other.get('unit')!r})")
+                    continue
+                mine, theirs = item.get("value"), other.get("value")
+                if not (_is_finite(mine) and _is_finite(theirs)):
+                    continue
+            if (comparator == "<=" and mine > theirs) or (comparator == ">=" and mine < theirs):
+                failures.append(
+                    f"number {nid} ({item.get('label', '')}) must be {label} "
+                    f"{other_id} ({other.get('label', '')}) but {item.get('value')}"
+                    f"{item.get('unit')} vs {other.get('value')}{other.get('unit')} — "
+                    "표를 옮기며 값이 뒤바뀌었는지 확인한다")
         base = item.get("percent_of")
         if base is not None:
             if not isinstance(base, str) or base not in by_id:
@@ -520,6 +565,26 @@ def validate_context(context: object) -> list[str]:
                 failures.append(f"context.constraints has unsupported values: {bad} "
                                 f"(allowed: {', '.join(sorted(CONSTRAINTS))})")
     return failures
+
+
+_AS_OF_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$")
+
+
+def _is_iso_date(value: object) -> bool:
+    """YYYY-MM 또는 YYYY-MM-DD. 자유 문자열('2026년 여름')은 기준일이 아니다."""
+    return isinstance(value, str) and _AS_OF_RE.match(value.strip()) is not None
+
+
+def _vendor_confirmed(data: dict, vendor: str) -> bool:
+    """그 제조사의 확약이 실제로 제출됐는지. 이름은 대소문자·공백 무시로 대조한다."""
+    want = vendor.strip().casefold()
+    for vc in data.get("vendor_confirmations", []) if isinstance(
+            data.get("vendor_confirmations"), list) else []:
+        if not isinstance(vc, dict):
+            continue
+        if str(vc.get("vendor", "")).strip().casefold() == want and _true(vc.get("present")):
+            return True
+    return False
 
 
 def check_outline(data: dict) -> list[str]:
@@ -882,6 +947,27 @@ def evaluate(data: dict) -> list[str]:
             failures.append(f"claim {claim.get('id', '?')} is unsupported")
         if kind == "commitment" and not _true(claim.get("owner_approved")):
             failures.append(f"commitment {claim.get('id', '?')} lacks owner approval")
+        # 시점에 묶인 주장은 기준일이 없으면 시간이 지나 거짓이 된다. 라이프사이클·EOL·
+        # 버전·인증 유효기간이 그것이다 — 문서에 "기준: YYYY-MM"을 적게 한다.
+        if _true(claim.get("time_sensitive")) and mode == "submission" \
+                and not _is_iso_date(claim.get("as_of")):
+            failures.append(
+                f"claim {claim.get('id', '?')} is time-sensitive but lacks a valid 'as_of' date "
+                "(YYYY-MM 또는 YYYY-MM-DD) — 라이프사이클·EOL·버전 주장은 기준일이 없으면 "
+                "시간이 지나 거짓이 된다")
+        # 제3자에 기대는 확약은 우리 근거만으로 성립하지 않는다. 제조사 SLA·공급 조건은
+        # 그 계약·구독 등급에 적용될 때만 유효하므로, 제조사 공개 문서를 인용하는 것과
+        # 이 사업에 적용된다는 확약을 받는 것은 다르다.
+        vendor = claim.get("depends_on_vendor")
+        if vendor is not None and mode == "submission":
+            if not isinstance(vendor, str) or not vendor.strip():
+                failures.append(f"claim {claim.get('id', '?')} depends_on_vendor must be "
+                                "a non-empty vendor name")
+            elif not _vendor_confirmed(data, vendor):
+                failures.append(
+                    f"claim {claim.get('id', '?')} depends on {vendor} but no matching "
+                    f"vendor_confirmation is present — 제조사 공개 문서 인용은 확약이 아니다"
+                    "(vendor_confirmations에 present:true 항목을 둔다)")
         # 제출 모드에서는 'supported/qualified' 선언에 실제 근거가 따라와야 한다.
         # 상태 문자열만으로 통과하면 근거 없는 성능·실적 주장이 그대로 나간다.
         if mode == "submission" and _enum_ok(claim.get("status"), {"supported", "qualified"}) \
