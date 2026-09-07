@@ -4,13 +4,15 @@
 
 ## 수록 스킬
 
-| 스킬 | 성격 | 이런 작업에 사용 |
-|---|---|---|
-| **[`create-best-proposal`](skills/create-best-proposal/SKILL.md)** ★ 권장 | **통합 플래그십** — 콘텐츠+거버넌스 오케스트레이션, meta→audit, 통합 게이트, 대량 조견표 | 실전 제안서 작성부터 bid 판정·제출 게이트까지 **한 경로**로 끝낼 때 |
-| [`create-proposal-document`](skills/create-proposal-document/SKILL.md) | 한국어 · PPTX 장표형 중심(DOCX 지원) · 수주 패턴 뱅크 | 한국어 IT 제안서 본문·문체·조견표·시각 레이어만 깊게 다룰 때 |
-| [`create-winning-proposal`](skills/create-winning-proposal/SKILL.md) | 한/영 · 프로세스 통제 · audit JSON | bid/no-bid, 승인 체인, 결정론적 제출 게이트만 필요할 때 |
+| 스킬 | 역할 | 호출 | 이런 작업에 사용 |
+|---|---|---|---|
+| **[`create-best-proposal`](skills/create-best-proposal/SKILL.md)** ★ **진입점** | **통합 플래그십** — 콘텐츠+거버넌스 오케스트레이션, meta→audit, 통합 게이트, 대량 조견표 | 암시·명시 (「제안서 작성」은 항상 여기) | 실전 제안서 작성부터 bid 판정·제출 게이트까지 **한 경로**로 끝낼 때 |
+| [`create-proposal-document`](skills/create-proposal-document/SKILL.md) | 내부 콘텐츠·문체·시각 레이어 | **명시만** (`disable-model-invocation` / `allow_implicit_invocation: false`) | 문체·구조·장표 레이아웃만 깊게 다룰 때(또는 플래그십 부재 시) |
+| [`create-winning-proposal`](skills/create-winning-proposal/SKILL.md) | 내부 거버넌스·audit·게이트 레이어 | **명시만** | bid/audit/게이트만 다룰 때(또는 플래그십 부재 시) |
 
-세 스킬은 충돌하지 않습니다. `create-best-proposal`이 나머지 둘을 오케스트레이션하며, 상세 문체·스키마 원문은 형제 스킬 `references/`를 참조합니다.
+세 스킬은 충돌하지 않습니다. **진입점은 항상 `create-best-proposal`**입니다. 나머지 둘은
+플래그십이 로드하는 내부 레이어이며, 사용자가 이름을 명시할 때만 직접 엽니다. 상세 문체·스키마
+원문은 형제 스킬 `references/`를 참조합니다.
 
 작성 품질과 제출 준비도는 별개 축입니다. 문서 스킬만 쓰면 잘 쓴 제안서가 제출 요건을 놓치고,
 거버넌스 스킬만 쓰면 통과는 하지만 내용이 빈 문서가 나옵니다. 통합 스킬은 두 축을 함께 강제합니다.
@@ -35,22 +37,41 @@ python install_skill.py --auto
 | 감지 | 설치 경로 |
 |---|---|
 | `~/.claude/` | `~/.claude/skills/` |
-| `~/.codex/` | `~/.agents/skills/` (AGENTS.md 공용 규약) |
+| `~/.codex/` | `~/.agents/skills/` (**Codex 권장**, AGENTS.md 공용 규약) |
 | `~/.grok/` | `~/.grok/skills/` |
 | `~/.agents/` | `~/.agents/skills/` |
 | 없음 | `~/.agents/skills/` |
 
 설치 전에 대상만 보려면 `--list-targets`, 특정 경로에 넣으려면 `--dest <경로> --all`,
 최신본으로 교체하려면 `--force`를 씁니다(기본은 기존 설치를 건드리지 않고 `Skip`).
-환경변수 `AI_SKILLS_DIR`·`CODEX_HOME`이 있으면 그 경로도 대상에 포함됩니다. 설치 직후
-스킬별로 `SKILL.md`·`scripts/`·`references/` 존재를 검증해 결과를 출력합니다.
+환경변수 `AI_SKILLS_DIR`이 있으면 그 경로도 대상에 포함됩니다. `CODEX_HOME`이 설정돼 있으면
+`$CODEX_HOME/skills`에도 설치하되 **레거시 호환 경고**를 출력합니다 — Codex는 그 경로를
+deprecated compat로 계속 읽지만, 권장 위치는 `~/.agents/skills`이며 `--dest` 기본값으로
+`CODEX_HOME`을 쓰지 않습니다. 설치 직후 스킬별로 `SKILL.md`·`scripts/`·`references/`·라우팅
+메타를 검증해 결과를 출력합니다.
 
 세 스킬을 모두 설치하는 것이 기본입니다. 플래그십만 깔면 통합 게이트가 형제 게이트를 찾지
 못해 제출 판정 경로가 끊깁니다. 개별 설치는 `--name create-proposal-document`처럼 지정합니다.
 
-**ChatGPT 웹처럼 파일 시스템이 없는 환경**에서는 스크립트를 실행할 수 없습니다.
-`skills/create-best-proposal/` 폴더를 프로젝트 지식 파일로 업로드해 작성 지침으로 쓰고,
-게이트 검증은 로컬 CLI에서 수행합니다.
+### ChatGPT·Codex Plugin (Web / Work / Mobile)
+
+**프로젝트에 `skills/`를 업로드하는 것은 참고 자료일 뿐 Skill 등록이 아닙니다.**
+ChatGPT·Codex의 Web·Work·Mobile에서는 Plugin으로 등록합니다.
+
+1. 저장소 루트에 [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json)이 있고 `skills/`를
+   가리킵니다 (플래그십 + 명시 전용 형제 레이어 포함).
+2. ChatGPT / Codex에서 로컬·리포 마켓플레이스 또는 Plugin 설치 흐름으로 이 패키지를 등록합니다.
+   (공식 안내: [Build plugins](https://developers.openai.com/codex/plugins/build),
+   [Agent Skills](https://developers.openai.com/codex/skills))
+3. 등록 후 「제안서 작성」은 `create-best-proposal`로 라우팅되고, 형제는 `$스킬명` 명시 호출만
+   허용됩니다.
+4. 게이트 스크립트(`unified_gate.py` 등) 실행이 필요하면 로컬 CLI에서 수행합니다.
+
+TODO: 마켓플레이스 제출·아이콘·스크린샷 자산은 배포 채널이 확정되면 `.codex-plugin/`과
+`assets/`에 보강합니다. 현재는 최소 매니페스트 + `skills/` 레이아웃만 제공합니다.
+
+로컬에서 참고용으로만 프로젝트를 쓸 때는 `skills/create-best-proposal/`을 지식 파일로 둘 수
+있지만, 그것은 Plugin/Skill 등록을 대체하지 않습니다.
 
 비판적 선정·반영 기록: [critical-selection-2026-08.md](references/critical-selection-2026-08.md) ·
 게이트 신뢰성 감사·수정 3회(2026-09): [gate-hardening-2026-09.md](references/gate-hardening-2026-09.md)

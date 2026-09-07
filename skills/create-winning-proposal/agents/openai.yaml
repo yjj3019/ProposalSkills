@@ -1,4 +1,8 @@
+# Sibling governance layer: explicit invocation only.
+# Flagship entry for proposal writing is create-best-proposal.
 interface:
-  display_name: "제안서 작성"
-  short_description: "근거 기반 RFP 제안서 작성·검토·산출"
-  default_prompt: "Use $create-winning-proposal to analyze this RFP and produce an evidence-backed proposal draft."
+  display_name: "제안서 거버넌스 레이어 (create-winning-proposal)"
+  short_description: "bid/no-bid·audit·결정론적 제출 게이트 레이어(명시 호출 전용)"
+  default_prompt: "Use $create-winning-proposal only for bid/audit/gate layer work (or when create-best-proposal is unavailable). For full proposal writing prefer $create-best-proposal."
+policy:
+  allow_implicit_invocation: false

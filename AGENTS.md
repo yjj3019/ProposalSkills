@@ -11,6 +11,18 @@ python install_skill.py --auto
 Python이 없으면 `python3`로 시도하고, 그래도 없으면 사용자에게 Python 3.10 이상을 설치해
 달라고 요청하십시오. 외부 패키지는 설치에 필요 없습니다.
 
+## 스킬 라우팅 (모델 공통)
+
+| 역할 | 스킬 | 호출 |
+|---|---|---|
+| **진입점 (flagship)** | `create-best-proposal` | 암시·명시 모두. 「제안서 작성」은 항상 여기로 |
+| **내부 레이어 (sibling)** | `create-proposal-document`, `create-winning-proposal` | **명시 호출만** (`$스킬명` / 사용자가 레이어만 지정). 암시 선택 금지 |
+
+형제 스킬은 플래그십이 로드하는 콘텐츠·거버넌스 레이어입니다. 사용자가 형제를 이름으로
+부르지 않으면 직접 열지 마십시오. Claude는 `disable-model-invocation: true`, Codex/ChatGPT는
+`agents/openai.yaml`의 `policy.allow_implicit_invocation: false`로 형제의 암시 호출을 막습니다.
+플래그십에는 이 제한을 두지 않습니다.
+
 ## 설치 위치
 
 `--auto`는 홈 디렉터리에서 각 도구의 표시를 찾아 해당 스킬 경로에 설치합니다.
@@ -18,14 +30,17 @@ Python이 없으면 `python3`로 시도하고, 그래도 없으면 사용자에�
 | 감지 대상 | 설치 경로 |
 |---|---|
 | `~/.claude/` 존재 | `~/.claude/skills/` |
-| `~/.codex/` 존재 | `~/.agents/skills/` (AGENTS.md 공용 규약) |
+| `~/.codex/` 존재 | `~/.agents/skills/` (**Codex 권장**, AGENTS.md 공용 규약) |
 | `~/.grok/` 존재 | `~/.grok/skills/` |
 | `~/.agents/` 존재 | `~/.agents/skills/` |
 | 아무것도 없음 | `~/.agents/skills/` |
 
-환경변수 `AI_SKILLS_DIR` 또는 `CODEX_HOME`이 있으면 그 경로도 대상에 포함됩니다.
-설치 전에 대상만 확인하려면 `python install_skill.py --list-targets`.
-특정 경로에 넣으려면 `python install_skill.py --dest <경로> --all`.
+환경변수 `AI_SKILLS_DIR`이 있으면 그 경로도 대상에 포함됩니다. `CODEX_HOME`이 있으면
+`$CODEX_HOME/skills`에도 설치하되 **레거시 호환 경고**를 냅니다 — Codex는 여전히 그 경로를
+deprecated compat로 읽지만, 권장 설치 위치는 `~/.agents/skills`입니다. 기본 `--dest`로
+`CODEX_HOME`을 쓰지 마십시오. 설치 전에 대상만 확인하려면
+`python install_skill.py --list-targets`. 특정 경로에 넣으려면
+`python install_skill.py --dest <경로> --all`.
 
 세 스킬을 **모두** 설치하는 것이 기본값입니다. 플래그십(`create-best-proposal`)만 설치하면
 통합 게이트가 형제 게이트를 찾지 못해 제출 판정 경로가 끊깁니다.
@@ -34,7 +49,8 @@ Python이 없으면 `python3`로 시도하고, 그래도 없으면 사용자에�
 
 ## 설치 후 확인
 
-스크립트가 스킬별로 `SKILL.md`·`scripts/`·`references/` 존재를 검증하고 결과를 출력합니다.
+스크립트가 스킬별로 `SKILL.md`·`scripts/`·`references/`·라우팅 메타(openai.yaml /
+`disable-model-invocation`)를 검증하고 결과를 출력합니다.
 `Installed with problems`가 보이면 그 줄의 누락 파일을 사용자에게 알리십시오.
 
 동작 확인이 필요하면:
@@ -48,14 +64,19 @@ python <설치경로>/create-best-proposal/scripts/unified_gate.py \
 
 ## 설치 후 사용법
 
-사용자가 제안서 작업을 요청하면 `create-best-proposal` 스킬을 진입점으로 사용하십시오.
-나머지 둘은 그 스킬이 필요할 때 불러옵니다. 직접 열지 마십시오.
+사용자가 제안서 작업을 요청하면 **`create-best-proposal`만** 진입점으로 사용하십시오.
+나머지 둘은 내부 레이어이며, 사용자가 명시하거나 플래그십 워크플로가 가리킬 때만 엽니다.
 
-## 파일 시스템이 없는 환경 (ChatGPT 웹 등)
+## ChatGPT / Codex 웹·Work·Mobile
 
-`install_skill.py`를 실행할 수 없습니다. 대신 `skills/create-best-proposal/` 폴더를 프로젝트
-지식 파일로 업로드하도록 사용자에게 안내하십시오. 스크립트 실행이 필요한 게이트 단계는
-로컬 CLI(Claude Code·Codex·Grok)에서 수행해야 합니다.
+`install_skill.py`는 로컬 CLI용입니다. **프로젝트에 폴더를 업로드하는 것은 참고 자료일 뿐
+Skill 등록이 아닙니다.**
+
+- **로컬 CLI (Claude Code · Codex · Grok)**: 위 `--auto` 설치.
+- **ChatGPT / Codex (Web · Work · Mobile)**: Plugin으로 등록합니다.
+  저장소 루트의 [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) + `skills/` 레이아웃을
+  사용하십시오. 자세한 안내는 README «ChatGPT·Codex Plugin» 절을 따릅니다.
+- 게이트 스크립트 실행이 필요한 단계는 로컬 CLI에서 수행해야 합니다.
 
 ## 공개 저장소 — 커밋하면 안 되는 것
 
@@ -85,3 +106,5 @@ python <설치경로>/create-best-proposal/scripts/unified_gate.py \
 - 게이트 계약(제출 판정 규칙)은 `README.md`와
   `skills/create-winning-proposal/references/audit-schema.md`에 문서화돼 있습니다. 코드와
   문서를 함께 갱신하십시오.
+- 스킬 라우팅 메타(암시/명시)를 바꿀 때는 `test_skill_schema.py`와 형제/플래그십 대칭을
+  유지하십시오. 게이트·픽스처·워크플로를 약화하지 마십시오.
