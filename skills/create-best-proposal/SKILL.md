@@ -1,6 +1,6 @@
 ---
 name: create-best-proposal
-description: "제안서(PPTX 장표형 기본, DOCX·XLSX 지원) 작성·검토·제출 게이트의 단일 진입점. 사용자가 제안서, RFP 대응, 입찰, 조견표, 기술답변서, 유지보수/구축 제안, bid/no-bid, 제출 게이트, 품질 검수를 언급하면 이 스킬을 선택한다(형제 스킬은 직접 고르지 않는다). 콘텐츠·문체(create-proposal-document)와 bid 판정·audit·결정론적 게이트(create-winning-proposal)를 한 워크플로로 실행하고, slides.json→build_deck.py→deck_check.py로 실제 PPTX를 생성·검사한다."
+description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPTX 기본, DOCX·XLSX 지원). 제안서·RFP·입찰·조견표·기술답변·유지보수/구축·bid/no-bid·제출 게이트·품질 검수 요청은 이 스킬로 라우팅한다(형제는 명시 호출만). 콘텐츠(create-proposal-document)+거버넌스(create-winning-proposal)를 한 경로로 실행하고 slides.json→build_deck.py→deck_check.py로 PPTX를 생성·검사한다."
 ---
 
 # create-best-proposal — 통합 제안서 스킬

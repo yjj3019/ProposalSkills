@@ -1,0 +1,6 @@
+{
+  "name": "proposal-skills",
+  "version": "1.0.0",
+  "description": "Korean IT/public proposal skills: create-best-proposal flagship entry with explicit-only sibling layers.",
+  "skills": "./skills/"
+}

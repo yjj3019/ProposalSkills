@@ -1,6 +1,7 @@
 ---
 name: create-proposal-document
 description: "create-best-proposal이 로드하는 콘텐츠·문체·시각 레이어. 한국어 IT 제안서의 유형별 목차, 리드문·조견표·내용 패턴, 시각 규격, slides.json 기반 PPTX 생성기(build_deck.py)·레이아웃 린트(deck_check.py)·텍스트 검수(quality_gate.py)를 담는다. 사용자가 명시적으로 문체·구조·장표 레이아웃만 다루자고 할 때, 또는 create-best-proposal이 없을 때만 직접 사용한다."
+disable-model-invocation: true
 ---
 
 # 표준 제안서 작성 스킬 (create-proposal-document)

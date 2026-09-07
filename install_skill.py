@@ -5,12 +5,17 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import sys
+import warnings
 from pathlib import Path
+from typing import Any
 
 SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
 DEFAULT_NAME = "create-best-proposal"
+FLAGSHIP = "create-best-proposal"
+SIBLINGS = frozenset({"create-proposal-document", "create-winning-proposal"})
 # Legacy import target for tests that expect the governance package tree.
 SOURCE = SKILLS_ROOT / "create-winning-proposal"
 # Flagship needs sibling gates for full unified_gate path (S6).
@@ -21,15 +26,37 @@ DEPS: dict[str, list[str]] = {
     ],
 }
 
+# Codex recommended personal skills path (AGENTS.md / multi-host convention).
+# $CODEX_HOME/skills is still loaded by Codex as deprecated compat — prefer this.
+CODEX_RECOMMENDED_SKILLS = ".agents/skills"
+CODEX_HOME_LEGACY_MSG = (
+    "CODEX_HOME/skills is a legacy Codex compat path; preferred install location "
+    f"is ~/{CODEX_RECOMMENDED_SKILLS} (or set AI_SKILLS_DIR / --dest)."
+)
+
+
+def _warn_codex_home_legacy() -> None:
+    warnings.warn(CODEX_HOME_LEGACY_MSG, UserWarning, stacklevel=3)
+    print(f"WARNING: {CODEX_HOME_LEGACY_MSG}", file=sys.stderr)
+
 
 def destination_root(value: str | None) -> Path:
+    """Resolve a single install root.
+
+    Priority: explicit --dest → AI_SKILLS_DIR → (legacy) CODEX_HOME/skills.
+    Do not treat CODEX_HOME as the recommended default; warn when it is used.
+    """
     if value:
         return Path(value).expanduser()
-    if value := os.environ.get("AI_SKILLS_DIR"):
-        return Path(value).expanduser()
-    if value := os.environ.get("CODEX_HOME"):
-        return Path(value).expanduser() / "skills"
-    raise SystemExit("Set --dest, AI_SKILLS_DIR, or CODEX_HOME (or use --auto).")
+    if env := os.environ.get("AI_SKILLS_DIR"):
+        return Path(env).expanduser()
+    if env := os.environ.get("CODEX_HOME"):
+        _warn_codex_home_legacy()
+        return Path(env).expanduser() / "skills"
+    raise SystemExit(
+        "Set --dest or AI_SKILLS_DIR (recommended), or use --auto. "
+        "CODEX_HOME/skills remains a legacy fallback only."
+    )
 
 
 # 호스트별 개인 스킬 디렉터리. 경로 규약은 각 도구의 공식 문서 기준이며,
@@ -38,12 +65,12 @@ def destination_root(value: str | None) -> Path:
 HOSTS: list[tuple[str, str, str]] = [
     # (표시명, 존재 여부를 판단할 홈 하위 디렉터리, 스킬 디렉터리)
     ("Claude Code", ".claude", ".claude/skills"),
-    ("Codex CLI", ".codex", ".agents/skills"),
+    ("Codex CLI", ".codex", CODEX_RECOMMENDED_SKILLS),
     ("Grok", ".grok", ".grok/skills"),
-    ("AGENTS.md 호환(공용)", ".agents", ".agents/skills"),
+    ("AGENTS.md 호환(공용)", ".agents", CODEX_RECOMMENDED_SKILLS),
 ]
 # 아무 호스트도 없을 때의 기본 설치 위치 — 여러 CLI가 공통으로 읽는 경로.
-FALLBACK_SKILLS_DIR = ".agents/skills"
+FALLBACK_SKILLS_DIR = CODEX_RECOMMENDED_SKILLS
 
 
 def detect_targets(home: Path | None = None) -> list[tuple[str, Path]]:
@@ -58,16 +85,18 @@ def detect_targets(home: Path | None = None) -> list[tuple[str, Path]]:
         if target not in seen:
             seen.add(target)
             found.append((label, target))
-    for env in ("AI_SKILLS_DIR", "CODEX_HOME"):
-        raw = os.environ.get(env)
-        if not raw:
-            continue
+    if raw := os.environ.get("AI_SKILLS_DIR"):
         target = Path(raw).expanduser()
-        if env == "CODEX_HOME":
-            target = target / "skills"
         if target not in seen:
             seen.add(target)
-            found.append((f"${env}", target))
+            found.append(("$AI_SKILLS_DIR", target))
+    if raw := os.environ.get("CODEX_HOME"):
+        # Legacy compat: Codex still loads $CODEX_HOME/skills, but recommend ~/.agents/skills.
+        _warn_codex_home_legacy()
+        target = Path(raw).expanduser() / "skills"
+        if target not in seen:
+            seen.add(target)
+            found.append(("$CODEX_HOME/skills (legacy)", target))
     return found
 
 
@@ -118,7 +147,136 @@ def resolve_names(name: str, all_flag: bool, with_deps: bool) -> list[str]:
     return names
 
 
-def verify(target: Path) -> list[str]:
+_FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
+
+
+def parse_frontmatter(text: str) -> dict[str, Any]:
+    """Parse SKILL.md YAML frontmatter (flat keys + booleans/strings)."""
+    match = _FRONTMATTER_RE.match(text)
+    if not match:
+        return {}
+    return _parse_simple_yaml(match.group(1))
+
+
+def _parse_simple_yaml(text: str) -> dict[str, Any]:
+    """Minimal indented YAML subset for skill metadata (no PyYAML dependency)."""
+    root: dict[str, Any] = {}
+    stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
+    for raw in text.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        if ":" not in raw:
+            continue
+        key, _, rest = raw.lstrip(" ").partition(":")
+        key = key.strip()
+        value = rest.strip()
+        while stack and indent <= stack[-1][0]:
+            stack.pop()
+        parent = stack[-1][1]
+        if value == "":
+            child: dict[str, Any] = {}
+            parent[key] = child
+            stack.append((indent, child))
+            continue
+        if (value.startswith('"') and value.endswith('"')) or (
+            value.startswith("'") and value.endswith("'")
+        ):
+            parent[key] = value[1:-1]
+        elif value in {"true", "false"}:
+            parent[key] = value == "true"
+        elif re.fullmatch(r"-?\d+", value):
+            parent[key] = int(value)
+        else:
+            parent[key] = value
+    return root
+
+
+def load_openai_yaml(skill_dir: Path) -> dict[str, Any] | None:
+    path = skill_dir / "agents" / "openai.yaml"
+    if not path.is_file():
+        return None
+    return _parse_simple_yaml(path.read_text(encoding="utf-8"))
+
+
+def allow_implicit_invocation(meta: dict[str, Any] | None) -> bool:
+    """Codex default is true when policy is omitted."""
+    if not meta:
+        return True
+    policy = meta.get("policy")
+    if not isinstance(policy, dict):
+        return True
+    if "allow_implicit_invocation" not in policy:
+        return True
+    return bool(policy["allow_implicit_invocation"])
+
+
+def skill_schema_problems(skill_dir: Path) -> list[str]:
+    """Validate skill package schema (source tree or install). Model-neutral routing rules."""
+    problems: list[str] = []
+    name = skill_dir.name
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.is_file():
+        problems.append(f"{name}: SKILL.md 없음")
+        return problems
+
+    body = skill_md.read_text(encoding="utf-8")
+    fm = parse_frontmatter(body)
+    if not fm.get("name"):
+        problems.append(f"{name}: frontmatter name 없음")
+    elif fm["name"] != name:
+        problems.append(f"{name}: frontmatter name={fm['name']!r} != dir")
+    if not fm.get("description"):
+        problems.append(f"{name}: frontmatter description 없음")
+
+    disable = bool(fm.get("disable-model-invocation", False))
+    openai = load_openai_yaml(skill_dir)
+    if openai is None:
+        problems.append(f"{name}: agents/openai.yaml 없음")
+    elif "interface" not in openai:
+        problems.append(f"{name}: openai.yaml interface 없음")
+    else:
+        implicit = allow_implicit_invocation(openai)
+        if name in SIBLINGS:
+            if implicit:
+                problems.append(
+                    f"{name}: sibling must set policy.allow_implicit_invocation: false")
+            if not disable:
+                problems.append(
+                    f"{name}: sibling must set disable-model-invocation: true")
+        elif name == FLAGSHIP:
+            if not implicit:
+                problems.append(
+                    f"{name}: flagship must allow implicit invocation "
+                    "(omit policy or allow_implicit_invocation: true)")
+            if disable:
+                problems.append(
+                    f"{name}: flagship must NOT set disable-model-invocation")
+            if "policy" in openai and openai["policy"].get(
+                    "allow_implicit_invocation") is False:
+                problems.append(
+                    f"{name}: flagship must not disable implicit invocation")
+
+    # Packaged dependencies must exist in the repository skills/ tree.
+    for dep in DEPS.get(name, []):
+        if not (SKILLS_ROOT / dep / "SKILL.md").is_file():
+            problems.append(f"{name}: packaged dependency missing: {dep}")
+
+    return problems
+
+
+def coinstall_problems(target: Path) -> list[str]:
+    """Flagship installs need sibling skills beside them for unified_gate."""
+    problems: list[str] = []
+    for dep in DEPS.get(target.name, []):
+        if not (target.parent / dep / "SKILL.md").is_file():
+            problems.append(
+                f"{target.name}: co-install missing: {dep} "
+                "(install with --all or --with-deps)")
+    return problems
+
+
+def verify(target: Path, *, require_coinstall: bool = False) -> list[str]:
     """설치본이 실제로 동작 가능한 상태인지 확인한다. 문제 목록을 반환(빈 목록=정상)."""
     problems: list[str] = []
     if not (target / "SKILL.md").is_file():
@@ -133,6 +291,9 @@ def verify(target: Path) -> list[str]:
     for ref in sorted(source.glob("references/*.md")):
         if not (target / "references" / ref.name).is_file():
             problems.append(f"{target.name}: references/{ref.name} 누락")
+    problems.extend(skill_schema_problems(target))
+    if require_coinstall:
+        problems.extend(coinstall_problems(target))
     return problems
 
 
@@ -169,7 +330,7 @@ def main() -> None:
     parser.add_argument(
         "--auto", action="store_true",
         help="이 컴퓨터에 설치된 AI CLI를 찾아 각각의 스킬 디렉터리에 설치한다 "
-             "(찾지 못하면 ~/.agents/skills 사용)")
+             "(찾지 못하면 ~/.agents/skills 사용). Codex 권장 경로는 ~/.agents/skills")
     parser.add_argument(
         "--list-targets", action="store_true",
         help="설치하지 않고 감지된 대상 디렉터리만 출력한다")

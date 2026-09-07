@@ -27,9 +27,29 @@ class InstallSkillSimulations(unittest.TestCase):
         with patch.dict(os.environ, {"AI_SKILLS_DIR": str(self.root)}, clear=True):
             self.assertEqual(install_skill.destination_root(None), self.root)
 
-    def test_03_codex_home_environment(self):
+    def test_03_codex_home_environment_is_legacy_fallback(self):
         with patch.dict(os.environ, {"CODEX_HOME": str(self.root)}, clear=True):
-            self.assertEqual(install_skill.destination_root(None), self.root / "skills")
+            with self.assertWarns(UserWarning) as ctx:
+                dest = install_skill.destination_root(None)
+            self.assertEqual(dest, self.root / "skills")
+            self.assertTrue(
+                any("legacy" in str(w.message).lower() or "CODEX_HOME" in str(w.message)
+                    for w in ctx.warnings))
+
+    def test_03b_ai_skills_dir_preferred_over_codex_home(self):
+        preferred = self.root / "preferred"
+        with patch.dict(
+            os.environ,
+            {"AI_SKILLS_DIR": str(preferred), "CODEX_HOME": str(self.root)},
+            clear=True,
+        ):
+            self.assertEqual(install_skill.destination_root(None), preferred)
+
+    def test_03c_codex_auto_target_is_agents_skills(self):
+        """--auto with ~/.codex present installs to ~/.agents/skills, not CODEX_HOME."""
+        hosts = {label: path for label, _, path in install_skill.HOSTS}
+        self.assertEqual(hosts["Codex CLI"], install_skill.CODEX_RECOMMENDED_SKILLS)
+        self.assertEqual(install_skill.CODEX_RECOMMENDED_SKILLS, ".agents/skills")
 
     def test_04_explicit_destination_wins(self):
         with patch.dict(os.environ, {"AI_SKILLS_DIR": "ignored"}, clear=True):
@@ -124,6 +144,21 @@ class AutoInstallTests(unittest.TestCase):
     def test_detects_nothing_on_a_bare_home(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(install_skill.detect_targets(self.home), [])
+
+    def test_codex_home_env_is_labeled_legacy_in_detect_targets(self):
+        with patch.dict(os.environ, {"CODEX_HOME": str(self.home / "codex-home")}, clear=True):
+            with self.assertWarns(UserWarning):
+                targets = install_skill.detect_targets(self.home)
+        labels = [label for label, _ in targets]
+        self.assertTrue(any("legacy" in label.lower() or "CODEX_HOME" in label for label in labels))
+        paths = [path for _, path in targets]
+        self.assertIn(self.home / "codex-home" / "skills", paths)
+
+    def test_auto_codex_marker_uses_agents_skills(self):
+        (self.home / ".codex").mkdir()
+        with patch.dict(os.environ, {}, clear=True):
+            targets = install_skill.detect_targets(self.home)
+        self.assertEqual([p for _, p in targets], [self.home / ".agents/skills"])
 
     def test_auto_installs_all_three_skills_into_every_host(self):
         (self.home / ".claude").mkdir()
