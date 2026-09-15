@@ -423,12 +423,28 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     stamped, stamp_state = detect_profile(prs)
     profile = a.profile or stamped or deck_profiles.DEFAULT_PROFILE
-    style = deck_profiles.get(profile)
+    # 발주처 지정 규격 표시를 읽는다. 생성기와 같은 함수로 해석한다.
+    try:
+        raw_keywords = prs.core_properties.keywords
+    except (AttributeError, ValueError):
+        raw_keywords = None
+    try:
+        spec, spec_state = deck_profiles.read_spec_stamp(raw_keywords, profile)
+    except ValueError:  # 모르는 --profile 등
+        spec, spec_state = {}, "invalid"
+    style = deck_profiles.effective_style(profile, spec)
     # 최소 폰트는 프로파일에서 유도한다 — 상수로 고정하면 발표본(18pt)을 상세본
     # 기준(9pt)으로 재거나, 그 반대로 정상 산출물을 차단한다.
-    min_font = a.min_font if a.min_font is not None else deck_profiles.min_body_font(profile)
-    min_table_font = (min(a.min_font, deck_profiles.min_table_font(profile))
-                      if a.min_font is not None else deck_profiles.min_table_font(profile))
+    min_font = a.min_font if a.min_font is not None else style["sizes"]["body"] - 1
+    min_table_font = (min(a.min_font, style["sizes"]["table"] - 1)
+                      if a.min_font is not None else style["sizes"]["table"] - 1)
+    # 공고 하한은 인자로 낮출 수 없다(RFP 지정값 > 내부 규격 > 인자 편의).
+    floor = spec.get("font_min_pt")
+    if floor:
+        min_font, min_table_font = max(min_font, floor), max(min_table_font, floor)
+    max_pages = a.max_pages
+    if spec.get("page_limit") is not None:
+        max_pages = spec["page_limit"] if max_pages is None else min(max_pages, spec["page_limit"])
     # 실제 로더로 한 번 열어본다 — 구조 검사가 놓치는 관계·스키마 결함은 여기서 걸린다.
     load_problem = quality_gate.load_check(a.pptx)
     if load_problem:
@@ -448,7 +464,23 @@ def main(argv: list[str] | None = None) -> int:
         level = "[차단]" if stage_is_submission(a.stage) else WARN
         items.append(f"{level} {detail} — {deck_profiles.DEFAULT_PROFILE} 기준으로 재고 있다. "
                      "`--profile`로 규격을 명시하거나 build_deck으로 다시 생성한다")
-    items += lint(prs, max_pages=a.max_pages, exclude_cover_toc=a.exclude_cover_toc,
+    if spec_state == "invalid":
+        level = "[차단]" if stage_is_submission(a.stage) else WARN
+        items.append(f"{level} 발주처 지정 규격 표시를 해석할 수 없다({str(raw_keywords)[:80]}) — "
+                     "build_deck으로 다시 생성한다")
+    elif spec:
+        items.append(f"[정보] 발주처 지정 규격 적용: {spec['source']} · "
+                     + ", ".join(f"{k}={v}" for k, v in sorted(spec.items()) if k != "source"))
+        if spec.get("canvas") == "16:9":
+            w_in, h_in = int(prs.slide_width) / 914400, int(prs.slide_height) / 914400
+            if abs(w_in - 13.333) > 0.1 or abs(h_in - 7.5) > 0.1:
+                items.append(f"[차단] 지정 캔버스 16:9와 실제 슬라이드 {w_in:.2f}×{h_in:.2f}in 불일치")
+        limit_mb = spec.get("file_size_limit_mb")
+        size_mb = a.pptx.stat().st_size / 1048576
+        if limit_mb and size_mb > limit_mb:
+            items.append(f"[차단] 파일 {size_mb:.1f}MB > 지정 한도 {limit_mb:g}MB (PPTX 기준 — 제출 형식이 "
+                         "다르면 변환본도 확인)")
+    items += lint(prs, max_pages=max_pages, exclude_cover_toc=a.exclude_cover_toc,
                   min_font=min_font, min_table_font=min_table_font,
                   require_req_ids=a.require_req_ids, stage=a.stage, style=style)
     evidence: dict = {}

@@ -30,6 +30,7 @@
 | 보안·자동화 절제 | `../create-winning-proposal/references/automation-and-security.md` |
 | 라이선스 | `../create-winning-proposal/references/source-patterns.md` |
 | 익명 패턴 | `../create-winning-proposal/references/anonymized-proposal-patterns.md` |
+| 한국 공공 규범 근거·상수 금지 값 | `../create-winning-proposal/references/korean-public-proposal-regulatory-basis.md` |
 | 결정론 게이트 | `../create-winning-proposal/scripts/proposal_gate.py` |
 
 ## 저장소 루트

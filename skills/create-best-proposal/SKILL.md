@@ -25,13 +25,14 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
 |---|---|---|
 | 새 제안서 작성 | **Full** | 제안서 + 조견표 + audit + 게이트 결과 |
 | 골격·Win Theme·조견표만 (초안 ~30%) | **Pink** | 목차·리드문 맵·매트릭스·theme↔req 링크 — 본문 전량 작성 금지 |
-| 평가자 시뮬레이션 (초안 ~70%) | **Red** | 평가기준 채점표 + 미충족 Critical/Major — 전면 재작성 금지 |
+| 평가자 시뮬레이션 (초안 ~70%) | **Red** | 평가 항목별 충족 근거 위치 + 약점 Critical/Major — 점수 예측·전면 재작성 금지 |
 | 제출 직전 승인 점검 | **Gold** | 제출 직전 5항목 + unified_gate --explain |
 | 기존 문서 검토만 | **Review-only** | 심각도순 지적 + 최소 수정안 (원본 비재작성) |
 | bid 판단만 | **Decision** | 참여/조건부/불참/정보부족 메모 |
 | 보안질의·XLSX | **Matrix** | 원본 시트 보존 + 행 단위 응답(fit/배점/theme 열) |
 | 발표 요약본 | **PT** | 본제안서와 수치 동기화된 PT 덱 |
 | 비RFP·공동사업 초안 | **Discovery** | 사실/가설/질문/결정 분리 초안 (제출 프레임 금지) |
+| RFI·사전규격·경쟁구도 포지셔닝 | **Capture** | FACT/HYPOTHESIS/UNKNOWN 메모 → Pink 입력 (bid 판정·게이트 비대체) |
 
 `no-bid` / `intake-incomplete`면 **Full 작성 중단** → Decision 메모만
 (`DECISION_MEMO_ONLY`). 사용자가 벤치마크 작성을 명시하면
@@ -53,7 +54,11 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
 4. 조건부면 조건마다 owner·ISO deadline(타임존)·accepted 확보 후 진행.
 
 형제 상세: `../create-proposal-document/references/bid-and-submission.md`,
-`../create-winning-proposal/references/requirements-and-evidence.md`
+`../create-winning-proposal/references/requirements-and-evidence.md`,
+`../create-winning-proposal/references/korean-public-proposal-regulatory-basis.md`(공공 규범 근거·상수 금지 값)
+
+사전 포지셔닝: [references/capture-and-positioning.md](references/capture-and-positioning.md).
+외부 방법론은 heuristic이다: [references/external-method-boundaries.md](references/external-method-boundaries.md)
 
 ### Phase B — 요구사항·Win Theme·골격
 
@@ -67,6 +72,8 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
 3. Win Theme ≤3: `고객문제 → 차별화 → 근거 → 고객효과`. 각 theme에 **req_ids ≥1**
    (미링크 theme = 장식 → 경고/`--strict` 시 빌드 실패). meta `win_themes[]`에 기록.
 4. 목차 확정 후 **페이지별 리드문 1줄** 선작성 → 리드문만으로 논리 성립 여부 검증.
+   고배점 항목은 `평가자 질문 → 결론 → 증거 → 효과 → 경계`로 핵심 장표를 정한다:
+   [references/evaluator-journey.md](references/evaluator-journey.md). **장표 제작 전에 이 구조를 확정한다.**
 5. 조견표: `scripts/bulk_matrix.py` — 지원여부 + optional **fit**(STRONG/PARTIAL/GAP)·
    **eval_weight**·**win_theme_id**·**risk** 열. 요약 슬라이드 N행 + 전체 별첨.
 
@@ -81,6 +88,10 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
 4. 가격 산식 고정:
    일회성+(반복×기간)→소계→할인→세금→합계. 부가세 추정 금지. 수정 후 재계산.
 5. phrase/content 패턴은 **사실 슬롯 채우기**용. 완성문 복붙·타고객 실적 전용 금지.
+6. 핵심 기술 장표(아키텍처·HA/DR·보안·성능·마이그레이션)는 작성 전 6문 검토 → 결론·메커니즘·검증·경계로
+   압축: [references/technical-depth-six-questions.md](references/technical-depth-six-questions.md).
+7. 제안사 행위에 "가능/예정/검토"를 쓰면 주체·범위·시점·조건을 붙인다(모호 확약,
+   quality_gate 비차단 경고).
 
 형제 상세: `writing-style.md`, `phrase-library.md`, `evidence-and-claims.md`,
 `writing-and-phrases.md`
@@ -107,6 +118,9 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
    meta의 `render` 블록으로 넣는다(렌더 성공+차단 0 → `verified:true`). soffice 없으면 `NOT INSPECTED`.
 4. 사람: `out/png` 전 장 육안 확인(잘림·겹침·폰트 대체), 발주처 PowerPoint에서 1회 열기.
 5. 사내 양식은 `--template 양식.pptx`(16:9, 빈 레이아웃 필요), 브랜드 토큰은 `meta.palette`.
+   **발주처 지정 규격이 내부 프로파일보다 우선한다** — `meta.output_spec`(canvas·page_limit·font_min_pt·
+   file_size_limit_mb)에 공고 값을 적으면 생성기와 검사기가 같은 값을 쓴다. 16:9가 아닌 지정 캔버스는
+   생성하지 않고 지정 양식·DOCX 경로로 보낸다.
    발주처 A4 문서형이면 DOCX 동일 규칙(docx 스킬 사용). XLSX 질의: 행·수식·숨김시트 보존, 지정 열만 기입.
 6. **원본 패키지** 검사는 렌더와 별개(메타·노트·숨김·매크로·잔존 고객/가격). quality_gate가 노트·
    레이아웃·마스터·머리말/바닥글·주석·문서속성 텍스트까지 읽지만 매크로·외부링크·임베디드 파일은
@@ -125,7 +139,7 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
    python ../create-proposal-document/scripts/quality_gate.py 제안서.pptx \
      --stage draft|submission [--names 금지명.txt] [--lang ko|en|both]
    ```
-3. 통합 게이트 (audit + 실제 문서 대조 + 조치표, 기본 --explain):
+3. 통합 게이트 (audit + 실제 문서 대조 + 조치표, 기본 --explain — 상세: [references/unified-gates.md](references/unified-gates.md)):
    ```bash
    python scripts/unified_gate.py audit.json --doc 제안서.pptx --stage submission
    python scripts/unified_gate.py audit.json --audit-only --no-explain   # 문서 없이 audit만
@@ -181,8 +195,8 @@ python scripts/score_completeness.py audit.json [quality.json]
 
 | 경로 | 역할 |
 |---|---|
-| `scripts/build_audit_from_meta.py` | 슬라이드/요구 meta → audit JSON (SI-B1) |
-| `scripts/bulk_matrix.py` | 유형 C 대량 조견표·응답 매트릭스 (SI-C1) |
+| `scripts/build_audit_from_meta.py` | 슬라이드/요구 meta → audit JSON (SI-B1) — [references/meta-to-audit.md](references/meta-to-audit.md) |
+| `scripts/bulk_matrix.py` | 유형 C 대량 조견표·응답 매트릭스 (SI-C1) — [references/bulk-matrix.md](references/bulk-matrix.md) |
 | `scripts/unified_gate.py` | proposal_gate + quality_gate + 상태 UX |
 | `../create-proposal-document/scripts/check_numbers.py` | 원장 수치 ↔ 문서 대조(표기 변형 인식) |
 | `fixtures/audit_ready_financial.json` | 금융 submission-ready 골든 (SI-B4) |

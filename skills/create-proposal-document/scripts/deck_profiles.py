@@ -110,6 +110,102 @@ def read_stamp(value: object) -> tuple[str | None, str]:
     return None, "unknown"
 
 
+# ---- 발주처 지정 출력 규격(output_spec) ------------------------------------------------
+# 프로파일은 내부 기본값이다. 공고가 분량·글자 크기·파일 크기·화면 비율을 정하면 그 값이
+# 이긴다. 값은 공고마다 다르므로 여기에는 '어떤 키를 받는가'만 두고 숫자 기본값은 두지 않는다.
+OUTPUT_SPEC_PREFIX = "proposal-output-spec:"
+OUTPUT_SPEC_KEYS = {"source", "canvas", "page_limit", "font_min_pt", "file_size_limit_mb"}
+# 생성기 좌표 그리드가 그릴 수 있는 캔버스. 나머지는 '알지만 그리지 않는' 캔버스다.
+SUPPORTED_CANVASES = {"16:9"}
+KNOWN_CANVASES = SUPPORTED_CANVASES | {"4:3", "A4-portrait", "A4-landscape", "A3-portrait", "A3-landscape"}
+# 장표가 아니라 제출 묶음 속성이다. 여기서 받으면 조용히 무시되므로 위치를 알려 거부한다.
+BUNDLE_KEYS = {"anonymous_copy", "price_separation", "file_format", "copies", "binding"}
+
+
+def _positive(value: object, key: str, *, integer: bool = False) -> float | int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError(f"output_spec.{key}는 양수여야 한다 (got {value!r})")
+    if integer and int(value) != value:
+        raise ValueError(f"output_spec.{key}는 정수여야 한다 (got {value!r})")
+    return int(value) if integer else float(value)
+
+
+def resolve_output_spec(raw: object, profile: str | None) -> dict:
+    """공고 지정 규격을 검증해 정규화한다. 없으면 {}(프로파일 기본값 사용).
+
+    fail-closed: 모르는 키·모르는 캔버스·그릴 수 없는 캔버스·프로파일 본문보다 큰 최소 글자
+    크기는 ValueError다. 조용히 무시하면 공고 규격 위반 산출물이 통과한다.
+    """
+    if raw is None or raw == {}:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"output_spec은 객체여야 한다 (got {type(raw).__name__})")
+    bundle = sorted(set(raw) & BUNDLE_KEYS)
+    if bundle:
+        raise ValueError(f"output_spec에 제출 묶음 속성 {bundle} — attachments[]·submission bundle에 기록한다")
+    unknown = sorted(set(raw) - OUTPUT_SPEC_KEYS)
+    if unknown:
+        raise ValueError(f"output_spec 모르는 키 {unknown} (allowed: {', '.join(sorted(OUTPUT_SPEC_KEYS))})")
+    source = raw.get("source")
+    if not isinstance(source, str) or not source.strip():
+        raise ValueError("output_spec.source 필수 — 공고의 규격 위치(문서·쪽·조항)를 적는다")
+    spec: dict = {"source": source.strip()}
+    if "canvas" in raw:
+        canvas = raw["canvas"]
+        if canvas not in KNOWN_CANVASES:
+            raise ValueError(f"output_spec.canvas 모르는 값 {canvas!r} (known: {', '.join(sorted(KNOWN_CANVASES))})")
+        if canvas not in SUPPORTED_CANVASES:
+            raise ValueError(f"지정 캔버스 {canvas}는 이 생성기가 그리지 않는다(16:9 그리드 전용) "
+                             "— 발주처 지정 양식 또는 DOCX 경로로 작성한다")
+        spec["canvas"] = canvas
+    if "page_limit" in raw:
+        spec["page_limit"] = _positive(raw["page_limit"], "page_limit", integer=True)
+    if "file_size_limit_mb" in raw:
+        spec["file_size_limit_mb"] = _positive(raw["file_size_limit_mb"], "file_size_limit_mb")
+    if "font_min_pt" in raw:
+        floor = _positive(raw["font_min_pt"], "font_min_pt")
+        body = get(profile)["sizes"]["body"]
+        # 생성기는 본문을 body-1까지 줄여 그린다(카드·단계 설명). 그 값이 하한 아래면 밀도 기준까지
+        # 함께 바뀌어야 하므로 크기만 올리지 않고 더 큰 규격을 고르게 한다.
+        if body - 1 < floor:
+            raise ValueError(f"지정 최소 글자 {floor:g}pt > {profile or DEFAULT_PROFILE} 본문 하한 {body - 1:g}pt "
+                             "— 본문이 더 큰 output_profile을 고른다")
+        spec["font_min_pt"] = floor
+    return spec
+
+
+def effective_style(profile: str | None, spec: dict | None) -> dict:
+    """프로파일에 공고 최소 글자 크기를 적용한 사양. 생성기와 검사기가 같이 쓴다.
+
+    생성기는 표·범례를 table-1로 그리므로 표·캡션·머리말·바닥글을 하한+1까지 올린다.
+    본문은 resolve_output_spec이 이미 하한 이상임을 보장한다.
+    """
+    base = get(profile)
+    floor = (spec or {}).get("font_min_pt")
+    if not floor:
+        return base
+    sizes = dict(base["sizes"])
+    for key in ("table", "caption", "header", "footer"):
+        sizes[key] = max(sizes[key], floor + 1)
+    return {**base, "sizes": sizes}
+
+
+def spec_stamp(spec: dict) -> str:
+    import json
+    return OUTPUT_SPEC_PREFIX + json.dumps(spec, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def read_spec_stamp(value: object, profile: str | None) -> tuple[dict, str]:
+    """(규격, 상태). 상태는 missing | valid | invalid. invalid면 규격은 {}."""
+    import json
+    if not isinstance(value, str) or not value.startswith(OUTPUT_SPEC_PREFIX):
+        return {}, "missing"
+    try:
+        return resolve_output_spec(json.loads(value[len(OUTPUT_SPEC_PREFIX):]), profile), "valid"
+    except (ValueError, json.JSONDecodeError):
+        return {}, "invalid"
+
+
 def from_stamp(value: object) -> str | None:
     """호환용 — 이름만 필요할 때. 모르는 표시와 표시 없음을 구분하려면 read_stamp를 쓴다."""
     return read_stamp(value)[0]
