@@ -1,6 +1,17 @@
 # ProposalSkills
 
+[English](README.en.md) · 한국어
+
+ProposalSkills는 한국 IT RFP의 요구사항과 평가기준을 평가자 중심의 기술 제안으로 변환하고,
+실제 PPTX와 제출 묶음을 검증 가능한 상태로 통제하는 한국형 Proposal Production & Governance
+Engine입니다.
+
 모델에 종속되지 않는 제안서 문서 제작 스킬과 조사 자료를 관리합니다. 핵심 `SKILL.md`, 참조자료, 검증 스크립트는 ChatGPT, Claude, Gemini, Grok 등에서 동일하게 사용할 수 있습니다.
+
+```
+RFP·수정공고 → 요구사항·평가표 원장 → Win Theme·리드문 맵 → slides.json → PPTX
+  → 수치·렌더·audit 검사 → SHA-256 산출물 결속 → 제출 묶음 대조 → SUBMISSION-READY
+```
 
 ## 수록 스킬
 
@@ -53,6 +64,17 @@ deprecated compat로 계속 읽지만, 권장 위치는 `~/.agents/skills`이며
 세 스킬을 모두 설치하는 것이 기본입니다. 플래그십만 깔면 통합 게이트가 형제 게이트를 찾지
 못해 제출 판정 경로가 끊깁니다. 개별 설치는 `--name create-proposal-document`처럼 지정합니다.
 
+**업데이트:** 설치기는 기존 설치본을 덮어쓰지 않습니다. 저장소를 갱신한 뒤에는 반드시
+`--force`로 다시 설치해야 새 reference와 스크립트가 반영됩니다.
+
+```bash
+git pull
+python install_skill.py --auto --force
+```
+
+웹 환경에 스킬을 올릴 때도 세 스킬을 함께 올립니다. 플래그십 문서가 형제 스킬의 reference를
+참조합니다.
+
 ### ChatGPT·Codex Plugin (Web / Work / Mobile)
 
 **프로젝트에 `skills/`를 업로드하는 것은 참고 자료일 뿐 Skill 등록이 아닙니다.**
@@ -77,10 +99,27 @@ TODO: 마켓플레이스 제출·아이콘·스크린샷 자산은 배포 채널
 게이트 신뢰성 감사·수정 3회(2026-09): [gate-hardening-2026-09.md](references/gate-hardening-2026-09.md)
 — 허위 통과 하드닝 → 장표 생산 레이어 → 산출물 해시 결속·판정 단일화
 
-## 장표 생산 파이프라인 (PPTX)
+## 작성 방법론 (장표 제작 전)
 
 장표 제작 전에 요구사항·평가 항목·Win Theme·리드문 구조를 먼저 확정합니다. PowerPoint부터 열고
 내용을 채우지 않습니다(요구 원장 → 평가표 원장 → Win Theme → 리드문 맵 → `slides.json` → PPTX).
+
+| 단계 | 문서 | 역할 |
+|---|---|---|
+| 사전 포지셔닝 | [capture-and-positioning.md](skills/create-best-proposal/references/capture-and-positioning.md) | RFI·사전규격 단계의 판단 기준·비교축·역량 공백을 FACT/HYPOTHESIS/UNKNOWN으로 정리. Pink 입력 보강용이며 bid 판정·게이트를 대체하지 않음 |
+| 뼈대 설계 (Pink) | [evaluator-journey.md](skills/create-best-proposal/references/evaluator-journey.md) | 평가자 질문 → 결론 → 증거 → 효과 → 약속 경계를 REQ-ID·평가 항목에 연결. 목차와 리드문만으로 논리가 서는지 확인 |
+| 기술 서술 | [technical-depth-six-questions.md](skills/create-best-proposal/references/technical-depth-six-questions.md) | 핵심 기술 장표를 쓰기 전 6문(무엇·왜·어떻게 동작·구축·검증·실패 대응) 검토 후 결론·메커니즘·검증·경계로 압축 |
+| 문체 | [writing-style.md](skills/create-proposal-document/references/writing-style.md) | 과장어 금지와 모호 확약("지원 가능", "검토 예정") 정리 규칙 |
+| 평가자 시뮬레이션 (Red) | [master-playbook.md](skills/create-best-proposal/references/master-playbook.md) | 평가 항목별 충족 근거 위치와 약점(Critical/Major)을 산출. 평가점수·수주확률은 예측하지 않음 |
+| 공공 규범 근거 | [korean-public-proposal-regulatory-basis.md](skills/create-winning-proposal/references/korean-public-proposal-regulatory-basis.md) | 현행 고시·예규와 저장소 스키마의 대응, 권위 순위, 상수로 두지 않는 값 목록 |
+| 외부 방법론 경계 | [external-method-boundaries.md](skills/create-best-proposal/references/external-method-boundaries.md) | 해외 방법론·공개 저장소에서 빌려 쓰는 개념과 가져오지 않는 규칙 |
+
+권위 순위는 수정공고 > 본 RFP > 공식 Q&A > 평가표 > 지정 제출양식 > 승인된 사내자료 > 현행
+공식 외부자료 > 일반 방법론입니다. 외부 방법론은 작성 품질을 높이는 heuristic이지 사실의
+출처가 아닙니다. 기술:가격 비율, 과락 비율, 분량·용지·글자 크기 한도는 공고마다 다르므로
+어디에도 기본값으로 두지 않습니다.
+
+## 장표 생산 파이프라인 (PPTX)
 
 ```bash
 # 장표 계획(slides.json) → PPTX. 좌표·색·폰트는 스크립트가 고정, 모델은 내용만 채운다
@@ -258,6 +297,9 @@ python .../unified_gate.py audit.json --doc 제안서.pptx --stage submission
 
 로컬 실행 전 `pip install -r requirements.txt`(CI는 자동 설치). 없으면 `test_deck_pipeline.py`가
 `ModuleNotFoundError: No module named 'pptx'`로 실패한다 — 코드 결함이 아니라 의존성 누락이다.
+PPTX 생성 테스트가 일제히 `PackageNotFoundError: ...pptx\templates\default.pptx`로 실패하면
+python-pptx 설치본이 손상된 것이다. `pip install --force-reinstall --no-cache-dir python-pptx`로
+복구한다.
 
 ```bash
 cd ProposalSkills
@@ -266,10 +308,10 @@ python skills/create-winning-proposal/scripts/test_proposal_gate.py -q
 python skills/create-best-proposal/scripts/test_best_proposal.py -q
 ```
 
-GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.12에서 같은
-스위트를 실행한다(Ubuntu에는 LibreOffice를 설치해 렌더 경로까지 검증). 골든 단계는 해시 결속
-계약 자체를 검사한다 — 문서 없는 제출 판정·해시 불일치·단계 우회가 각각 차단되는지, 파일과
-해시가 맞을 때만 `SUBMISSION-READY`가 나오는지 확인한다.
+현재 루트 실행 기준 466개 테스트다. GitHub Actions(`.github/workflows/ci.yml`)가
+Ubuntu·Windows × Python 3.10·3.12에서 같은 스위트를 실행한다(Ubuntu에는 LibreOffice를 설치해
+렌더 경로까지 검증). 골든 단계는 해시 결속 계약 자체를 검사한다 — 문서 없는 제출 판정·해시
+불일치·단계 우회가 각각 차단되는지, 파일과 해시가 맞을 때만 `SUBMISSION-READY`가 나오는지 확인한다.
 
 루트에서 `python -m unittest discover -s . -p "test_*.py" -t .` 한 번이면 **스킬 안의 테스트까지**
 전부 돈다(`test_skill_scripts.py`가 `skills/*/scripts/test_*.py`를 끌어온다). `discover`는
@@ -281,7 +323,7 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
 자식 프로세스는 그 자체가 검사 대상일 때만 쓴다 — 콘솔 인코딩(cp949), 종료 코드가 셸에
 전달되는지, 설치본 직접 실행. 이 계약은 테스트가 지킨다(`SpeedContractTests`).
 
-회귀 테스트는 세 묶음이다.
+회귀 테스트 파일별 범위:
 
 - `test_gate_hardening.py` — 허위 통과·fail-open(노트·마스터·머리말 미검사, run 분할 과장어,
   문자열 불리언, draft audit의 SUBMISSION-READY 표시, cp949 콘솔 크래시).
