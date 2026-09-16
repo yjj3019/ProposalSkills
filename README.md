@@ -109,7 +109,7 @@ TODO: 마켓플레이스 제출·아이콘·스크린샷 자산은 배포 채널
 | 사전 포지셔닝 | [capture-and-positioning.md](skills/create-best-proposal/references/capture-and-positioning.md) | RFI·사전규격 단계의 판단 기준·비교축·역량 공백을 FACT/HYPOTHESIS/UNKNOWN으로 정리. Pink 입력 보강용이며 bid 판정·게이트를 대체하지 않음 |
 | 뼈대 설계 (Pink) | [evaluator-journey.md](skills/create-best-proposal/references/evaluator-journey.md) | 평가자 질문 → 결론 → 증거 → 효과 → 약속 경계를 REQ-ID·평가 항목에 연결. 목차와 리드문만으로 논리가 서는지 확인 |
 | 기술 서술 | [technical-depth-six-questions.md](skills/create-best-proposal/references/technical-depth-six-questions.md) | 핵심 기술 장표를 쓰기 전 6문(무엇·왜·어떻게 동작·구축·검증·실패 대응) 검토 후 결론·메커니즘·검증·경계로 압축 |
-| 문체 | [writing-style.md](skills/create-proposal-document/references/writing-style.md) | 과장어 금지와 모호 확약("지원 가능", "검토 예정") 정리 규칙 |
+| 문체 | [writing-style.md](skills/create-proposal-document/references/writing-style.md) | 과장어 금지, 모호 확약("지원 가능", "검토 예정") 정리, AI 문체 티(번역투·관용구·형식명사·기계적 병렬·피동태) 금지 규칙 |
 | 평가자 시뮬레이션 (Red) | [master-playbook.md](skills/create-best-proposal/references/master-playbook.md) | 평가 항목별 충족 근거 위치와 약점(Critical/Major)을 산출. 평가점수·수주확률은 예측하지 않음 |
 | 공공 규범 근거 | [korean-public-proposal-regulatory-basis.md](skills/create-winning-proposal/references/korean-public-proposal-regulatory-basis.md) | 현행 고시·예규와 저장소 스키마의 대응, 권위 순위, 상수로 두지 않는 값 목록 |
 | 외부 방법론 경계 | [external-method-boundaries.md](skills/create-best-proposal/references/external-method-boundaries.md) | 해외 방법론·공개 저장소에서 빌려 쓰는 개념과 가져오지 않는 규칙 |
