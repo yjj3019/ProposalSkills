@@ -49,7 +49,36 @@ AI_SLOP_EN = [
     "delve into", "it is important to note", "game-changer", "unlock the potential",
 ]
 # 아래 접두사로 시작하는 항목은 '비차단 경고'다(종료코드에 반영하지 않는다).
-WARNING_PREFIXES = ("[NOT INSPECTED]", "[검토필요]")
+WARNING_PREFIXES = ("[NOT INSPECTED]", "[검토필요]", "[모호확약]")
+
+# 모호 확약(AMBIGUOUS_COMMITMENT): 제안사 행위를 "가능/예정/검토"로 흐려 누가·무엇을·언제·
+# 어느 조건에서 하는지 없는 문장. 단어 자체가 아니라 '서비스 행위 + 흐린 서술어' 결합만 잡고,
+# 구체 수치·명시 주체의 조건·발주처 주어 문장은 제외한다. 오탐 검증 전까지 비차단 경고다.
+_AMBIG_ACT = r"(?:지원|대응|제공|조치|투입|교육|점검|협의|검토|추진|고려|개선|반영|수용)"
+AMBIGUOUS_COMMITMENT_RE = re.compile(
+    _AMBIG_ACT + r"\s*(?:이|을|를|도)?\s*"
+    r"(?:가능(?:합니다|함|하다|\b|$)|(?:할|될)\s*수\s*있(?:습니다|음|다)|예정(?:입니다|임|이다)?)"
+    r"|적극\s*(?:검토|협의|지원)|노력하겠습니다|최선을\s*다하겠습니다")
+# 실행 조건을 누가 정하는지 명시한 조건절은 경계가 있는 문장이다("필요 시"는 해당 없음).
+_AMBIG_CONDITION_RE = re.compile(
+    r"(?:발주처|발주기관|고객|주관기관|감리|위원회)(?:가|이|의|에서)?\s*[^,.]{0,20}?"
+    r"(?:승인|요청|합의|지정)(?:하는|한|할|이\s*있는)?\s*(?:경우|때|시)")
+# 제안사가 아닌 주체의 권한·기능을 설명하는 문장은 확약이 아니다.
+_AMBIG_OTHER_SUBJECT_RE = re.compile(r"^\s*(?:발주처|발주기관|고객|주관기관|감리|평가위원)(?:은|는|이|가)\s")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。])\s+|\n+")
+
+
+def ambiguous_commitments(text: str) -> list[str]:
+    """모호 확약으로 보이는 문장 목록(원문 그대로). 판정은 문장 단위로 한다."""
+    hits: list[str] = []
+    for sentence in _SENTENCE_SPLIT_RE.split(text):
+        s = sentence.strip()
+        if not s or not AMBIGUOUS_COMMITMENT_RE.search(s):
+            continue
+        if re.search(r"\d", s) or _AMBIG_CONDITION_RE.search(s) or _AMBIG_OTHER_SUBJECT_RE.match(s):
+            continue
+        hits.append(s)
+    return hits
 
 
 # 과장어가 아닌 관용 결합(직함·기술 용어). 해당 결합은 과장어 매칭에서 제외한다.
@@ -384,6 +413,9 @@ def run(path: Path, names: list[str], palette: set[str], lang: str,
         for phrase in slop:
             if phrase.lower() in low:
                 fails.append(f"[AI문체] {loc}: '{phrase}' — 구체 근거·수치로 대체")
+        if lang in ("ko", "both"):
+            for sentence in ambiguous_commitments(block):
+                fails.append(f"[모호확약] {loc}: '{sentence[:60]}' — 주체·범위·시점·조건을 붙인다")
         for p in PLACEHOLDERS:
             if p.lower() in low:
                 fails.append(f"[플레이스홀더] {loc}: '{p}' 잔존")

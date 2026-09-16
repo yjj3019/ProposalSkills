@@ -6,6 +6,7 @@
 
 ```
 사용자 요청
+ ├─ RFI·사전규격·경쟁구도 포지셔닝? ───────→ Capture 메모 (+ Pink 입력)
  ├─ "참여할까 / bid 판단"만? ──────────────→ Decision
  ├─ "이 문서 검토해"만? ──────────────────→ Review-only
  ├─ 골격·theme·조견표만 / 초안 초기? ─────→ Pink (~30%, 본문 전량 금지)
@@ -21,9 +22,17 @@
 
 | 경로 | 시점 | 필수 산출 | 금지 |
 |---|---|---|---|
-| **Pink** | 본문 전 | 유형·목차·리드문 맵·조견표 뼈대·win_themes(req_ids)·bid 판정 | 장표 전량 작성, 미검증 실적 채움 |
-| **Red** | 초안 후 | 평가표 항목별 예상 점수·Critical/Major·미링크 theme·미기입 매트릭스 행 | 원본 통째 재작성(최소 수정) |
+| **Pink** | 본문 전 | 유형·목차·리드문 맵·조견표 뼈대·win_themes(req_ids)·bid 판정·평가 항목별 핵심 장표와 증거 위치 | 장표 전량 작성, 미검증 실적 채움 |
+| **Red** | 초안 후 | 평가표 항목별 충족 근거 위치·약점(Critical/Major)·미링크 theme·미기입 매트릭스 행 | 원본 통째 재작성(최소 수정), 평가점수·수주확률 산출 |
 | **Gold** | 제출 전 | pre-submission 5항목 + `unified_gate` READY/CONDITIONAL-GO | 미검사 패키지를 pass로 추정 |
+
+Pink·Red 점검 기준(뼈대 논리, 10초 탐색): [evaluator-journey.md](evaluator-journey.md).
+Capture 메모는 Pink 입력만 보강한다. bid 판정·게이트를 대체하지 않는다:
+[capture-and-positioning.md](capture-and-positioning.md).
+
+**장표 제작 전에 요구사항·평가 항목·리드문 구조를 먼저 확정한다.** PowerPoint를 열고 내용을
+채우며 논리를 찾지 않는다. 순서는 요구 원장 → 평가표 원장 → Win Theme → 리드문 맵 →
+`slides.json` → PPTX다.
 
 ## 2. Full 차단 조건 (작성 시작 전)
 
@@ -40,7 +49,7 @@
 
 - [ ] A. Bid 확정 + 출처 서열 + stale sweep
 - [ ] B. 요구 원자화 + 조견표 + Win Theme≤3 + 리드문 맵
-- [ ] C. 본문 (1p 1메시지, 근거 병기, 과장어 0)
+- [ ] C. 본문 (1p 1메시지, 근거 병기, 과장어 0, 모호 확약 정리, 핵심 기술 장표 6문 검토)
 - [ ] D. 시각·렌더·패키지 분리 검사
 - [ ] E. meta→audit → unified_gate → 제출 직전 5항목
 
@@ -81,3 +90,12 @@
 3. draft 마커를 submission 게이트에 통과시키려 함 → 차단 (stage 분리)
 4. no-bid를 "게이트 버그"로 오해 → DECISION_MEMO_ONLY로 명시
 5. 유형 C에서 샘플 5행만 작성 → bulk_matrix + 별첨 전체
+
+## 8. 근거·경계 reference
+
+| 필요할 때 | 문서 |
+|---|---|
+| 공공 규범과 스키마 대응, 상수 금지 값 | `../create-winning-proposal/references/korean-public-proposal-regulatory-basis.md` |
+| 핵심 기술 장표의 서술 깊이 | [technical-depth-six-questions.md](technical-depth-six-questions.md) |
+| 해외 방법론·외부 저장소 개념을 들일 때 | [external-method-boundaries.md](external-method-boundaries.md) |
+| 발주처 지정 출력 규격 | `../create-proposal-document/references/deck-production.md` §1-2 발주처 지정 출력 규격(output_spec) |

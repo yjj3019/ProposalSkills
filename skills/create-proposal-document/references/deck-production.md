@@ -24,7 +24,8 @@ python scripts/quality_gate.py 제안서.pptx --stage draft                    #
   "meta": {
     "title": "…제안서", "subtitle": "…", "doc_name": "헤더 표기 문서명",
     "buyer": "발주처(RFP 표기 그대로)", "bidder": "제안사", "date": "YYYY-MM-DD",
-    "page_limit": 40,                 // 있으면 초과 시 --strict 실패
+    "page_limit": 40,                 // 있으면 초과 시 --strict 실패 (output_spec.page_limit와 다르면 생성 거부)
+    "output_spec": {"source": "…"},   // 발주처 지정 출력 규격 — §1-2
     "require_req_ids": true,          // 본문 장표 REQ-ID 누락 경고(기본 true; 유형 C는 status_tag로 대체 가능)
     "palette": {"primary": "1F3864"}, // 선택. 브랜드 토큰 있으면 여기에. 없으면 visual-style 폴백
     "font": "맑은 고딕"
@@ -81,6 +82,36 @@ core properties에 `proposal-deck:<프로파일>` 표시가 남아 `deck_check.p
 발표본은 상세 근거를 담는 곳이 아니다. 같은 `slides.json`으로 발표본을 만들면 리드문 길이·밀도
 경고가 뜨는데, 이는 내용을 줄이라는 신호다 — 근거는 상세본과 별첨에 두고 발표본은 결론과
 도식 위주로 남긴다. 발주처가 양식·폰트를 지정하면 그 규격이 프로파일보다 우선한다.
+
+## 1-2. 발주처 지정 출력 규격(output_spec)
+
+**공고 지정 규격 > 내부 프로파일.** 프로파일은 공고가 규격을 정하지 않았을 때의 기본값이다.
+공고에 분량·글자 크기·파일 크기·화면 비율이 있으면 `meta.output_spec`에 원문 값을 옮긴다.
+숫자 기본값은 없다 — 공고에 없는 키는 쓰지 않는다.
+
+```jsonc
+"output_spec": {
+  "source": "제안요청서 제출 규격 조항 위치",  // 필수. 어느 문서·쪽·조항인지
+  "canvas": "16:9",                            // 선택. 16:9만 생성 가능
+  "page_limit": 40,                            // 선택. 생성기·검사기 모두 적용
+  "font_min_pt": 10,                           // 선택. 검사 인자로 낮출 수 없다
+  "file_size_limit_mb": 20                     // 선택. PPTX 파일 기준
+}
+```
+
+| 동작 | 내용 |
+|---|---|
+| 해석 | `deck_profiles.resolve_output_spec` 한 곳. 생성기와 검사기가 같은 함수를 쓴다 |
+| 보존 | 생성 PPTX의 core properties `keywords`에 `proposal-output-spec:` 표시로 남는다. `deck_check.py`는 인자 없이 읽는다 |
+| 글자 하한 | 표·캡션·머리말·바닥글을 하한 이상으로 올린다. 프로파일 본문이 하한보다 작으면 생성을 거부한다 — 밀도 기준이 함께 바뀌어야 하므로 본문이 큰 프로파일을 고른다 |
+| 분량 | `--max-pages`와 함께 주면 더 엄격한 값 |
+| 캔버스 | `A4-portrait`·`A4-landscape`·`A3-portrait`·`A3-landscape`·`4:3`은 알지만 그리지 않는다. 생성기가 16:9 좌표 그리드 전용이므로 지정 양식 또는 DOCX 경로로 작성한다 |
+| 모르는 값 | 모르는 키·캔버스·음수 값은 생성 거부(exit 2). 표시가 깨졌으면 검사기가 제출 단계에서 차단, 초안에서 경고 |
+
+장표 규격이 아닌 제출 묶음 속성(`anonymous_copy`, `price_separation`, `file_format`, `copies`,
+`binding`)은 `output_spec`에서 거부한다. `attachments[]`와 submission bundle 검사에 기록한다.
+
+A3 가로, A4 세로, 16:9 어느 것도 한국 공공 표준이 아니다. 사업마다 공고가 정한다.
 
 ## 2. 도식은 네이티브 도형으로 그린다
 

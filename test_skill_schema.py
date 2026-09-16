@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -103,6 +104,60 @@ class VerifySchemaIntegrationTests(unittest.TestCase):
             problems = install_skill.coinstall_problems(target)
             self.assertTrue(any("create-proposal-document" in p for p in problems))
             self.assertTrue(any("create-winning-proposal" in p for p in problems))
+
+
+class ReferenceWiringTests(unittest.TestCase):
+    """새 reference를 만들고 연결하지 않거나, 경로를 바꾸고 문서를 두는 회귀를 막는다.
+
+    규약: 마크다운 링크는 문서 파일 기준 상대 경로, 백틱 경로는 스킬 루트 기준 상대 경로다
+    (sibling-map.md «경로 기준»). 백틱은 두 기준 중 하나로 해석되면 통과시킨다.
+    """
+
+    LINK = re.compile(r"\]\(([^)\s#]+)(?:#[^)]*)?\)")
+    TICK = re.compile(r"`((?:\.\./[\w-]+/)?(?:references|scripts|fixtures|assets)/[\w./-]+"
+                      r"\.(?:md|py|json|yaml))`")
+
+    @staticmethod
+    def _skill_docs() -> list[Path]:
+        return sorted(SKILLS.glob("*/**/*.md"))
+
+    def test_relative_links_and_paths_resolve(self):
+        broken: list[str] = []
+        for doc in self._skill_docs():
+            root = SKILLS / doc.relative_to(SKILLS).parts[0]
+            text = doc.read_text(encoding="utf-8")
+            for target in self.LINK.findall(text):
+                if target.startswith(("http://", "https://", "mailto:")):
+                    continue
+                if not (doc.parent / target).exists():
+                    broken.append(f"{doc.relative_to(REPO)} → {target}")
+            for target in self.TICK.findall(text):
+                if not ((root / target).exists() or (doc.parent / target).exists()):
+                    broken.append(f"{doc.relative_to(REPO)} → `{target}`")
+        self.assertEqual(broken, [], "깨진 상대 경로")
+
+    def test_every_reference_is_linked_from_another_document(self):
+        corpus = {doc: doc.read_text(encoding="utf-8") for doc in self._skill_docs()}
+        for top in ("README.md", "AGENTS.md"):
+            corpus[REPO / top] = (REPO / top).read_text(encoding="utf-8")
+        orphans: list[str] = []
+        for ref in sorted(SKILLS.glob("*/references/**/*.md")):
+            refs_dir = SKILLS / ref.relative_to(SKILLS).parts[0] / "references"
+            rel = ref.relative_to(refs_dir).as_posix()
+            if not any(rel in text for doc, text in corpus.items() if doc != ref):
+                orphans.append(str(ref.relative_to(REPO)))
+        self.assertEqual(orphans, [], "어느 문서에서도 가리키지 않는 reference")
+
+    def test_flagship_links_its_own_new_references(self):
+        """플래그십 references는 SKILL.md 또는 master-playbook에서 직접 도달해야 한다."""
+        flagship = SKILLS / install_skill.FLAGSHIP
+        entry = (flagship / "SKILL.md").read_text(encoding="utf-8") + \
+            (flagship / "references" / "master-playbook.md").read_text(encoding="utf-8")
+        for ref in sorted((flagship / "references").glob("*.md")):
+            if ref.name == "master-playbook.md":
+                continue
+            with self.subTest(reference=ref.name):
+                self.assertIn(ref.name, entry)
 
 
 if __name__ == "__main__":

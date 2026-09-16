@@ -96,3 +96,32 @@ Pandoc·Quarto·RAG·다중 에이전트는 현재 필수 요건이 아니다. �
 - RFP와 과거 제안서가 외부 API로 전송되지 않는지
 - 생성 문구마다 출처, 기준일, 제품 버전, 검토자를 남길 수 있는지
 - 자동 생성 결과를 Word와 PDF로 렌더링해 검수할 수 있는지
+
+## 7. 2026-09 제안 스킬 저장소 벤치마크
+
+확인일: 2026-09-16. 대상은 제안·입찰 작업을 에이전트 스킬로 구성한 공개 저장소다. 개념만
+참고하고 문장·코드·점수 모델은 가져오지 않았다. 적용 경계는
+[external-method-boundaries.md](../skills/create-best-proposal/references/external-method-boundaries.md).
+
+| 저장소 | 참고한 개념 | 반영 | 라이선스 |
+|---|---|---|---|
+| [danielkinneyspears/federal-proposal-skills](https://github.com/danielkinneyspears/federal-proposal-skills) | 사전 capture, 확약 감사, 리뷰 단계 규율 | Capture 메모(Pink 입력), 모호 확약 경고 | Apache-2.0 |
+| [chakmarebel/federal-proposal-copilot](https://github.com/chakmarebel/federal-proposal-copilot) | AI 초안과 최종 제출본 비교 보정 코퍼스, 근거 점검 단계 | 보류(아래) | MIT |
+| [yanhaoluo0/technical-proposal-expert-writing-skill](https://github.com/yanhaoluo0/technical-proposal-expert-writing-skill) | 기술점 작성 전 필답 질문 | 기술 서술 깊이 6문(자체 문장) | 명시 없음 — 개념만 |
+| [AIScientists-Dev/academic-humanizer](https://github.com/AIScientists-Dev/academic-humanizer) | AI 문체 범주와 과잉교정 방지 | 기존 `AI_SLOP` 규칙으로 충분, 추가하지 않음 | 명시 불명확 — 개념만 |
+| [jackson-marcus/Bid-Craft](https://github.com/jackson-marcus/Bid-Craft) | 수정공고 증분 반영, 조항 번호 변경 추적 | 보류(아래) | 명시 없음 — 개념만 |
+
+반영하지 않은 것:
+
+- 20개 이상으로 스킬을 쪼개는 구조 — 플래그십 단일 진입 라우팅과 충돌한다.
+- 미국 연방 조달 규칙(FAR, Section L/M, CPARS), Price-to-Win, 수주확률 모델.
+- 과잉 확약을 제출 차단으로 처리 — 오탐 검증 전에는 비차단 경고로 둔다.
+
+검토 후 보류(다음 단계 후보):
+
+- 보정 코퍼스: AI 초안과 최종 제출본의 차이를 분류해 규칙 후보로 누적. 실데이터가 공개
+  저장소에 들어오지 않는 구조가 먼저 필요하다.
+- 수정공고 증분 diff: 조항 ID를 유지한 채 변경 이력을 남기는 도구. 현재는 출처 서열과
+  stale sweep 규칙만 있다.
+- 작업 폴더 git 추적 검사: 사용자 작업 디렉터리의 RFP·제안서가 git에 추적되는지 확인하는
+  부트스트랩. 현재는 저장소 위생 테스트만 있다.

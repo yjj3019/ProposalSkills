@@ -79,6 +79,9 @@ TODO: 마켓플레이스 제출·아이콘·스크린샷 자산은 배포 채널
 
 ## 장표 생산 파이프라인 (PPTX)
 
+장표 제작 전에 요구사항·평가 항목·Win Theme·리드문 구조를 먼저 확정합니다. PowerPoint부터 열고
+내용을 채우지 않습니다(요구 원장 → 평가표 원장 → Win Theme → 리드문 맵 → `slides.json` → PPTX).
+
 ```bash
 # 장표 계획(slides.json) → PPTX. 좌표·색·폰트는 스크립트가 고정, 모델은 내용만 채운다
 python skills/create-proposal-document/scripts/build_deck.py slides.json -o 제안서.pptx --strict
@@ -107,6 +110,11 @@ python skills/create-proposal-document/scripts/build_deck.py slides.json -o 발�
 `deck_check.py`가 인자 없이도 같은 기준으로 검사합니다. **표시가 없거나 이 버전이 모르는
 값이면 제출 단계에서 차단합니다** — 외부에서 만든 덱은 `--profile`로 기준을 명시해야 합니다
 (가장 느슨한 기본값으로 조용히 통과시키지 않습니다). 발주처 양식이 있으면 그 규격이 우선합니다.
+
+**발주처 지정 규격은 `meta.output_spec`에 원문 값으로 적습니다**(`source` 필수, `canvas`·`page_limit`·
+`font_min_pt`·`file_size_limit_mb` 선택). 생성기와 검사기가 같은 해석 함수를 쓰고, 규격 표시가 PPTX에
+남아 검사 인자로 하한을 낮출 수 없습니다. 16:9가 아닌 지정 캔버스(A4·A3·4:3)는 생성하지 않고
+지정 양식·DOCX 경로로 보냅니다. 숫자 기본값은 없습니다 — [deck-production.md §1-2](skills/create-proposal-document/references/deck-production.md).
 
 제작기 안전장치: 슬라이드가 남아 있는 템플릿은 **거부**합니다(이전 고객명·금액이 그대로 남고
 페이지 수가 어긋납니다 — 마스터·레이아웃만 있는 빈 템플릿을 씁니다). `rows_per_slide`는 양의
@@ -285,6 +293,11 @@ GitHub Actions(`.github/workflows/ci.yml`)가 Ubuntu·Windows × Python 3.10~3.1
   읽는 조건 ↔ 장표 규격 대조, 변환 보존.
 - `test_output_profiles.py` — 프로파일별 폰트·밀도 차이, 파일 표시 왕복, 생성기·검사기가
   같은 정의를 읽는지(드리프트 재발 방지).
+- `test_output_spec.py` — 발주처 지정 규격 우선, 프로파일 폴백, 모르는 캔버스·키 거부,
+  인자로 하한을 낮추지 못함, 규격 표시 왕복·변조 차단.
+- `test_ambiguous_commitment.py` — 모호 확약 탐지와 오탐 대조군(조건 주체 명시·기능 설명·
+  발주처 주어·수치 문장), 제출을 막지 않는 경고 계약.
+- `test_skill_schema.py` — 스킬 라우팅 메타, 깨진 상대 경로, 어느 문서에서도 가리키지 않는 reference.
 - `test_numbers_ledger.py` — 합계·비율 재계산, 원장 없는 arithmetic 자기선언 차단,
   문서 대조(한글 표기 변형·숫자 경계).
 - `test_gate_integrity2.py` — 검증 의무 우회(`artifact_required:false`), 열리지 않는 패키지,
@@ -335,6 +348,10 @@ ZIP은 "텍스트 없음" 통과가 아니라 사용 오류로 거절한다.
   ([sectors/](skills/create-winning-proposal/references/sectors/)). 기업·교육·의료는 분류 축과
   게이트 규칙까지만 있고 내용은 비어 있습니다 — 검증할 수 없는 업종 지침을 지어내는 것보다,
   해당 업종 실무자가 채우도록 비워 두는 편이 낫다고 판단했습니다.
+- **모호 확약의 의미 판정** — `quality_gate.py`의 `[모호확약]`은 문장 단위 휴리스틱 경고입니다.
+  제출 판정에 반영하지 않으며, 약속이 적절한지는 사람이 문맥으로 판단합니다.
+- **평가점수·수주확률** — Red 검토는 항목별 충족 근거 위치와 약점만 산출합니다. 점수를 예측하지
+  않습니다.
 - **제안 품질의 비교 평가** — 이 저장소는 수주율이나 설득력을 측정하지 않습니다. 그러려면
   동일 조건에서 생성한 산출물을 독립 평가자가 블라인드로 채점해야 하고, 그건 코드가 아니라
   사람이 하는 일입니다. 미실시로 남겨 둡니다.
@@ -343,7 +360,7 @@ ZIP은 "텍스트 없음" 통과가 아니라 사용 오류로 거절한다.
 
 - [스킬 대조 분석과 상호 개선 반영](references/skill-comparison-and-improvements.md)
 - [스킬 자료 수집 노트](references/proposal-skill-materials-research.md)
-- [관련 공개 Git 저장소](references/proposal-related-git-repositories.md)
+- [관련 공개 Git 저장소](references/proposal-related-git-repositories.md) (2026-09 제안 스킬 저장소 벤치마크 포함)
 - [39개 저장소·Gist 정밀 분석](references/repository-deep-audit.md)
 - [10회 시뮬레이션과 개선 결과](references/simulation-report-10-runs.md)
 - 종류별 시뮬레이션 리포트: 로컬 `simulation/output/SIMULATION_REPORT.md`(저장소 미포함, `.gitignore`)

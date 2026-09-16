@@ -80,7 +80,16 @@ class DeckBuilder:
         self.meta = spec.get("meta", {})
         # 우선순위: CLI --profile > meta.output_profile > 기본(평가용 상세본)
         self.profile = profile or self.meta.get("output_profile") or deck_profiles.DEFAULT_PROFILE
-        self.style = deck_profiles.get(self.profile)
+        # 발주처 지정 규격(meta.output_spec)은 프로파일 기본값보다 우선한다. 검사기도 같은
+        # 함수로 해석하므로 생성·검사 기준이 갈리지 않는다. 모르는 값은 생성 전에 거부한다.
+        self.output_spec = deck_profiles.resolve_output_spec(self.meta.get("output_spec"), self.profile)
+        legacy_limit = self.meta.get("page_limit")
+        spec_limit = self.output_spec.get("page_limit")
+        if legacy_limit is not None and spec_limit is not None and int(legacy_limit) != spec_limit:
+            raise ValueError(f"meta.page_limit {legacy_limit} ≠ output_spec.page_limit {spec_limit} "
+                             "— 공고 원문 값 하나로 맞춘다")
+        self.page_limit = spec_limit if spec_limit is not None else legacy_limit
+        self.style = deck_profiles.effective_style(self.profile, self.output_spec)
         self.size = self.style["sizes"]
         self.pal = {**DEFAULT_PALETTE, **{k: str(v).lstrip("#").upper()
                                           for k, v in (self.meta.get("palette") or {}).items()}}
@@ -534,7 +543,7 @@ class DeckBuilder:
         if actual != self.page:
             self.violations.append(f"내부 카운터 {self.page}장 ≠ 실제 슬라이드 {actual}장 — 생성 로직 확인")
         self.page = actual
-        limit = self.meta.get("page_limit")
+        limit = self.page_limit
         if limit and actual > int(limit):
             self.violations.append(f"총 {actual}장 > 페이지 제한 {limit}장 (표지·간지 포함 여부는 RFP 규정 확인)")
         # 조견표 행이 조용히 사라지지 않았는지 대조한다(입력 행 수 = 출력 행 수).
@@ -551,6 +560,8 @@ class DeckBuilder:
         # 같은 기준으로 검사하므로, 인자를 잊어 발표본을 상세본 기준으로 재는 일이 없다.
         try:
             self.prs.core_properties.category = deck_profiles.stamp(self.profile)
+            if self.output_spec:
+                self.prs.core_properties.keywords = deck_profiles.spec_stamp(self.output_spec)
         except (AttributeError, ValueError):  # 구버전 python-pptx 등
             self.warnings.append("프로파일 표시를 파일에 남기지 못했다 — deck_check에 --profile을 준다")
         self.prs.save(str(out))
@@ -581,7 +592,11 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(f"wrote {a.output} ({b.page} slides, {b.style['label']} 규격)")
+    print(f"wrote {a.output} ({b.page} slides, {b.style['label']} 규격"
+          + (f", 발주처 지정 규격: {b.output_spec['source']}" if b.output_spec else "") + ")")
+    limit_mb = b.output_spec.get("file_size_limit_mb")
+    if limit_mb and a.output.stat().st_size > limit_mb * 1024 * 1024:
+        b.violations.append(f"파일 {a.output.stat().st_size / 1048576:.1f}MB > 지정 한도 {limit_mb:g}MB")
     for w in b.warnings:
         print(f"  경고: {w}")
     for v in b.violations:
