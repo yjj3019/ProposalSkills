@@ -251,6 +251,7 @@ class D07InstallerTests(unittest.TestCase):
             (root / "create-best-proposal" / "x.md").write_text("x", encoding="utf-8")
             target = install_skill.install(root, "create-best-proposal", force=True)
             self.assertTrue((target / "SKILL.md").is_file())
+            self.assertEqual((target / "x.md").read_text(encoding="utf-8"), "x")
 
 
 class D08ExplainTests(unittest.TestCase):

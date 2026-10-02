@@ -1,0 +1,16 @@
+{
+  "name": "proposal-skills-marketplace",
+  "owner": {
+    "name": "ProposalSkills"
+  },
+  "plugins": [
+    {
+      "name": "proposal-skills",
+      "source": "./",
+      "description": "Korean IT/public proposal workflows with a flagship entry and explicit-only content and governance layers."
+    }
+  ],
+  "metadata": {
+    "description": "Shared proposal workflows for Claude Code and Grok Build."
+  }
+}
