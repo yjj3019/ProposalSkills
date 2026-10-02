@@ -350,7 +350,9 @@ class NormalPathTests(unittest.TestCase):
             c.update(status="supported", owner_approved=True, evidence_refs=["시험 보고서"])
             c.setdefault("text", f"{c['id']} 주장 내용")
         for a in meta["attachments"]:
-            a["present"] = True
+            attachment = out / a["name"]
+            attachment.write_bytes(b"synthetic attachment")
+            a.update(present=True, sha256="sha256:" + hashlib.sha256(attachment.read_bytes()).hexdigest())
         for i in meta["inputs"]:
             i["status"] = "closed"
         meta["checks"] = {"consistency": True, "arithmetic": True, "submission": True}
@@ -372,7 +374,7 @@ class NormalPathTests(unittest.TestCase):
         mp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
         conv = run(BEST / "scripts/build_audit_from_meta.py", mp, "-o", ap)
         self.assertEqual(conv.returncode, 0, conv.stdout + conv.stderr)
-        gate = run(BEST / "scripts/unified_gate.py", ap, "--doc", pptx, "--no-explain")
+        gate = run(BEST / "scripts/unified_gate.py", ap, "--doc", pptx, "--bundle", out, "--no-explain")
         self.assertEqual(gate.returncode, 0, gate.stdout + gate.stderr)
         self.assertIn("STATUS: SUBMISSION-READY", gate.stdout)
 

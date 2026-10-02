@@ -36,10 +36,12 @@ PATTERNS: list[tuple[str, str, str]] = [
 
 
 def tracked_files() -> list[Path]:
+    if not (REPO / ".git").exists():
+        return []  # 설치 사본에는 저장소 메타데이터가 없다.
     out = subprocess.run(["git", "ls-files"], cwd=str(REPO), capture_output=True,
                          text=True, encoding="utf-8", errors="replace")
-    if out.returncode != 0:  # git 없는 환경(설치 트리 등)에서는 검사 생략
-        return []
+    if out.returncode != 0:
+        raise RuntimeError(f"git ls-files failed: {out.stderr.strip()}")
     files = []
     for line in out.stdout.splitlines():
         path = REPO / line
@@ -47,6 +49,27 @@ def tracked_files() -> list[Path]:
             continue
         files.append(path)
     return files
+
+
+class GitFailureHandlingTests(unittest.TestCase):
+    def test_repository_git_error_is_not_a_skip(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".git").mkdir()
+            failed = subprocess.CompletedProcess(["git"], 128, "", "synthetic Git failure")
+            with patch(__name__ + ".REPO", root), patch("subprocess.run", return_value=failed):
+                with self.assertRaisesRegex(RuntimeError, "git ls-files failed"):
+                    tracked_files()
+
+    def test_installed_copy_without_git_can_skip(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch(__name__ + ".REPO", Path(tmp)), patch("subprocess.run") as run:
+                self.assertEqual(tracked_files(), [])
+                run.assert_not_called()
 
 
 class RepoHygieneTests(unittest.TestCase):

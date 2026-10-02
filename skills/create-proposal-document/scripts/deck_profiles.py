@@ -11,8 +11,9 @@
 프로파일 선택 기준:
   detailed-submission  인쇄·PDF로 평가위원이 채점하는 제안서 본문(기본값). 분량 제한 안에
                        근거를 담아야 하므로 밀도가 높다. 발주처 양식이 있으면 그것이 우선한다.
-  presentation         회의실 스크린 발표본. 뒷자리에서 읽혀야 하므로 본문 18pt 이상,
+  presentation         회의실 스크린 발표본. 본문 기본 18pt(내부 검사 하한 17pt),
                        장표당 텍스트를 크게 줄인다(ARL 권고 24pt, Microsoft 접근성 18pt 이상).
+                       생성 기본값과 검사 하한은 별개이며 내부 검사에는 1pt 여유를 둔다.
   executive-summary    임원 의사결정용 요약본. 화면·인쇄 겸용, 상세본과 발표본의 중간.
 """
 from __future__ import annotations

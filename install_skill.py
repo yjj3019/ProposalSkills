@@ -276,7 +276,7 @@ def coinstall_problems(target: Path) -> list[str]:
     return problems
 
 
-def verify(target: Path, *, require_coinstall: bool = False) -> list[str]:
+def verify(target: Path, *, require_coinstall: bool = True) -> list[str]:
     """설치본이 실제로 동작 가능한 상태인지 확인한다. 문제 목록을 반환(빈 목록=정상)."""
     problems: list[str] = []
     if not (target / "SKILL.md").is_file():
@@ -310,17 +310,24 @@ def _utf8_console() -> None:
 def install_all(root: Path, names: list[str], force: bool) -> list[str]:
     """한 대상 디렉터리에 여러 스킬을 설치하고 사람이 읽을 결과 줄을 만든다."""
     lines: list[str] = []
+    installed: list[tuple[Path, bool]] = []
     for name in names:
         try:
             target = install(root, name, force=force)
         except SystemExit as exc:
             if str(exc).startswith("Already exists:"):
-                lines.append(f"  Skip (exists): {root.resolve() / name}")
+                installed.append((root.resolve() / name, True))
                 continue
             raise
+        installed.append((target, False))
+    # 형제를 모두 복사한 뒤 검증한다. 기존 설치본도 의존성이 빠졌는지 확인한다.
+    for target, skipped in installed:
         problems = verify(target)
-        lines.append(f"  Installed: {target}" if not problems
+        label = "Skip (exists)" if skipped else "Installed"
+        lines.append(f"  {label}: {target}" if not problems
                      else f"  Installed with problems: {target} — {'; '.join(problems)}")
+    if any("Installed with problems:" in line for line in lines):
+        raise SystemExit("\n".join(lines))
     return lines
 
 
@@ -379,7 +386,8 @@ def main() -> None:
         return
 
     root = destination_root(args.dest)
-    for line in install_all(root, resolve_names(args.name, args.all, args.with_deps), args.force):
+    for line in install_all(root, resolve_names(args.name, args.all,
+                                               args.with_deps or args.name == FLAGSHIP), args.force):
         print(line.strip())
 
 

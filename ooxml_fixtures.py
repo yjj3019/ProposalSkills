@@ -92,6 +92,27 @@ def docx(path: Path, body_xml: str, extra: dict[str, str] | None = None) -> Path
     return _package(path, "word/document.xml", parts)
 
 
+def submission_pptx(path: Path, text: str) -> Path:
+    """실제 로더와 레이아웃 검사를 모두 통과하는 제출 양성 대조군."""
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    prs.core_properties.category = "proposal-deck:detailed-submission"
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    for name, value, top, size in (
+            ("TITLE", "제안 내용", 0.4, 22),
+            ("LEAD", "원장에 기록한 수치를 본문에 반영합니다.", 1.1, 13),
+            ("BODY", text, 2.0, 11)):
+        shape = slide.shapes.add_textbox(Inches(0.5), Inches(top), Inches(12), Inches(0.7))
+        shape.name, shape.text = name, value
+        for p in shape.text_frame.paragraphs:
+            for run in p.runs:
+                run.font.size = Pt(size)
+    prs.save(str(path))
+    return path
+
+
 def xlsx(path: Path, parts: dict[str, str]) -> Path:
     """최소 XLSX. parts는 XML을 그대로 넣는다(workbook·sheet·sharedStrings)."""
     body = {"xl/workbook.xml": "<workbook><sheets/></workbook>"}

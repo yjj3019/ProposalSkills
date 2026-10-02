@@ -101,6 +101,8 @@ class InstallSkillSimulations(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Installed:", result.stdout)
         self.assertTrue((self.root / "create-best-proposal" / "SKILL.md").is_file())
+        for name in install_skill.DEPS[install_skill.FLAGSHIP]:
+            self.assertTrue((self.root / name / "SKILL.md").is_file())
 
     def test_11_with_deps_installs_siblings(self):
         names = install_skill.resolve_names("create-best-proposal", False, True)
@@ -192,6 +194,9 @@ class AutoInstallTests(unittest.TestCase):
 
     def test_verify_reports_a_gutted_install(self):
         target = install_skill.install(self.home, "create-best-proposal")
+        self.assertTrue(any("co-install missing" in p for p in install_skill.verify(target)))
+        for name in install_skill.DEPS[install_skill.FLAGSHIP]:
+            install_skill.install(target.parent, name)
         self.assertEqual(install_skill.verify(target), [])
         (target / "scripts" / "unified_gate.py").unlink()
         self.assertTrue(any("unified_gate.py" in p for p in install_skill.verify(target)))

@@ -136,8 +136,8 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   copies?, channel?, anonymity_checked?, price_screened?, reviewer?}`. 제출은 파일 하나가 아니라
   기명 원본·익명 사본·밀봉 가격서·별책 워크시트가 함께 나가고 파일마다 규칙이 다르다.
   `role`(`proposal` | `proposal-anonymous` | `price` | `form` | `certificate` | `presentation` |
-  `appendix` | `other`)을 적으면 그 역할의 규칙이 붙는다 — 역할이 없으면 예전처럼 존재 여부만
-  본다(후방호환). 제출 모드에서 `present: true`인 항목은:
+  `appendix` | `other`)을 적으면 그 역할의 규칙이 붙는다. 해시는 역할 유무와 관계없이
+  요구한다. 역할별 익명·가격 검사는 해당 역할을 명시한 경우 적용된다. 제출 모드에서 `present: true`인 항목은:
   - `sha256`이 필요하다 — 묶음의 어느 바이트를 검사했는지 남긴다.
   - `proposal-anonymous`이면 `anonymity_checked: true`와 `reviewer`가 필요하다. 본문뿐 아니라
     노트·문서속성·파일명의 식별 표기를 검사하고(`quality_gate.py --names`), 로고·그림 속 표기는
@@ -147,7 +147,9 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   - `proposal`·`proposal-anonymous`·`price` 역할이 둘 이상이면 차단한다(어느 파일이 제출본인지
     하나로 정한다).
   `unified_gate.py --bundle <폴더>`는 각 첨부를 실제 파일과 해시 대조한다(`file`이 있으면 그
-  이름, 없으면 `name`). 검토 뒤 바뀌었거나 없는 첨부를 잡는다.
+  이름, 없으면 `name`). 검토 뒤 바뀌었거나 없는 첨부를 잡는다. 경로는 묶음 폴더 안의
+  상대 경로여야 한다(절대 경로·부모 경로·링크로 폴더 밖을 참조하면 차단). 제출 모드에서
+  실제 문서와 필수 또는 present 첨부가 있으면 `--bundle`이 필수다. audit-only는 실물 제출 판정이 아니다.
 - **요구 강도(requirements[].strength)**: `required` | `recommended` | `optional` | `conditional`
   | `informational`. 없으면 `mandatory`에서 유도한다(미기재 = `required`, fail-closed). 둘 다 있고
   서로 어긋나면 스키마 오류다. `conditional`은 `condition`(어떤 조건에서 필수가 되는가)이 필요하며
@@ -267,3 +269,14 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 제안 품질(quality, `--quality` 지표 파일이 있을 때 `0.4·compliance + 0.3·claim_support
 + 0.2·(1−defect) + 0.1·rehearsal`). **최종 상태는 오직 게이트가 결정한다** — 품질 점수가
 높아도 open BLOCKING이 있으면 NO-GO다. `python score_completeness.py AUDIT.json [QUALITY.json]`.
+
+## 수치의 항목 대조와 실제 레이아웃 검사
+
+`numbers[].match_label`은 선택적 불리언(기본 false)이다. true이면 `label`이 본문에
+나오는 각 위치에서 항목명 직후 첫 숫자를 대조한다. 항목명 뒤에는 공백·콜론·등호·표 구분자만
+허용한다. 값 뒤바뀜과 반복된 요약/상세 항목의 불일치를 차단한다. 문서와 같은 정확한 항목명을
+사용한다. false이면 기존처럼 본문 전체의 값 존재만 확인한다. 금액 변형은 배율 전체를
+매치해야 한다(37원과 37억원은 다르다). meta→audit는 이 필드를 그대로 보존한다.
+
+제출 PPTX는 `unified_gate.py --doc`에서 `deck_check.py`를 직접 실행한다. 렌더 성공과
+육안 승인 기록은 여전히 필요하며, 자동 레이아웃 통과가 이를 대신하지 않는다.

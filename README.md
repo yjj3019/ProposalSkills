@@ -176,7 +176,7 @@ python skills/create-best-proposal/scripts/build_audit_from_meta.py meta.json -o
 python skills/create-best-proposal/scripts/bulk_matrix.py requirements.json -o matrix.md
 
 # 통합 게이트 (audit + 실제 문서 해시 대조)
-python skills/create-best-proposal/scripts/unified_gate.py audit.json --doc 제안서.pptx --stage submission
+python skills/create-best-proposal/scripts/unified_gate.py audit.json --doc 제안서.pptx --bundle 제출본/ --stage submission
 python skills/create-best-proposal/scripts/unified_gate.py audit.json --audit-only   # 문서 없이 audit만 → AUDIT-VALID
 
 # 원장 수치 ↔ 문서 대조 (37억 / 3,700,000,000 표기 변형 인식)
@@ -190,6 +190,21 @@ python skills/create-best-proposal/scripts/unified_gate.py audit.json --doc 제�
 python skills/create-best-proposal/scripts/score_completeness.py audit.json   # 루트 score_completeness.py도 동일
 ```
 
+
+### 제출 검증의 실행 범위
+
+- 제출 모드의 PPTX는 통합 게이트가 `deck_check.py`를 직접 실행한다. audit의
+  `layout_checked: true`만으로 실제 글자 크기·화면 밖 도형·페이지 검사를 대체하지 않는다.
+- 제출 첨부의 `sha256`은 `role` 유무와 관계없이 필수다. 필수 또는 `present: true` 첨부가
+  있는 실제 제출 판정은 `--bundle <제출폴더>`를 요구한다. 묶음 경로 밖의 파일은 인정하지 않는다.
+- 수치 대조는 원·천원·만원·백만원·억원의 배율을 구분한다. 중요한 SLA·금액 항목은
+  `numbers[].match_label: true`로 항목명 직후의 첫 수치를 대조한다. 같은 항목이 여러 번
+  나오면 모두 같은 값이어야 한다. 기본값은 단순 존재 검사이며 문서 전체의 의미 검증을 대신하지 않는다.
+- 프로파일 표의 폰트는 생성 기본값이다. 내부 검사 하한은 본문 10/17/13pt,
+  표 9/13/11pt(상세본/발표본/요약본)다. 발주처가 지정한 하한은 이 여유와 관계없이 강제한다.
+- 통합 스킬을 CLI로 설치하면 필요한 형제도 함께 설치한다. 설치 검증은 형제 누락을 보고하고,
+  저장소에서 발생한 Git 오류는 위생 검사를 생략하는 사유로 취급하지 않는다.
+
 ## 제출 판정은 실제 파일에 묶인다
 
 audit JSON은 **사람이 한 검토의 기록**입니다. 그 기록이 어느 파일에 적용되는지 확인하지 않으면,
@@ -201,7 +216,7 @@ audit JSON은 **사람이 한 검토의 기록**입니다. 그 기록이 어느 
 python .../build_deck.py slides.json -o 제안서.pptx --strict
 python .../deck_check.py 제안서.pptx --render --emit-render render.json   # artifact_hash 포함
 # 3) render.json을 meta에 반영 → audit 생성 → 4) 그 파일과 함께 판정
-python .../unified_gate.py audit.json --doc 제안서.pptx --stage submission
+python .../unified_gate.py audit.json --doc 제안서.pptx --bundle 제출본/ --stage submission
 ```
 
 | 상태 | 의미 |

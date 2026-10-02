@@ -17,7 +17,8 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
 (`scripts/score_completeness.py`).
 
 형제 스킬이 같은 `skills/` 트리에 있으면 상세 reference를 그대로 읽는다.
-단독 설치 시에도 본 스킬의 `references/`와 `scripts/`만으로 최소 완전 경로를 수행한다.
+단독 설치에서는 작성 지침과 meta→audit 변환만 사용할 수 있다. 통합 게이트와 장표
+생성·검사는 두 형제 스킬을 함께 설치해야 실행할 수 있다.
 
 ## 0. 경로 선택 (가장 먼저)
 
