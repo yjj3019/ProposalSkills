@@ -110,6 +110,16 @@ class InstallSkillSimulations(unittest.TestCase):
         self.assertIn("create-proposal-document", names)
         self.assertIn("create-winning-proposal", names)
 
+    def test_force_updates_packaged_files_without_deleting_user_files(self):
+        target = install_skill.install(self.root)
+        marker = target / "SKILL.md"
+        marker.write_text("stale", encoding="utf-8")
+        keep = target / "custom-notes.md"
+        keep.write_text("synthetic local note", encoding="utf-8")
+        install_skill.install(self.root, force=True)
+        self.assertEqual(marker.read_bytes(), (install_skill.SKILLS_ROOT / target.name / "SKILL.md").read_bytes())
+        self.assertEqual(keep.read_text(encoding="utf-8"), "synthetic local note")
+
     def test_12_default_name_is_flagship(self):
         self.assertEqual(install_skill.DEFAULT_NAME, "create-best-proposal")
 

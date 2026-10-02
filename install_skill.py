@@ -118,6 +118,8 @@ def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
     if root.exists() and not root.is_dir():
         raise SystemExit(f"--dest is not a directory: {root}")
     target = root / name
+    if target.is_symlink() or (target.exists() and not target.is_dir()):
+        raise SystemExit(f"Skill target is not a regular directory: {target}")
     if target.exists():
         if (target / "SKILL.md").is_file() and not force:
             raise SystemExit(f"Already exists: {target}")
@@ -126,12 +128,15 @@ def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
             # 디렉터리인지 사용자가 만든 폴더인지 설치기는 구분할 수 없다.
             raise SystemExit(
                 f"Not empty and not a skill install: {target} — "
-                "내용을 확인한 뒤 옮기거나 --force로 교체한다(교체는 이 폴더를 지운다)")
-        shutil.rmtree(target)
+                "내용을 확인한 뒤 옮기거나 --force로 스킬 파일을 갱신한다")
+    # 갱신할 경로에 링크가 있으면 외부 파일을 덮어쓰지 않고 중단한다.
+    for path in source.rglob("*"):
+        if (target / path.relative_to(source)).is_symlink():
+            raise SystemExit(f"Skill update path is a symlink: {path.relative_to(source)}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, target, ignore=COPY_IGNORE)
+    # 소스에 있는 파일만 갱신한다. 별도 사용자 파일은 삭제하지 않는다.
+    shutil.copytree(source, target, ignore=COPY_IGNORE, dirs_exist_ok=True)
     if not (target / "SKILL.md").is_file():
-        shutil.rmtree(target, ignore_errors=True)
         raise SystemExit("Installation verification failed.")
     return target
 
@@ -348,7 +353,7 @@ def main() -> None:
     parser.add_argument("--all", action="store_true", help="Install every skill")
     parser.add_argument(
         "--force", action="store_true",
-        help="Replace an existing installation (default: skip if SKILL.md exists)")
+        help="Update packaged files in an existing installation; preserve extra files (default: skip)")
     parser.add_argument(
         "--with-deps", action="store_true",
         help="Also install sibling skills required by the named skill "

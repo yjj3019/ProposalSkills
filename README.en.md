@@ -80,28 +80,61 @@ python install_skill.py --auto --force
 ```
 
 When uploading skills to a web environment, upload all three. Flagship documents reference files
-in the sibling skills.
+in the sibling skills. `--force` updates packaged files and preserves extra local files.
 
-### ChatGPT / Codex plugin (Web / Work / Mobile)
+### Host invocation and plugin distribution
 
-**Uploading `skills/` to a project is reference material only; it does not register a skill.**
-In ChatGPT and Codex Web, Work, and Mobile, register the package as a plugin.
+The three skill folders and validation scripts are shared across hosts.
 
-1. [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) in the repository root points to
-   `skills/` (flagship plus explicit-only siblings).
-2. Register the package through a local or repository marketplace, or the plugin install flow.
-   (Official docs: [Build plugins](https://developers.openai.com/codex/plugins/build),
-   [Agent Skills](https://developers.openai.com/codex/skills))
-3. After registration, "write a proposal" routes to `create-best-proposal`; siblings accept only
-   explicit `$skill-name` calls.
-4. Run gate scripts (`unified_gate.py` and others) from a local CLI.
+| Host | Local invocation after `python install_skill.py --auto` |
+|---|---|
+| Codex | `$create-best-proposal` |
+| Claude Code | `/create-best-proposal` |
+| Grok Build | `/create-best-proposal` |
+| Claude/Grok plugin | `/proposal-skills:create-best-proposal` |
+| ChatGPT/Codex plugin | Install through a supported plugin surface, then select the skill |
 
-TODO: marketplace submission, icon, and screenshot assets will be added under `.codex-plugin/` and
-`assets/` once the distribution channel is decided. The package currently ships a minimal manifest
-and the `skills/` layout.
+A natural-language request to use `create-best-proposal` also works. Sibling layers remain
+explicit-only or are loaded through the flagship workflow.
 
-Keeping `skills/create-best-proposal/` as project knowledge files is possible for reference use,
-but it does not replace plugin or skill registration.
+Distribution includes a [portable manifest](plugin.json),
+[Codex compatibility manifest](.codex-plugin/plugin.json), and
+[Claude/Grok manifest](.claude-plugin/plugin.json). Both the
+[Codex catalog](.agents/plugins/marketplace.json) and
+[Claude/Grok catalog](.claude-plugin/marketplace.json) point at the complete three-layer package.
+
+Claude Code marketplace installation:
+
+```text
+/plugin marketplace add yjj3019/ProposalSkills
+/plugin install proposal-skills@proposal-skills-marketplace
+```
+
+For a cloned folder, use `claude --plugin-dir .` or `grok --plugin-dir .`.
+For Codex, run `codex plugin marketplace add yjj3019/ProposalSkills`, then choose the
+ProposalSkills source in the supported desktop plugin directory and install it.
+Direct skill installation and plugin installation are alternatives; avoid duplicate installs.
+
+Build an uploadable package:
+
+```bash
+python package_plugin.py -o dist/proposal-skills-1.1.0.zip
+```
+
+The ZIP contains the manifests, three skills and Python dependency list. It excludes Git
+metadata, caches and local outputs, and refuses to overwrite an existing archive.
+Public plugin-directory publication requires the host's separate registration and review.
+Local installation does not install anything into another computer or web account.
+
+Uploading project files supplies reference material; it does not register a skill or plugin.
+Without file and execution tools, use supplied text for drafting or review and disclose
+unperformed checks. Never claim submission readiness without the required execution and evidence.
+With those tools, run the shared scripts using Python 3.10 or later. PPTX work requires
+`python-pptx`; rendering additionally needs LibreOffice and Poppler.
+
+Official formats: [OpenAI Plugins](https://developers.openai.com/plugins/build/plugins),
+[Claude Code Plugins](https://code.claude.com/docs/en/plugins-reference),
+[Grok Skills/Plugins](https://docs.x.ai/build/features/skills-plugins-marketplaces).
 
 Selection and adoption records: [critical-selection-2026-08.md](references/critical-selection-2026-08.md) ·
 three rounds of gate reliability audits and fixes (2026-09):

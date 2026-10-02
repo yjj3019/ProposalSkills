@@ -45,7 +45,7 @@ deprecated compat로 읽지만, 권장 설치 위치는 `~/.agents/skills`입니
 세 스킬을 **모두** 설치하는 것이 기본값입니다. 플래그십(`create-best-proposal`)만 설치하면
 통합 게이트가 형제 게이트를 찾지 못해 제출 판정 경로가 끊깁니다.
 
-이미 설치돼 있으면 건너뜁니다(`Skip (exists)`). 최신본으로 교체하려면 `--force`를 붙입니다.
+이미 설치돼 있으면 건너뜁니다(`Skip (exists)`). 최신 스킬 파일을 갱신하려면 `--force`를 붙입니다. 별도로 추가한 사용자 파일은 보존합니다.
 
 ## 설치 후 확인
 
@@ -67,16 +67,20 @@ python <설치경로>/create-best-proposal/scripts/unified_gate.py \
 사용자가 제안서 작업을 요청하면 **`create-best-proposal`만** 진입점으로 사용하십시오.
 나머지 둘은 내부 레이어이며, 사용자가 명시하거나 플래그십 워크플로가 가리킬 때만 엽니다.
 
-## ChatGPT / Codex 웹·Work·Mobile
+## 플러그인 및 실행 도구가 없는 환경
 
-`install_skill.py`는 로컬 CLI용입니다. **프로젝트에 폴더를 업로드하는 것은 참고 자료일 뿐
-Skill 등록이 아닙니다.**
+`plugin.json`은 공통 Agent Plugins 형식이고 `.codex-plugin/plugin.json`과
+`.claude-plugin/plugin.json`은 호환 매니페스트다. 세 스킬을 함께 배포하며
+`python package_plugin.py -o <ZIP경로>`로 묶는다. 두 마켓플레이스 카탈로그는 저장소 루트를 가리킨다.
 
-- **로컬 CLI (Claude Code · Codex · Grok)**: 위 `--auto` 설치.
-- **ChatGPT / Codex (Web · Work · Mobile)**: Plugin으로 등록합니다.
-  저장소 루트의 [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json) + `skills/` 레이아웃을
-  사용하십시오. 자세한 안내는 README «ChatGPT·Codex Plugin» 절을 따릅니다.
-- 게이트 스크립트 실행이 필요한 단계는 로컬 CLI에서 수행해야 합니다.
+로컬 직접 설치는 Codex의 `$create-best-proposal`, Claude Code/Grok Build의
+`/create-best-proposal`로 호출한다. Claude/Grok 플러그인 호출은
+`/proposal-skills:create-best-proposal`이다. 웹 계정에는 해당 서비스에서 별도로 등록해야 한다.
+프로젝트에 폴더를 올리는 것만으로 스킬이 등록되지는 않는다.
+
+파일·실행 도구가 없으면 제공된 텍스트로 작성·검토를 수행하고 파일 생성과 검사는
+미수행으로 남긴다. 실행 환경이 있으면 공통 스크립트를 사용한다. 실행하지 않은 검사를
+통과로 처리하거나 `SUBMISSION-READY`를 선언하지 않는다. 자세한 설치·호출은 README를 따른다.
 
 ## 공개 저장소 — 커밋하면 안 되는 것
 

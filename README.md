@@ -6,7 +6,7 @@ ProposalSkills는 한국 IT RFP의 요구사항과 평가기준을 평가자 중
 실제 PPTX와 제출 묶음을 검증 가능한 상태로 통제하는 한국형 Proposal Production & Governance
 Engine입니다.
 
-모델에 종속되지 않는 제안서 문서 제작 스킬과 조사 자료를 관리합니다. 핵심 `SKILL.md`, 참조자료, 검증 스크립트는 ChatGPT, Claude, Gemini, Grok 등에서 동일하게 사용할 수 있습니다.
+모델에 종속되지 않는 제안서 문서 제작 스킬과 조사 자료를 관리합니다. 핵심 `SKILL.md`, 참조자료, 검증 스크립트는 공통으로 사용하며 ChatGPT/Codex, Claude, Grok의 설치·호출 방식과 실행 도구 지원을 구분합니다.
 
 ```
 RFP·수정공고 → 요구사항·평가표 원장 → Win Theme·리드문 맵 → slides.json → PPTX
@@ -54,7 +54,7 @@ python install_skill.py --auto
 | 없음 | `~/.agents/skills/` |
 
 설치 전에 대상만 보려면 `--list-targets`, 특정 경로에 넣으려면 `--dest <경로> --all`,
-최신본으로 교체하려면 `--force`를 씁니다(기본은 기존 설치를 건드리지 않고 `Skip`).
+최신 스킬 파일을 갱신하려면 `--force`를 씁니다(기본은 기존 설치를 건드리지 않고 `Skip`).
 환경변수 `AI_SKILLS_DIR`이 있으면 그 경로도 대상에 포함됩니다. `CODEX_HOME`이 설정돼 있으면
 `$CODEX_HOME/skills`에도 설치하되 **레거시 호환 경고**를 출력합니다 — Codex는 그 경로를
 deprecated compat로 계속 읽지만, 권장 위치는 `~/.agents/skills`이며 `--dest` 기본값으로
@@ -65,7 +65,8 @@ deprecated compat로 계속 읽지만, 권장 위치는 `~/.agents/skills`이며
 못해 제출 판정 경로가 끊깁니다. 개별 설치는 `--name create-proposal-document`처럼 지정합니다.
 
 **업데이트:** 설치기는 기존 설치본을 덮어쓰지 않습니다. 저장소를 갱신한 뒤에는 반드시
-`--force`로 다시 설치해야 새 reference와 스크립트가 반영됩니다.
+`--force`로 다시 설치해야 새 reference와 스크립트가 반영됩니다. 소스의 파일은
+갱신하고 설치 폴더에 별도로 추가한 파일은 보존합니다.
 
 ```bash
 git pull
@@ -75,25 +76,70 @@ python install_skill.py --auto --force
 웹 환경에 스킬을 올릴 때도 세 스킬을 함께 올립니다. 플래그십 문서가 형제 스킬의 reference를
 참조합니다.
 
-### ChatGPT·Codex Plugin (Web / Work / Mobile)
+### 도구별 호출과 플러그인 배포
 
-**프로젝트에 `skills/`를 업로드하는 것은 참고 자료일 뿐 Skill 등록이 아닙니다.**
-ChatGPT·Codex의 Web·Work·Mobile에서는 Plugin으로 등록합니다.
+세 스킬의 내용과 검사 스크립트는 공통이다. 설치·호출 방식은 호스트에 맞춘다.
 
-1. 저장소 루트에 [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json)이 있고 `skills/`를
-   가리킵니다 (플래그십 + 명시 전용 형제 레이어 포함).
-2. ChatGPT / Codex에서 로컬·리포 마켓플레이스 또는 Plugin 설치 흐름으로 이 패키지를 등록합니다.
-   (공식 안내: [Build plugins](https://developers.openai.com/codex/plugins/build),
-   [Agent Skills](https://developers.openai.com/codex/skills))
-3. 등록 후 「제안서 작성」은 `create-best-proposal`로 라우팅되고, 형제는 `$스킬명` 명시 호출만
-   허용됩니다.
-4. 게이트 스크립트(`unified_gate.py` 등) 실행이 필요하면 로컬 CLI에서 수행합니다.
+| 환경 | 설치·호출 |
+|---|---|
+| Codex 로컬 | `python install_skill.py --auto` → `$create-best-proposal` |
+| Claude Code 로컬 | 같은 설치 명령 → `/create-best-proposal` |
+| Grok Build 로컬 | 같은 설치 명령 → `/create-best-proposal` |
+| Claude/Grok 플러그인 | 플러그인 등록 후 `/proposal-skills:create-best-proposal` |
+| ChatGPT/Codex 플러그인 | 지원되는 플러그인 설치 화면에서 등록·설치 후 해당 스킬 선택 |
 
-TODO: 마켓플레이스 제출·아이콘·스크린샷 자산은 배포 채널이 확정되면 `.codex-plugin/`과
-`assets/`에 보강합니다. 현재는 최소 매니페스트 + `skills/` 레이아웃만 제공합니다.
+자연어로 「create-best-proposal 스킬로 제안서 작성」이라고 요청해도 된다.
+형제 레이어는 명시 호출이나 통합 워크플로에서만 사용한다.
 
-로컬에서 참고용으로만 프로젝트를 쓸 때는 `skills/create-best-proposal/`을 지식 파일로 둘 수
-있지만, 그것은 Plugin/Skill 등록을 대체하지 않습니다.
+이 저장소는 [공통 Agent Plugins 매니페스트](plugin.json),
+[Codex 호환 매니페스트](.codex-plugin/plugin.json),
+[Claude/Grok 호환 매니페스트](.claude-plugin/plugin.json)를 제공한다.
+[Codex 카탈로그](.agents/plugins/marketplace.json)와
+[Claude/Grok 카탈로그](.claude-plugin/marketplace.json)는 모두 같은 세 스킬을 가리킨다.
+
+Claude Code에서 마켓플레이스로 설치하려면:
+
+```text
+/plugin marketplace add yjj3019/ProposalSkills
+/plugin install proposal-skills@proposal-skills-marketplace
+```
+
+복제한 폴더에서 플러그인을 바로 확인할 수도 있다:
+
+```bash
+claude --plugin-dir .
+grok --plugin-dir .
+```
+
+Codex에 저장소 마켓플레이스를 추가하려면:
+
+```bash
+codex plugin marketplace add yjj3019/ProposalSkills
+```
+
+추가 후 지원되는 데스크톱 플러그인 화면에서 ProposalSkills 소스를 선택해 설치한다.
+직접 로컬 스킬 설치와 플러그인 설치는 대안이므로 중복 설치할 필요는 없다.
+
+업로드·전달용 ZIP은 다음과 같이 생성한다:
+
+```bash
+python package_plugin.py -o dist/proposal-skills-1.1.0.zip
+```
+
+ZIP에는 공통·호환 매니페스트, 세 스킬, Python 의존성 목록만 포함한다.
+`.git`, 캐시, 작업 산출물은 제외한다. 같은 이름의 기존 ZIP은 덮어쓰지 않는다.
+공개 플러그인 디렉터리에 게시하려면 해당 서비스의 등록·심사 절차가 별도로 필요하다.
+로컬 설치가 다른 컴퓨터나 웹 계정까지 자동으로 설치하는 것은 아니다.
+
+**프로젝트에 파일을 올리는 것과 스킬·플러그인 등록은 다르다.** 파일 업로드만 가능한
+채팅에서도 지침을 참고해 텍스트 작성·검토는 할 수 있다. Python과 파일 도구가 있으면
+실제 산출물 생성·검사를 실행하고, 도구가 없으면 미수행 검사를 명시한다.
+검사 없이 제출 준비 상태를 선언하지 않는다. `python-pptx`는 PPTX 생성·검사,
+LibreOffice와 Poppler는 렌더 검사에 필요하다.
+
+공식 형식과 지원 범위: [OpenAI Plugins](https://developers.openai.com/plugins/build/plugins),
+[Claude Code Plugins](https://code.claude.com/docs/en/plugins-reference),
+[Grok Skills/Plugins](https://docs.x.ai/build/features/skills-plugins-marketplaces).
 
 비판적 선정·반영 기록: [critical-selection-2026-08.md](references/critical-selection-2026-08.md) ·
 게이트 신뢰성 감사·수정 3회(2026-09): [gate-hardening-2026-09.md](references/gate-hardening-2026-09.md)

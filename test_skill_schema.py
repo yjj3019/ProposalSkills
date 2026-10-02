@@ -160,5 +160,71 @@ class ReferenceWiringTests(unittest.TestCase):
                 self.assertIn(ref.name, entry)
 
 
+class MultiHostDistributionTests(unittest.TestCase):
+    def test_host_manifests_share_identity(self):
+        import json
+        manifests = [json.loads((REPO / path).read_text(encoding="utf-8")) for path in
+                     ("plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json")]
+        for key in ("name", "version", "description", "author"):
+            self.assertTrue(all(m[key] == manifests[0][key] for m in manifests))
+        self.assertEqual(manifests[0]["$schema"],
+                         "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json")
+        self.assertEqual(manifests[1]["skills"], "./skills/")
+
+    def test_marketplaces_point_at_the_complete_plugin(self):
+        import json
+        claude = json.loads((REPO / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
+        codex = json.loads((REPO / ".agents/plugins/marketplace.json").read_text(encoding="utf-8"))
+        self.assertEqual(claude["name"], codex["name"])
+        self.assertTrue(claude["owner"]["name"])
+        self.assertTrue(claude["metadata"]["description"])
+        for entry, source in ((claude["plugins"][0], claude["plugins"][0]["source"]),
+                              (codex["plugins"][0], codex["plugins"][0]["source"]["path"])):
+            self.assertEqual(entry["name"], "proposal-skills")
+            self.assertTrue(source.startswith("./"))
+            self.assertEqual((REPO / source).resolve(), REPO.resolve())
+        self.assertEqual(codex["plugins"][0]["policy"]["installation"], "AVAILABLE")
+
+    def test_archive_has_all_layers_and_excludes_cache_and_repo_metadata(self):
+        import tempfile
+        import zipfile
+        import package_plugin
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = package_plugin.build_archive(Path(tmp) / "plugin.zip")
+            with zipfile.ZipFile(archive) as z:
+                names = set(z.namelist())
+                self.assertIsNone(z.testzip())
+                self.assertTrue(set(package_plugin.PACKAGE_FILES).issubset(names))
+                for name in install_skill.available_skills():
+                    entry = f"skills/{name}/SKILL.md"
+                    self.assertIn(entry, names)
+                    self.assertEqual(z.read(entry), (REPO / entry).read_bytes())
+                self.assertIn("skills/create-best-proposal/scripts/unified_gate.py", names)
+                self.assertIn("skills/create-proposal-document/scripts/deck_check.py", names)
+                self.assertIn("skills/create-winning-proposal/scripts/proposal_gate.py", names)
+                self.assertFalse(any(package_plugin.CACHE_PARTS.intersection(Path(n).parts)
+                                     or n.endswith((".pyc", ".pyo")) for n in names))
+                self.assertTrue(all(n.startswith("skills/") or n in package_plugin.PACKAGE_FILES for n in names))
+
+    def test_archive_does_not_overwrite_an_existing_file(self):
+        import tempfile
+        import package_plugin
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "keep.zip"
+            dest.write_bytes(b"synthetic existing file")
+            with self.assertRaises(FileExistsError):
+                package_plugin.build_archive(dest)
+            self.assertEqual(dest.read_bytes(), b"synthetic existing file")
+
+    def test_incomplete_package_does_not_create_an_archive(self):
+        import tempfile
+        import package_plugin
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "missing.zip"
+            with self.assertRaises(FileNotFoundError):
+                package_plugin.build_archive(dest, root=Path(tmp))
+            self.assertFalse(dest.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

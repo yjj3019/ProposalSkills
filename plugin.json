@@ -1,10 +1,10 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "proposal-skills",
   "version": "1.1.0",
   "description": "Korean IT/public proposal workflows with a flagship entry and explicit-only content and governance layers.",
   "author": {
     "name": "ProposalSkills"
   },
-  "repository": "https://github.com/yjj3019/ProposalSkills",
-  "skills": "./skills/"
+  "repository": "https://github.com/yjj3019/ProposalSkills"
 }
