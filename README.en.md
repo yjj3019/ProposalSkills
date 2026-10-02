@@ -430,3 +430,19 @@ Most research notes below are written in Korean.
 - [Deep audit of 39 repositories and Gists](references/repository-deep-audit.md)
 - [Ten simulation runs and improvement results](references/simulation-report-10-runs.md)
 - Per-type simulation reports: local `simulation/output/SIMULATION_REPORT.md` (not in the repository, `.gitignore`)
+
+## Submission validation scope
+
+- Submission PPTX files are checked directly by `deck_check.py` inside the unified gate;
+  a recorded layout approval cannot replace inspection of the actual file.
+- Every present submission attachment requires a SHA-256 digest, including entries without
+  a role. An actual submission verdict with required or present attachments also requires
+  `--bundle <directory>`. Absolute paths and paths resolving outside that directory are rejected.
+- Number matching respects Korean monetary scales. Set `numbers[].match_label: true` for
+  important amounts or SLA rows: the first number directly following every exact label must
+  agree with the ledger. Whitespace, colons, equals signs and table separators are allowed
+  between label and value. The default checks presence only, rather than semantic consistency.
+- Profile font sizes are generation defaults. Internal body floors are 10/17/13pt and table
+  floors 9/13/11pt for detailed/presentation/executive output. Explicit buyer font minima remain binding.
+- CLI installation of the flagship includes its sibling dependencies. Missing dependencies
+  fail installation verification; Git errors inside a repository fail hygiene checks.

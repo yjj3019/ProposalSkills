@@ -49,8 +49,7 @@ def make_pptx(path: Path, text: str = "정상 문서 " + LEDGER_TEXT) -> Path:
     통합 게이트가 원장 수치를 문서와 대조하므로, 양성 대조군은 audit의 원장과 같은
     금액을 담아야 한다 — 원장과 어긋난 문서를 '정상'이라고 부르면 대조 자체가 무의미하다.
     """
-    return fixtures.pptx(path, raw={"ppt/slides/slide1.xml":
-                                    f"<a:p><a:r><a:t>{text}</a:t></a:r></a:p>"})
+    return fixtures.submission_pptx(path, text)
 
 
 def digest_of(path: Path) -> str:
@@ -59,6 +58,117 @@ def digest_of(path: Path) -> str:
 
 def ready_audit() -> dict:
     return json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
+
+
+class SubmissionValidationRegressionTests(unittest.TestCase):
+    """정밀 분석에서 재현한 단위·실물·검사 범위 오류를 정상 대조군과 함께 확인한다."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+        sys.path.insert(0, str(DOC / "scripts"))
+        import check_numbers
+        import unified_gate
+        self.numbers, self.gate = check_numbers, unified_gate
+
+    def test_currency_scale_is_part_of_the_value(self):
+        for value, text, matches in ((37, "총액 37억원", False),
+                                     (37, "총액 37 천원", False),
+                                     (3700000000, "총액 37 억원", True),
+                                     (3700000, "총액 3.7백만원", True),
+                                     (375000000, "총액 3.75억원", True),
+                                     (37000, "총액 37천원", True),
+                                     (3700000000, "총액 37억달러", False),
+                                     (0.123, "총액 0.12원", False)):
+            with self.subTest(value=value, text=text):
+                _, checks = self.numbers.compare([{"id": "N", "value": value,
+                                                   "unit": "KRW", "label": "총액"}], text)
+                self.assertEqual(checks[0]["matched"], matches, checks)
+
+    def test_label_matching_detects_swapped_and_inconsistent_values(self):
+        entries = [{"id": "F", "label": "최초 응답", "value": 8,
+                    "unit": "시간", "match_label": True},
+                   {"id": "C", "label": "지속 응답", "value": 12,
+                    "unit": "시간", "match_label": True}]
+        _, checks = self.numbers.compare(entries, "최초 응답 12시간, 지속 응답 8시간")
+        self.assertTrue(all(not c["matched"] for c in checks))
+        _, checks = self.numbers.compare(entries, "최초 응답 8시간, 지속 응답 12시간")
+        self.assertTrue(all(c["matched"] for c in checks))
+        _, checks = self.numbers.compare(entries[:1], "최초 응답 8시간\n최초 응답 12시간")
+        self.assertFalse(checks[0]["matched"])
+        _, checks = self.numbers.compare(entries[:1], "최초 응답 8시간\n최초 응답: 지속 응답 8시간")
+        self.assertFalse(checks[0]["matched"])
+
+    def test_label_matching_input_is_validated(self):
+        entry = {"id": "N", "value": 8, "unit": "시간", "label": "응답", "match_label": "yes"}
+        self.assertTrue(pg.check_numbers([entry]))
+        items, _ = self.numbers.compare([entry], "응답 8시간")
+        self.assertTrue(any(i.startswith("[차단]") for i in items))
+
+    def _submission(self):
+        doc = make_pptx(self.dir / "final.pptx")
+        data = ready_audit()
+        data["attachments"] = []
+        return doc, data
+
+    def _run(self, doc, data, *extra):
+        data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest_of(doc)
+        audit = self.dir / "audit.json"
+        audit.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        return run(UG, audit, "--doc", doc, "--no-explain", *extra)
+
+    def test_recorded_layout_approval_does_not_hide_tiny_text(self):
+        from pptx import Presentation
+        from pptx.util import Pt
+        doc, data = self._submission()
+        prs = Presentation(str(doc))
+        body = next(s for s in prs.slides[0].shapes if s.name == "BODY")
+        body.text_frame.paragraphs[0].runs[0].font.size = Pt(1)
+        prs.save(str(doc))
+        result = self._run(doc, data)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("최소 폰트", result.stdout)
+        self.assertNotIn("STATUS: SUBMISSION-READY", result.stdout)
+
+    def test_submission_requires_a_bundle_when_attachments_are_declared(self):
+        doc, data = self._submission()
+        attachment = self.dir / "attachment.txt"
+        attachment.write_text("synthetic evidence", encoding="utf-8")
+        data["attachments"] = [{"name": attachment.name, "required": True,
+                                "present": True, "sha256": digest_of(attachment)}]
+        missing = self._run(doc, data)
+        self.assertEqual(missing.returncode, 1, missing.stdout)
+        self.assertIn("--bundle", missing.stdout)
+        valid = self._run(doc, data, "--bundle", self.dir)
+        self.assertEqual(valid.returncode, 0, valid.stdout)
+        attachment.unlink()
+        absent = self._run(doc, data, "--bundle", self.dir)
+        self.assertEqual(absent.returncode, 1, absent.stdout)
+        self.assertIn("첨부 파일 없음", absent.stdout)
+
+    def test_role_free_missing_digest_never_skips_file_checks(self):
+        root = self.dir / "bundle"
+        root.mkdir()
+        data = {"mode": "submission", "attachments": [{"name": "missing.txt", "present": True}]}
+        self.assertTrue(any("without a sha256" in f for f in pg.check_attachments(data)))
+        self.assertTrue(any("첨부 파일 없음" in f for f in self.gate.verify_bundle(data, root)))
+        (root / "missing.txt").write_text("synthetic evidence", encoding="utf-8")
+        self.assertTrue(any("sha256" in f for f in self.gate.verify_bundle(data, root)))
+
+    def test_bundle_paths_cannot_escape_the_root(self):
+        root = self.dir / "bundle"
+        root.mkdir()
+        outside = self.dir / "outside.txt"
+        outside.write_text("synthetic evidence", encoding="utf-8")
+        for filename in ("../outside.txt", str(outside)):
+            with self.subTest(filename=filename):
+                data = {"attachments": [{"name": "outside.txt", "file": filename,
+                                          "present": True, "sha256": digest_of(outside)}]}
+                self.assertTrue(any("폴더 밖" in f for f in self.gate.verify_bundle(data, root)))
+
+        data = {"attachments": [{"name": "invalid\x00.txt", "present": True}]}
+        self.assertTrue(any("경로를 해석" in f for f in self.gate.verify_bundle(data, root)))
 
 
 class ArtifactBindingTests(unittest.TestCase):
@@ -88,6 +198,7 @@ class ArtifactBindingTests(unittest.TestCase):
     def test_matching_document_is_submission_ready(self):
         doc = make_pptx(self.dir / "final.pptx")
         data = ready_audit()
+        data["attachments"] = []  # 대표 파일만 제출하는 양성 대조군.
         data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest_of(doc)
         proc = self._gate(data, "--doc", str(doc))
         self.assertEqual(proc.returncode, 0, proc.stdout)

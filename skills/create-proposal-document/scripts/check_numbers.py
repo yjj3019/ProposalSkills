@@ -20,8 +20,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -30,13 +32,18 @@ from quality_gate import extract_labeled_blocks, normalize_text  # noqa: E402
 
 WARN = "[경고]"
 BLOCK = "[차단]"
-# 만·억·조 단위. 조 단위 이상은 실무에서 드물지만 표기 변형 생성에는 포함한다.
-KOREAN_UNITS = [("조", 10 ** 12), ("억", 10 ** 8), ("만", 10 ** 4)]
+# 한국어 금액 배율. 같은 숫자라도 배율이 다르면 다른 값이다.
+KOREAN_UNITS = [("조", 10 ** 12), ("억", 10 ** 8), ("천만", 10 ** 7),
+                ("백만", 10 ** 6), ("만", 10 ** 4), ("천", 10 ** 3)]
+SCALE_RE = re.compile(r"^\s*(?:천억|백억|십억|천만|백만|십만|조|억|만|천)")
+FIRST_NUMBER_RE = re.compile(r"(?<![0-9.,])[-−△]?\d[\d,]*(?:\.\d+)?")
 
 
 def _trim(value: float) -> str:
     """1200000000.0 → '1200000000', 3.70 → '3.7'."""
-    text = f"{value:.6f}".rstrip("0").rstrip(".")
+    text = format(Decimal(str(value)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
     return text or "0"
 
 
@@ -50,12 +57,10 @@ def variants(value: float) -> list[str]:
             if n and n % unit == 0:
                 out.append(f"{n // unit}{label}")
                 out.append(f"{n // unit:,}{label}")
-            elif n >= unit:
-                scaled = n / unit
-                if abs(scaled - round(scaled, 1)) < 1e-9:
-                    out.append(f"{_trim(round(scaled, 1))}{label}")
+            elif abs(n) >= unit:
+                out.append(f"{_trim(Decimal(n) / unit)}{label}")
     else:
-        out += [_trim(value), f"{value:,.2f}".rstrip("0").rstrip(".")]
+        out += [_trim(value), format(Decimal(str(value)), ",f")]
     return sorted(set(out), key=len, reverse=True)
 
 
@@ -78,12 +83,12 @@ def document_text(path: Path, body_only: bool = True) -> str:
 # 수 뒤에 붙는 한국어·기호 단위. 같은 숫자라도 단위가 다르면 다른 값이다(37원 ≠ 37개월).
 # 공백 없이 붙은 것만 단위로 본다. "400 VM"의 VM은 명사이고, 한국어 제안서의 단위
 # 표기는 "37개월"·"37원"처럼 숫자에 붙는다 — 띄어쓴 낱말까지 단위로 보면 정상 표기를 차단한다.
-UNIT_TOKEN_RE = re.compile(r"^(%|퍼센트|원|억|만|천|조|개월|년|월|일|주|시간|분|초|명|개|건|식|대|회|배|점|배럴|GB|TB|MB|Gbps|Mbps|VM|core|vCPU)",
+UNIT_TOKEN_RE = re.compile(r"^(%|퍼센트|원|달러|KRW|USD|억|만|천|조|개월|년|월|일|주|시간|분|초|명|개|건|식|대|회|배|점|배럴|GB|TB|MB|Gbps|Mbps|VM|core|vCPU)",
                            re.IGNORECASE)
 # 원장 단위 → 문서에서 허용되는 표기. 여기 없는 단위는 인접 단위를 검사하지 않는다.
 UNIT_ALIASES: dict[str, set[str]] = {
-    "KRW": {"원", "억", "만", "천", "조"}, "원": {"원", "억", "만", "천", "조"},
-    "USD": {"달러"}, "달러": {"달러"},
+    "KRW": {"원", "KRW"}, "원": {"원", "KRW"},
+    "USD": {"달러", "USD"}, "달러": {"달러", "USD"},
     "%": {"%", "퍼센트"}, "퍼센트": {"%", "퍼센트"},
     "개월": {"개월", "월"}, "월": {"개월", "월"}, "년": {"년"},
     "일": {"일"}, "주": {"주"}, "시간": {"시간"},
@@ -96,7 +101,7 @@ def _unit_conflict(after: str, unit: str) -> bool:
     allowed = UNIT_ALIASES.get(str(unit).strip())
     if not allowed:
         return False  # 모르는 단위는 판단하지 않는다 — 거짓 차단을 만들지 않는다
-    m = UNIT_TOKEN_RE.match(after)
+    m = UNIT_TOKEN_RE.match(after.lstrip() if str(unit).strip() in {"KRW", "원", "USD", "달러"} else after)
     if not m:
         return False  # 단위가 붙어 있지 않으면(표 셀 등) 판단 근거가 없다
     return m.group(1) not in allowed
@@ -104,18 +109,41 @@ def _unit_conflict(after: str, unit: str) -> bool:
 
 def _find_spans(haystack: str, needle: str) -> list[re.Match]:
     """숫자 경계를 지켜 찾는다 — '37'이 '370'·'37.5'·'-37'에 걸리지 않게 한다."""
-    pattern = (r"(?<![0-9.,\-\u2212\u25b3])" + re.escape(needle)
+    literal = re.escape(needle)
+    for scale, _ in KOREAN_UNITS:
+        if needle.endswith(scale):
+            literal = re.escape(needle[:-len(scale)]) + r"\s*" + re.escape(scale)
+            break
+    pattern = (r"(?<![0-9.,\-\u2212\u25b3])" + literal
                + r"(?![0-9.,]*\d)")
     return list(re.finditer(pattern, haystack))
 
 
 def _found(haystack: str, needle: str, unit: str = "") -> bool:
     for m in _find_spans(haystack, needle):
-        tail = haystack[m.end():m.end() + 8]
-        if needle[-1].isdigit() and _unit_conflict(tail, unit):
-            continue  # 숫자로 끝나는 표기만 단위 충돌을 본다("37억"은 이미 단위를 포함)
+        tail = haystack[m.end():m.end() + 16]
+        # 배율이 매치에 포함되지 않았으면 다른 값이다: 37원 != 37억원.
+        if SCALE_RE.match(tail) or _unit_conflict(tail, unit):
+            continue
+        if not needle[-1].isdigit() and unit not in {"", "KRW", "원"}:
+            continue  # 통화 표기 변형을 기간·수량의 근거로 사용하지 않는다.
         return True
     return False
+
+
+def _label_text(text: str, label: str) -> list[str]:
+    """항목명 직후의 첫 수치만 대조해 같은 표의 다른 행과 섞지 않는다."""
+    scopes = []
+    for anchor in re.finditer(re.escape(label), text):
+        tail = re.split(r"\n|[;；·]", text[anchor.end():], maxsplit=1)[0]
+        tail = tail.lstrip(" \t:：=|")
+        number = FIRST_NUMBER_RE.match(tail)
+        if number:
+            following = FIRST_NUMBER_RE.search(tail, number.end())
+            scopes.append(tail[number.start():following.start() if following else len(tail)])
+        else:
+            scopes.append("")
+    return scopes
 
 
 def compare(entries: list[dict], text: str, other: str = "") -> tuple[list[str], list[dict]]:
@@ -123,6 +151,9 @@ def compare(entries: list[dict], text: str, other: str = "") -> tuple[list[str],
     items: list[str] = []
     results: list[dict] = []
     for entry in entries:
+        if not isinstance(entry, dict):
+            items.append(f"{BLOCK} 원장 항목이 객체가 아니다")
+            continue
         nid = entry.get("id", "?")
         label = entry.get("label", "")
         value = entry.get("value")
@@ -130,12 +161,25 @@ def compare(entries: list[dict], text: str, other: str = "") -> tuple[list[str],
             results.append({"id": nid, "checked": False, "reason": "must_appear=false"})
             items.append(f"[정보] {nid} {label}: 문서 대조 제외(중간 계산값)")
             continue
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
             items.append(f"{BLOCK} {nid} {label}: value가 숫자가 아니다 — 대조할 수 없다")
             results.append({"id": nid, "checked": False, "matched": False})
             continue
         unit = entry.get("unit", "")
-        found = [v for v in variants(value) if _found(text, v, unit)]
+        if not isinstance(unit, str):
+            items.append(f"{BLOCK} {nid}: unit이 문자열이 아니다")
+            results.append({"id": nid, "checked": False, "matched": False})
+            continue
+        match_label = entry.get("match_label", False)
+        if not isinstance(match_label, bool) or (match_label and (not isinstance(label, str) or not label.strip())):
+            items.append(f"{BLOCK} {nid}: match_label은 불리언이며 항목명이 필요하다")
+            results.append({"id": nid, "checked": False, "matched": False})
+            continue
+        scopes = _label_text(text, label) if match_label else [text]
+        found = [v for v in variants(value) if any(_found(scope, v, unit) for scope in scopes)]
+        if match_label and (not scopes or not all(any(_found(scope, v, unit) for v in variants(value))
+                                                  for scope in scopes)):
+            found = []  # 요약과 상세의 같은 항목이 서로 다른 값이면 차단한다.
         results.append({"id": nid, "checked": True, "matched": bool(found),
                         "matched_as": found[:3]})
         if found:
@@ -146,7 +190,7 @@ def compare(entries: list[dict], text: str, other: str = "") -> tuple[list[str],
             items.append(f"{BLOCK} {nid} {label}: 값 {value}{unit}이 노트·레이아웃 등 "
                          "비본문 영역에만 있다 — 평가위원이 보는 본문에는 없다")
         else:
-            items.append(f"{BLOCK} {nid} {label}: 값 {value}{unit}을 본문에서 찾지 못했다 "
+            items.append(f"{BLOCK} {nid} {label}: 값 {value}{unit}을 {'항목명 직후' if match_label else '본문'}에서 찾지 못했다 "
                          "— 원장과 장표 중 하나가 낡았다")
     return items, results
 
@@ -187,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # 손상·미지원 파일
         print(f"검사 불가(파일 형식·손상): {exc}", file=sys.stderr)
         return 2
-    text = normalize_text(" ".join(t for label, t in blocks if _is_body(label)))
+    text = "\n".join(normalize_text(t) for label, t in blocks if _is_body(label))
     other = normalize_text(" ".join(t for label, t in blocks if not _is_body(label)))
 
     items, results = compare(entries, text, other)

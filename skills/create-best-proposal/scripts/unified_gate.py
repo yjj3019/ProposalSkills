@@ -80,6 +80,16 @@ def _load_gate_module(path: Path):
     return mod
 
 
+def run_deck_check(doc: Path) -> tuple[int, str]:
+    checker = SKILLS_ROOT / "create-proposal-document" / "scripts" / "deck_check.py"
+    if not checker.is_file():
+        return 2, "deck_check.py not found (install create-proposal-document)"
+    proc = subprocess.run([sys.executable, str(checker), str(doc), "--stage", "submission"],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
@@ -155,18 +165,30 @@ def verify_bundle(data: dict, root: Path) -> list[str]:
     'present: true'로 남아 있으면, 대표 파일 하나만 해시로 묶어 둔 것으로는 잡히지 않는다.
     """
     problems: list[str] = []
+    root = root.resolve()
     for item in data.get("attachments", []):
         if not isinstance(item, dict) or not item.get("present") is True:
             continue
         digest = item.get("sha256")
         name = item.get("name") or "?"
-        if not isinstance(digest, str) or not digest.strip():
-            continue  # 스키마 검사가 별도로 요구한다
         filename = item.get("file") or name
-        path = root / filename
+        if not isinstance(filename, str) or not filename.strip():
+            problems.append(f"bundle: 첨부 파일명이 문자열이 아니다 — {name}")
+            continue
+        try:
+            path = (root / filename).resolve()
+        except (OSError, RuntimeError, ValueError):
+            problems.append(f"bundle: 첨부 경로를 해석할 수 없다 — {filename!r}")
+            continue
+        if Path(filename).is_absolute() or not path.is_relative_to(root):
+            problems.append(f"bundle: 첨부 경로가 제출 폴더 밖을 가리킨다 — {filename}")
+            continue
         if not path.is_file():
             problems.append(f"bundle: 첨부 파일 없음 — {filename} (attachment {name}) "
                             f"@ {root}")
+            continue
+        if not _norm_digest(digest):
+            problems.append(f"bundle: {filename}에 유효한 sha256이 없다 — 미검사")
             continue
         actual = "sha256:" + sha256_file(path)
         if _norm_digest(digest) != _norm_digest(actual):
@@ -281,6 +303,15 @@ def main(argv: list[str] | None = None) -> int:
             print("BLOCKED: document quality_gate failed")
             return 1
         doc_failures = bind_document(data, args.doc)
+        if audit_mode == "submission" and args.doc.suffix.lower() == ".pptx":
+            code, out = run_deck_check(args.doc)
+            print("=== deck_check ===")
+            print(out.rstrip() or "(no output)")
+            if code == 2:
+                print("INVALID: deck_check usage/dependency failure")
+                return 2
+            if code != 0:
+                doc_failures.append("실제 PPTX가 레이아웃 검사를 통과하지 못했다")
         # 원장 수치 ↔ 문서 대조. 원장이 있는데 대조하지 않으면 '검산 완료'가 다시
         # 자기선언으로 돌아간다 — 그래서 문서를 받은 경로에서는 기본으로 돌린다.
         numbers = data.get("numbers")
@@ -304,6 +335,10 @@ def main(argv: list[str] | None = None) -> int:
         doc_failures = ["제출 판정에는 실제 산출물이 필요하다 — --doc <최종파일>로 다시 실행한다 "
                         "(문서 없이 audit만 보려면 --audit-only)"]
 
+    if audit_mode == "submission" and args.doc and not args.bundle and any(
+            isinstance(a, dict) and (a.get("required", True) is not False or a.get("present") is True)
+            for a in data.get("attachments", [])):
+        doc_failures.append("제출에는 첨부 실물 검사가 필요하다 — --bundle <제출폴더>로 다시 실행한다")
     if args.bundle:
         if not args.bundle.is_dir():
             print(f"INVALID: 묶음 폴더 없음: {args.bundle}", file=sys.stderr)

@@ -414,6 +414,8 @@ def check_numbers(entries: object) -> list[str]:
             failures.append(f"number {nid} lacks a unit")
         if _is_placeholder(item.get("label")):
             failures.append(f"number {nid} lacks a label")
+        if "match_label" in item and not isinstance(item["match_label"], bool):
+            failures.append(f"number {nid} match_label must be a boolean")
     for nid, item in by_id.items():
         tol = item.get("tolerance", 0.005)
         if not _is_number(tol) or tol < 0:
@@ -669,6 +671,11 @@ def check_attachments(data: dict) -> list[str]:
         digest = item.get("sha256")
         if digest is not None and not is_digest(digest):
             failures.append(f"attachment {name} sha256 must be a sha256 digest (got {digest!r})")
+        if mode == "submission" and _true(item.get("present")) and digest is None:
+            failures.append(f"attachment {name} is submitted without a sha256 "
+                            "— 역할과 관계없이 검사한 파일의 해시를 남긴다")
+        if "file" in item and (not isinstance(item["file"], str) or not item["file"].strip()):
+            failures.append(f"attachment {name} file must be a non-empty string")
         for field in ("format", "channel", "reviewer"):
             if field in item and not isinstance(item[field], str):
                 failures.append(f"attachment {name} {field} must be a string")
@@ -691,9 +698,6 @@ def check_attachments(data: dict) -> list[str]:
             failures.append(
                 f"attachment {name} lacks a price screening record (price_screened) "
                 "— 가격을 담으면 안 되는 산출물에 가격이 섞였는지 확인한다")
-        if item.get("sha256") is None:
-            failures.append(f"attachment {name} is submitted without a sha256 "
-                            "— 묶음의 어느 바이트를 검사했는지 남긴다")
     if mode == "submission" and roles:
         # 익명 제출을 요구하는 공고는 기명 원본과 익명 사본을 함께 낸다. 한쪽만 있으면
         # 다른 쪽을 빠뜨렸거나 익명화를 하지 않은 것이다.

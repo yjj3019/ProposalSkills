@@ -61,8 +61,8 @@ class SubmissionBypassTests(unittest.TestCase):
         self.dir = Path(self.tmp.name)
         self.addCleanup(self.tmp.cleanup)
         # 양성 대조군은 audit 원장과 같은 금액을 담는다 — 통합 게이트가 수치를 대조한다.
-        self.doc = fixtures.pptx(self.dir / "final.pptx", raw={
-            "ppt/slides/slide1.xml": "<a:p><a:r><a:t>정상 본문 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원</a:t></a:r></a:p>"})
+        self.doc = fixtures.submission_pptx(self.dir / "final.pptx",
+            "정상 본문 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
         self.digest = "sha256:" + hashlib.sha256(self.doc.read_bytes()).hexdigest()
 
     def _gate(self, data: dict, *extra: str) -> subprocess.CompletedProcess:
@@ -72,6 +72,7 @@ class SubmissionBypassTests(unittest.TestCase):
 
     def _bound(self) -> dict:
         data = ready_audit()
+        data["attachments"] = []
         data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = self.digest
         return data
 

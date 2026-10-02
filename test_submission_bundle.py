@@ -48,11 +48,11 @@ def submission(attachments: list[dict]) -> dict:
 
 
 class AttachmentLedgerTests(unittest.TestCase):
-    """역할을 적으면 그 역할의 규칙이 붙는다. 역할이 없으면 예전처럼 존재 여부만 본다."""
+    """제출 첨부의 해시는 역할과 관계없이 요구하며 역할별 검사를 더한다."""
 
-    def test_role_free_ledger_is_unchanged(self):
-        self.assertEqual(pg.check_attachments(
-            submission([{"name": "서식1", "required": True, "present": True}])), [])
+    def test_role_free_submission_also_requires_a_digest(self):
+        self.assertTrue(any("without a sha256" in f for f in pg.check_attachments(
+            submission([{"name": "서식1", "required": True, "present": True}]))))
         self.assertTrue(any("missing attachment" in f for f in pg.check_attachments(
             submission([{"name": "서식1", "required": True, "present": False}]))))
 
@@ -173,10 +173,10 @@ class NumbersInTheUnifiedGateTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def _bound(self, text: str) -> tuple[Path, Path]:
-        doc = fixtures.pptx(self.dir / "final.pptx",
-                            raw={"ppt/slides/slide1.xml": f"<a:p><a:r><a:t>{text}</a:t></a:r></a:p>"})
+        doc = fixtures.submission_pptx(self.dir / "final.pptx", text)
         data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
         data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest_of(doc)
+        data["attachments"] = []
         audit = self.dir / "audit.json"
         audit.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         return audit, doc

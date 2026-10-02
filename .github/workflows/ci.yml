@@ -44,18 +44,14 @@ jobs:
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
-          from pptx import Presentation
-          from pptx.util import Inches
+          import ooxml_fixtures as fixtures
           audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
           # 양성 대조군은 실제 로더가 여는 파일이어야 한다(필수 파트 빠진 ZIP 금지).
           doc = tmp / "final.pptx"
-          prs = Presentation()
-          slide = prs.slides.add_slide(prs.slide_layouts[6])
-          # 양성 대조군은 audit 원장(37억)과 같은 금액을 담아야 한다 — 통합 게이트가 수치를 대조한다.
-          slide.shapes.add_textbox(Inches(1), Inches(1), Inches(9), Inches(1)).text_frame.text = (
+          fixtures.submission_pptx(doc,
               "정상 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
-          prs.save(str(doc))
           data = json.loads(audit_path.read_text(encoding="utf-8"))
+          data["attachments"] = []  # representative-only positive control
           digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
           data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest
           (tmp / "bound.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
@@ -180,14 +176,11 @@ jobs:
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
-          from pptx import Presentation
-          from pptx.util import Inches
+          import ooxml_fixtures as fixtures
           audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
           def deck(path, text):
-              prs = Presentation()
-              s = prs.slides.add_slide(prs.slide_layouts[6])
-              s.shapes.add_textbox(Inches(1), Inches(1), Inches(9), Inches(1)).text_frame.text = text
-              prs.save(str(path)); return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+              fixtures.submission_pptx(path, text)
+              return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
           LEDGER = "총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"
           good = deck(tmp / "numbers_ok.pptx", "정상 문서 " + LEDGER)
           stale = deck(tmp / "numbers_stale.pptx", "총 사업비 40억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
@@ -195,6 +188,7 @@ jobs:
           for name, digest in (("numbers_ok", good), ("numbers_stale", stale)):
               d = json.loads(json.dumps(base))
               d["render"]["artifact_hash"] = d["package"]["artifact_hash"] = digest
+              d["attachments"] = []  # representative-only positive control
               (tmp / f"{name}.json").write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
           PY
           python "$GATE" "${RUNNER_TEMP}/numbers_ok.json" --doc "${RUNNER_TEMP}/numbers_ok.pptx" --no-explain | grep -q "STATUS: SUBMISSION-READY"

@@ -42,12 +42,14 @@
     {
       "name": "인감증명.pdf",
       "required": true,
-      "present": true
+      "present": true,
+      "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
     {
       "name": "보안확약서.pdf",
       "required": true,
-      "present": true
+      "present": true,
+      "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
   ],
   "source_conflicts": [],

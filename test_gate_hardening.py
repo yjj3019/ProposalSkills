@@ -210,6 +210,7 @@ class UnifiedGateModeTests(unittest.TestCase):
     def _audit_bound_to(self, doc: Path, tmp: str) -> Path:
         """audit의 render/package 해시를 실제 파일 해시로 맞춘 사본을 만든다."""
         data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
+        data["attachments"] = []
         digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
         data["render"]["artifact_hash"] = digest
         data["package"]["artifact_hash"] = digest
@@ -220,7 +221,7 @@ class UnifiedGateModeTests(unittest.TestCase):
     def test_submission_ready_requires_the_matching_document(self):
         with tempfile.TemporaryDirectory() as tmp:
             doc = Path(tmp) / "final.pptx"
-            pptx(doc, {"ppt/slides/slide1.xml": "정상 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"})  # 원장과 같은 금액
+            fixtures.submission_pptx(doc, "정상 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
             audit = self._audit_bound_to(doc, tmp)
             ok = self._run(audit, "--doc", str(doc), "--no-explain")
             self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
@@ -237,7 +238,7 @@ class UnifiedGateModeTests(unittest.TestCase):
             self.assertNotIn("STATUS: SUBMISSION-READY", only.stdout)
             # 3) 검토 이후 내용이 바뀐 파일은 과거 판정을 재사용하지 못한다.
             changed = Path(tmp) / "changed.pptx"
-            pptx(changed, {"ppt/slides/slide1.xml": "가격이 바뀐 문서"})
+            fixtures.submission_pptx(changed, "가격이 바뀐 문서")
             drift = self._run(audit, "--doc", str(changed), "--no-explain")
             self.assertEqual(drift.returncode, 1)
             self.assertIn("전달된 문서와 다르다", drift.stdout)
@@ -260,7 +261,7 @@ class UnifiedGateModeTests(unittest.TestCase):
     def test_document_gate_runs_under_cp949_child(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "d.pptx"
-            pptx(p, {"ppt/slides/slide1.xml": "정상 — 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"})
+            fixtures.submission_pptx(p, "정상 — 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
             env = {**os.environ, "PYTHONIOENCODING": "cp949"}
             audit = self._audit_bound_to(p, tmp)
             proc = subprocess.run([sys.executable, str(UG), str(audit),

@@ -53,7 +53,9 @@ class CoverageContractTests(unittest.TestCase):
         out = subprocess.run(["git", "ls-files", "*test_*.py"], cwd=str(REPO),
                              capture_output=True, text=True, encoding="utf-8", errors="replace")
         if out.returncode != 0:
-            self.skipTest("git 추적 목록을 얻을 수 없다")
+            if not (REPO / ".git").exists():
+                self.skipTest("설치 사본에는 Git 추적 목록이 없다")
+            self.fail(f"git ls-files failed: {out.stderr.strip()}")
         collected = {p.relative_to(REPO).as_posix() for p in script_test_files()}
         orphans = []
         for line in out.stdout.splitlines():
