@@ -8,6 +8,12 @@ Engine입니다.
 
 모델에 종속되지 않는 제안서 문서 제작 스킬과 조사 자료를 관리합니다. 핵심 `SKILL.md`, 참조자료, 검증 스크립트는 공통으로 사용하며 ChatGPT/Codex, Claude, Grok의 설치·호출 방식과 실행 도구 지원을 구분합니다.
 
+[외부 장표 스킬 5종 비교·선정](references/slide-skills-comparison-2026-10.md)을 반영했습니다.
+표 셀 유실·잘못된 열 폭을 거부하고 모든 장표 유형의 발표자 노트를 보존합니다. 생성기와
+제출 PPTX 검사에서 RGB 단색 대비를 검사합니다(일반 4.5:1, 큰 글자 3:1). 계산할 수 없는
+테마·투명도·이미지 배경 등은 미검사로 남기고 육안 검토합니다. 레이아웃 선택과 스토리 검토는
+[장표 생산 가이드](skills/create-proposal-document/references/deck-production.md)를 따릅니다.
+
 ```
 RFP·수정공고 → 요구사항·평가표 원장 → Win Theme·리드문 맵 → slides.json → PPTX
   → 수치·렌더·audit 검사 → SHA-256 산출물 결속 → 제출 묶음 대조 → SUBMISSION-READY

@@ -147,6 +147,21 @@ class SubmissionValidationRegressionTests(unittest.TestCase):
         self.assertEqual(absent.returncode, 1, absent.stdout)
         self.assertIn("첨부 파일 없음", absent.stdout)
 
+    def test_recorded_layout_approval_does_not_hide_low_contrast(self):
+        from pptx import Presentation
+        from pptx.dml.color import RGBColor
+        doc, data = self._submission()
+        prs = Presentation(str(doc))
+        body = next(s for s in prs.slides[0].shapes if s.name == "BODY")
+        body.fill.solid()
+        body.fill.fore_color.rgb = RGBColor.from_string("FFFFFF")
+        body.text_frame.paragraphs[0].runs[0].font.color.rgb = RGBColor.from_string("FFFFFF")
+        prs.save(str(doc))
+        result = self._run(doc, data)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("색상 대비", result.stdout)
+        self.assertNotIn("STATUS: SUBMISSION-READY", result.stdout)
+
     def test_role_free_missing_digest_never_skips_file_checks(self):
         root = self.dir / "bundle"
         root.mkdir()
