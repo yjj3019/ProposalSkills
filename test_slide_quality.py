@@ -115,5 +115,26 @@ class SlideQualityTests(unittest.TestCase):
         self.assertGreater(color_contrast.slide_issues(slide)[1], 0)
 
 
+    def test_missing_contrast_dependency_keeps_the_cli_error_contract(self):
+        import builtins
+        import contextlib
+        import io
+        from unittest.mock import patch
+        original_import = builtins.__import__
+        def unavailable(name, *args, **kwargs):
+            if name == "color_contrast":
+                raise ImportError("python-pptx unavailable")
+            return original_import(name, *args, **kwargs)
+        for script in ("build_deck.py", "deck_check.py"):
+            path = Path(build_deck.__file__).with_name(script)
+            stderr = io.StringIO()
+            with self.subTest(script=script), patch("builtins.__import__", unavailable), contextlib.redirect_stderr(stderr):
+                with self.assertRaises(SystemExit) as stopped:
+                    exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"),
+                         {"__file__": str(path), "__name__": "dependency_probe"})
+            self.assertEqual(stopped.exception.code, 2)
+            self.assertIn("python-pptx", stderr.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
