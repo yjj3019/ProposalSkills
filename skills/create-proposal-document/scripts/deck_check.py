@@ -42,9 +42,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import deck_profiles
 import quality_gate
-import color_contrast
 
 try:
+    import color_contrast
     from pptx import Presentation
     from pptx.util import Emu
 except ImportError:  # pragma: no cover
