@@ -107,6 +107,8 @@ class SlideQualityTests(unittest.TestCase):
         problems, skipped = color_contrast.slide_issues(slide)
         self.assertEqual(problems, [])
         self.assertGreater(skipped, 0)
+        band.fill.solid()
+        band.fill.fore_color.rgb = RGBColor.from_string("1F3864")
         title = next(s for s in slide.shapes if s.name == "TITLE")
         title.fill.patterned()
         self.assertEqual(color_contrast.slide_issues(slide)[0], [])
