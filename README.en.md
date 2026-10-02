@@ -11,6 +11,13 @@ files, references, and verification scripts work the same way in ChatGPT, Claude
 and other agents. Proposal content and templates target Korean-language public and enterprise
 bids.
 
+The [five-repository slide-skill comparison](references/slide-skills-comparison-2026-10.md)
+informs relation-based layout selection and story review. Tables reject lost cells and invalid
+column widths; speaker notes survive every layout and matrix pagination. The builder and actual
+PPTX submission check share RGB contrast checks (4.5:1 for normal text, 3:1 for large text).
+Unresolved themes, transparency, image backgrounds, overlaps and inherited fonts remain
+uninspected and require visual review. No external templates, assets or source code are bundled.
+
 ```
 RFP / amendments → requirement & evaluation ledgers → win themes & lead-sentence map
   → slides.json → PPTX → number / render / audit checks → SHA-256 artifact binding

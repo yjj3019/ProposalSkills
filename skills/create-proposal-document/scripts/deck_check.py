@@ -42,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import deck_profiles
 import quality_gate
+import color_contrast
 
 try:
     from pptx import Presentation
@@ -275,6 +276,11 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
             counted += 1
         for problem in out_of_bounds(prs, slide):
             items.append(f"[차단] 슬라이드 {idx}: {problem} — 화면 밖 내용은 렌더에도 보이지 않는다")
+        contrast_problems, contrast_skipped = color_contrast.slide_issues(slide)
+        items.extend(f"[차단] 슬라이드 {idx}: {problem}" for problem in contrast_problems)
+        if contrast_skipped:
+            items.append(f"{NOTE} 슬라이드 {idx}: 색상 대비 {contrast_skipped}개 run 미검사 "
+                         "— 테마·투명도·이미지 배경·상속 폰트는 렌더 육안 확인")
         if not all_text.strip():
             pics = [sh for sh in iter_shapes(slide.shapes) if sh.shape_type == 13]
             items.append(f"{'[차단]' if not pics else WARN} 슬라이드 {idx}: "

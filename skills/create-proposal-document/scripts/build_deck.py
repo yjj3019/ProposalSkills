@@ -28,6 +28,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import deck_profiles
+import color_contrast
 
 try:
     from pptx import Presentation
@@ -77,6 +78,7 @@ class DeckBuilder:
     def __init__(self, spec: dict, template: Path | None, strict: bool,
                  profile: str | None = None):
         self.spec = spec
+        self.template = template
         self.meta = spec.get("meta", {})
         # 우선순위: CLI --profile > meta.output_profile > 기본(평가용 상세본)
         self.profile = profile or self.meta.get("output_profile") or deck_profiles.DEFAULT_PROFILE
@@ -180,6 +182,19 @@ class DeckBuilder:
 
     def _table(self, slide, name, x, y, w, h, columns, rows, *, col_widths=None,
                size=None, align_right_cols=()):
+        if not isinstance(columns, list) or not columns:
+            raise ValueError(f"{name}: columns는 비어 있지 않은 배열이어야 한다")
+        if not isinstance(rows, list) or any(not isinstance(row, list) or len(row) != len(columns)
+                                            for row in rows):
+            raise ValueError(f"{name}: 모든 행의 셀 수는 columns {len(columns)}개와 같아야 한다 — 데이터 유실 방지")
+        if col_widths is not None and (not isinstance(col_widths, list)
+                or len(col_widths) != len(columns)
+                or any(isinstance(v, bool) or not isinstance(v, (int, float))
+                       or not math.isfinite(v) or v <= 0 for v in col_widths)):
+            raise ValueError(f"{name}: col_widths는 열 수와 같은 길이의 양수 배열이어야 한다")
+        if not isinstance(align_right_cols, (list, tuple)) or any(isinstance(v, bool) or not isinstance(v, int) or not 0 <= v < len(columns)
+               for v in align_right_cols):
+            raise ValueError(f"{name}: right_cols는 범위 안의 열 번호(0부터)여야 한다")
         size = self.size["table"] if size is None else size
         n_rows, n_cols = len(rows) + 1, len(columns)
         gt = slide.shapes.add_table(n_rows, n_cols, Emu(x), Emu(y), Emu(w), Emu(h))
@@ -202,7 +217,7 @@ class DeckBuilder:
                 cell = table.cell(r, c)
                 cell.fill.solid()
                 cell.fill.fore_color.rgb = rgb(self.pal["tint3"] if r % 2 == 0 else self.pal["white"])
-                val = row[c] if c < len(row) else ""
+                val = row[c]
                 align = PP_ALIGN.RIGHT if c in align_right_cols else PP_ALIGN.LEFT
                 self._cell(cell, val, size, align=align)
         return gt
@@ -263,8 +278,6 @@ class DeckBuilder:
                    self.size["footer"], color=self.pal["muted"])
         self._text(slide, "PAGENO", W - M - int(1.0 * IN), FOOTER_Y, int(1.0 * IN), FOOTER_H,
                    str(self.page), self.size["footer"], color=self.pal["muted"], align=PP_ALIGN.RIGHT)
-        if s.get("notes"):
-            slide.notes_slide.notes_text_frame.text = str(s["notes"])
         return slide
 
     # ---- 슬라이드 유형 ---------------------------------------------------------
@@ -301,7 +314,7 @@ class DeckBuilder:
         self.page += 1
         self._rect(slide, "SECTION_BAND", 0, 0, int(0.35 * IN), H, self.pal["primary"])
         self._text(slide, "SECTION_NO", M + int(0.3 * IN), int(2.4 * IN), BODY_W, int(0.8 * IN),
-                   s.get("no", ""), self.size["section"], bold=True, color=self.pal["tint1"])
+                   s.get("no", ""), self.size["section"], bold=True, color=self.pal["primary"])
         self._text(slide, "TITLE", M + int(0.3 * IN), int(3.2 * IN), BODY_W, int(1.0 * IN),
                    s.get("title", ""), self.size["section"], bold=True, color=self.pal["primary"])
         if s.get("items"):
@@ -312,12 +325,14 @@ class DeckBuilder:
     def table(self, s):
         slide = self._frame(s)
         columns, rows = s.get("columns", []), s.get("rows", [])
+        if not isinstance(columns, list) or not columns:
+            raise ValueError("table: columns는 비어 있지 않은 배열이어야 한다")
         if not columns or not rows:
             self.violations.append(f"슬라이드 {self.page}: table에 columns/rows 없음")
             return slide
         h = min(BODY_H, int((len(rows) + 1) * 0.38 * IN))
         self._table(slide, "BODY_TABLE", M, BODY_Y, BODY_W, h, columns, rows,
-                    col_widths=s.get("col_widths"), align_right_cols=tuple(s.get("right_cols", [])))
+                    col_widths=s.get("col_widths"), align_right_cols=s.get("right_cols", []))
         if len(rows) > self.style["table_rows_max"]:
             self.warnings.append(f"슬라이드 {self.page}: 표 {len(rows)}행 — 분할 권장(visual-style §4)")
         return slide
@@ -536,7 +551,20 @@ class DeckBuilder:
             t = s.get("type")
             if t not in ALL_TYPES:
                 raise ValueError(f"slide {i}: unsupported type {t!r} (allowed: {sorted(ALL_TYPES)})")
+            first = len(self.prs.slides)
             getattr(self, t)(s)
+            for index in range(first, len(self.prs.slides)):
+                slide = self.prs.slides[index]
+                if not self.template:
+                    slide.background.fill.solid()
+                    slide.background.fill.fore_color.rgb = rgb("FFFFFF")
+                if s.get("notes"):
+                    slide.notes_slide.notes_text_frame.text = str(s["notes"])
+        for index, slide in enumerate(self.prs.slides, 1):
+            problems, skipped = color_contrast.slide_issues(slide)
+            self.violations.extend(f"슬라이드 {index}: {problem}" for problem in problems)
+            if skipped:
+                self.warnings.append(f"슬라이드 {index}: 색상 대비 {skipped}개 run 미검사 — 테마·배경·폰트 육안 확인")
         # 페이지 수는 실제 파일 기준으로 센다. 내부 카운터만 믿으면 템플릿에 남은
         # 장이나 분할로 늘어난 장을 놓쳐 제한 검사가 거짓이 된다.
         actual = len(self.prs.slides._sldIdLst)
