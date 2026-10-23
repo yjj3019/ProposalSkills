@@ -24,7 +24,7 @@
 |---|---|---|---|
 | **Pink** | 본문 전 | 유형·목차·리드문 맵·조견표 뼈대·win_themes(req_ids)·bid 판정·평가 항목별 핵심 장표와 증거 위치 | 장표 전량 작성, 미검증 실적 채움 |
 | **Red** | 초안 후 | 평가표 항목별 충족 근거 위치·약점(Critical/Major)·미링크 theme·미기입 매트릭스 행 | 원본 통째 재작성(최소 수정), 평가점수·수주확률 산출 |
-| **Gold** | 제출 전 | pre-submission 5항목 + `unified_gate` READY/CONDITIONAL-GO | 미검사 패키지를 pass로 추정 |
+| **Gold** | 제출 전 | pre-submission 5항목 + 실제 파일·제출 묶음의 `unified_gate` SUBMISSION-READY | 미검사 패키지·AUDIT-VALID·CONDITIONAL-GO를 제출 승인으로 취급 |
 
 Pink·Red 점검 기준(뼈대 논리, 10초 탐색): [evaluator-journey.md](evaluator-journey.md).
 Capture 메모는 Pink 입력만 보강한다. bid 판정·게이트를 대체하지 않는다:
@@ -61,7 +61,8 @@ Capture 메모는 Pink 입력만 보강한다. bid 판정·게이트를 대체�
 | DRAFT / DISCOVERY | 초안·탐색·Pink | 불가 |
 | NO-GO / BLOCKED | BLOCKING 잔존 또는 게이트 실패 | 불가 |
 | CONDITIONAL-GO | 조건 전부 owner·기한·accepted | **내부만** |
-| SUBMISSION-READY / READY | 게이트 통과 + 리허설·접수계획 (**동일 의미**) | 가능(실제 제출 후 증적) |
+| SUBMISSION-READY | submission audit + 실제 파일·묶음 대조 통과 + 리허설·접수계획 | 가능(실제 제출 후 증적) |
+| AUDIT-VALID / DRAFT-READY / REVIEW-READY | audit 단독 또는 해당 내부 단계 통과 | 불가 |
 
 품질 점수와 상태를 혼동하지 않는다. **상태는 게이트가 결정**한다.
 
@@ -99,3 +100,4 @@ Capture 메모는 Pink 입력만 보강한다. bid 판정·게이트를 대체�
 | 핵심 기술 장표의 서술 깊이 | [technical-depth-six-questions.md](technical-depth-six-questions.md) |
 | 해외 방법론·외부 저장소 개념을 들일 때 | [external-method-boundaries.md](external-method-boundaries.md) |
 | 발주처 지정 출력 규격 | `../create-proposal-document/references/deck-production.md` §1-2 발주처 지정 출력 규격(output_spec) |
+| 새 디자인 파일럿·수정 후 재검사·장기 작업 인계 | [iteration-and-handoff.md](iteration-and-handoff.md) |

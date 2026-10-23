@@ -362,14 +362,26 @@ def render(pptx: Path, png_dir: Path | None) -> tuple[list[str], dict]:
         if proc.returncode != 0 or not pdf.is_file():
             items.append(f"[차단] 렌더 실패(soffice exit {proc.returncode}): {(proc.stderr or proc.stdout).strip()[:200]}")
             return items, evidence
-        ver = subprocess.run([soffice, "--version"], capture_output=True, text=True,
-                             encoding="utf-8", errors="replace").stdout.strip()
+        try:
+            version = subprocess.run([soffice, "--version"], capture_output=True, text=True,
+                                     encoding="utf-8", errors="replace", timeout=15)
+            ver = version.stdout.strip() if version.returncode == 0 else ""
+        except (subprocess.TimeoutExpired, OSError):
+            ver = ""
+        if not ver:
+            items.append(f"{NOTE} LibreOffice 버전 미확인 — PDF 변환 결과로 검사 계속")
         evidence["tool"] = ver or "libreoffice"
         pages = None
         pdfinfo = shutil.which("pdfinfo")
         if pdfinfo:
-            out = subprocess.run([pdfinfo, str(pdf)], capture_output=True, text=True,
-                                 encoding="utf-8", errors="replace").stdout
+            try:
+                info = subprocess.run([pdfinfo, str(pdf)], capture_output=True, text=True,
+                                      encoding="utf-8", errors="replace", timeout=15)
+                out = info.stdout if info.returncode == 0 else ""
+            except (subprocess.TimeoutExpired, OSError):
+                out = ""
+            if not out:
+                items.append(f"{NOTE} pdfinfo 실패 — PDF 페이지 구조로 대조")
             m = re.search(r"Pages:\s+(\d+)", out)
             pages = int(m.group(1)) if m else None
         if pages is None:
@@ -381,16 +393,50 @@ def render(pptx: Path, png_dir: Path | None) -> tuple[list[str], dict]:
         else:
             items.append(f"[정보] 렌더 OK: PDF {pages}p = 슬라이드 {n_slides}장 ({evidence['tool']})")
         if png_dir:
-            png_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                png_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                items.append(f"[차단] 썸네일 폴더 생성 실패: {type(exc).__name__}")
+                return items, evidence
             pdftoppm = shutil.which("pdftoppm")
             if pdftoppm:
-                subprocess.run([pdftoppm, "-r", "60", "-png", str(pdf), str(png_dir / "slide")],
-                               capture_output=True, timeout=240)
-                evidence["png"] = sorted(p.name for p in png_dir.glob("slide-*.png"))
+                # Isolate this run: old output must not fill missing pages in new evidence.
+                fresh_png = Path(tmp) / "png"
+                try:
+                    fresh_png.mkdir()
+                    thumbs = subprocess.run(
+                        [pdftoppm, "-r", "60", "-png", str(pdf), str(fresh_png / "slide")],
+                        capture_output=True, timeout=240)
+                except (subprocess.TimeoutExpired, OSError) as exc:
+                    items.append(f"[차단] 썸네일 변환 실패: {type(exc).__name__}")
+                    return items, evidence
+                images = sorted(fresh_png.glob("slide-*.png"))
+                indices = [int(m.group(1)) for p in images
+                           if (m := re.fullmatch(r"slide-(\d+)\.png", p.name))]
+                if (thumbs.returncode != 0 or len(images) != n_slides
+                        or sorted(indices) != list(range(1, n_slides + 1))
+                        or any(p.stat().st_size == 0 for p in images)):
+                    items.append(f"[차단] 썸네일 변환 불완전(exit {thumbs.returncode}): "
+                                 f"{len(images)}장 / 필요 {n_slides}장")
+                    return items, evidence
+                try:
+                    for image in images:
+                        shutil.copyfile(image, png_dir / image.name)
+                except OSError as exc:
+                    items.append(f"[차단] 썸네일 저장 실패: {type(exc).__name__}")
+                    return items, evidence
+                evidence["png"] = [p.name for p in images]
+                stale = {p.name for p in png_dir.glob("slide-*.png")} - set(evidence["png"])
+                if stale:
+                    items.append(f"{NOTE} 이전 썸네일 {len(stale)}장 별도 잔존 — 이번 검사 증거에서 제외")
                 items.append(f"[정보] 썸네일 {len(evidence['png'])}장 → {png_dir} (육안 검사: 잘림·겹침·폰트 대체)")
             else:
-                shutil.copy(pdf, png_dir / pdf.name)
-                items.append(f"{NOTE} pdftoppm 없음 — PDF만 저장({png_dir / pdf.name}). 육안 검사 필요")
+                try:
+                    shutil.copy(pdf, png_dir / pdf.name)
+                except OSError as exc:
+                    items.append(f"[차단] PDF 저장 실패: {type(exc).__name__}")
+                    return items, evidence
+                items.append(f"[차단] pdftoppm 없음 — 요청한 PNG 미생성. PDF만 저장({png_dir / pdf.name})")
     return items, evidence
 
 

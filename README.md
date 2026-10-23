@@ -39,6 +39,11 @@ RFP·수정공고 → 요구사항·평가표 원장 → Win Theme·리드문 �
 
 ## 설치
 
+Claude·Codex에서 마켓플레이스로 관리하려면 아래의 등록·설치 명령을 사용한다.
+마켓플레이스 ID는 두 호스트 모두 `proposal-skills-marketplace`, 플러그인 ID는 `proposal-skills`다.
+업데이트·릴리스·로컬 검증은 [마켓플레이스 관리 가이드](references/marketplace-management.md)를 따른다.
+아래 직접 설치 스크립트는 마켓플레이스 설치의 대안이다.
+
 AI(Claude Code·Codex·Grok)에게 이 저장소를 주고 **"설치해줘"**라고 하면 됩니다. 저장소 루트의
 [AGENTS.md](AGENTS.md)·[CLAUDE.md](CLAUDE.md)를 AI가 읽고 아래를 실행합니다.
 
@@ -92,10 +97,32 @@ python install_skill.py --auto --force
 | Claude Code 로컬 | 같은 설치 명령 → `/create-best-proposal` |
 | Grok Build 로컬 | 같은 설치 명령 → `/create-best-proposal` |
 | Claude/Grok 플러그인 | 플러그인 등록 후 `/proposal-skills:create-best-proposal` |
-| ChatGPT/Codex 플러그인 | 지원되는 플러그인 설치 화면에서 등록·설치 후 해당 스킬 선택 |
+| ChatGPT 스킬 | 지원되는 환경에서 등록된 `create-best-proposal`을 `@`로 선택 |
+| ChatGPT/Codex 플러그인 | 해당 호스트의 지원되는 설치 화면에서 등록·설치 후 스킬 선택 |
+| 자료 첨부만 가능한 일반 채팅 | SKILL.md·필요 reference·원문을 첨부하고 자연어로 작업 요청(설치 아님) |
 
 자연어로 「create-best-proposal 스킬로 제안서 작성」이라고 요청해도 된다.
 형제 레이어는 명시 호출이나 통합 워크플로에서만 사용한다.
+
+### ChatGPT에서 시작하기
+
+스킬 선택을 지원하면 `@`로 등록된 스킬을 선택한다. 선택기가 없는 채팅에서는
+플래그십 SKILL.md와 이번 작업에 필요한 참조 자료·RFP를 함께 제공하고 다음과 같이 요청한다.
+
+> 첨부한 create-best-proposal 지침으로 제안서 골격을 작성해 주세요. 읽을 수 있는 원문과
+> 파일 생성·Python 실행·렌더 가능 여부를 먼저 확인하고, 가능한 작업부터 진행하세요.
+> 실행하지 못한 검사는 미수행으로 남기고 제출 준비 완료로 표시하지 마세요.
+
+실행 도구가 있으면 세 스킬을 같은 상위 폴더에 두고 공통 Python 스크립트를 사용한다.
+도구가 없으면 원장·목차·리드문·검토 의견을 텍스트로 작성할 수 있다. 특정 이름의
+pptx/docx 스킬이나 Claude의 도구·서브에이전트는 필수조건이 아니다.
+`install_skill.py`는 로컬 폴더용이며 ChatGPT 웹 계정을 갱신하지 않는다.
+Python·파일 도구가 있어도 LibreOffice·Poppler·시각 확인 기능은 별도로 확인한다.
+
+환경별 실행·경로 처리·Claude↔ChatGPT 인계:
+[호스트 공통 가이드](skills/create-best-proposal/references/host-portability.md).
+호출과 메타데이터 형식은 [OpenAI 공식 문서](https://learn.chatgpt.com/docs/build-skills)를 확인했다.
+이 저장소의 로컬 설치·ZIP 실행 검증은 ChatGPT 웹 또는 Claude Code UI의 실제 등록 검증과 다르다.
 
 이 저장소는 [공통 Agent Plugins 매니페스트](plugin.json),
 [Codex 호환 매니페스트](.codex-plugin/plugin.json),
@@ -120,19 +147,25 @@ grok --plugin-dir .
 Codex에 저장소 마켓플레이스를 추가하려면:
 
 ```bash
-codex plugin marketplace add yjj3019/ProposalSkills
+codex plugin marketplace add yjj3019/ProposalSkills --ref main
+codex plugin add proposal-skills@proposal-skills-marketplace
 ```
 
-추가 후 지원되는 데스크톱 플러그인 화면에서 ProposalSkills 소스를 선택해 설치한다.
+설치 명령을 지원하지 않는 구버전에서는 지원되는 데스크톱 플러그인 화면에서
+ProposalSkills 소스를 선택해 설치한다. `@` 뒤의 값은 GitHub 사용자명이 아니라
+카탈로그 JSON의 `name`이다. 기존 `yjj3019` 마켓플레이스와 별개로 관리한다.
 직접 로컬 스킬 설치와 플러그인 설치는 대안이므로 중복 설치할 필요는 없다.
 
 업로드·전달용 ZIP은 다음과 같이 생성한다:
 
 ```bash
-python package_plugin.py -o dist/proposal-skills-1.1.0.zip
+python package_plugin.py -o dist/proposal-skills-1.2.2.zip
 ```
 
 ZIP에는 공통·호환 매니페스트, 세 스킬, Python 의존성 목록만 포함한다.
+패키징 전에 세 매니페스트의 이름·버전·설명·작성자와 양쪽 카탈로그의 ID·연결 경로를 대조한다.
+불일치·중복·누락·잘못된 JSON이 있으면 ZIP을 만들지 않는다. 이는 이 저장소의 연결 검사이며
+각 제품의 전체 스키마 검증이나 실제 등록·설치 검증을 대신하지 않는다.
 `.git`, 캐시, 작업 산출물은 제외한다. 같은 이름의 기존 ZIP은 덮어쓰지 않는다.
 공개 플러그인 디렉터리에 게시하려면 해당 서비스의 등록·심사 절차가 별도로 필요하다.
 로컬 설치가 다른 컴퓨터나 웹 계정까지 자동으로 설치하는 것은 아니다.
@@ -172,6 +205,11 @@ LibreOffice와 Poppler는 렌더 검사에 필요하다.
 어디에도 기본값으로 두지 않습니다.
 
 ## 장표 생산 파이프라인 (PPTX)
+
+새 템플릿·브랜드의 대표 장표 파일럿, 수정 유형별 재검사, 장기 제작의 세션 인계는
+[반복 제작·재검증·인계](skills/create-best-proposal/references/iteration-and-handoff.md)를 따른다.
+파일럿·진행 기록은 최종 덱의 전체 검수나 제출 승인을 대신하지 않는다.
+비교 분석과 선별 반영 근거: [하네스 적용 검토](references/harness-adoption-review-2026-10.md).
 
 ```bash
 # 장표 계획(slides.json) → PPTX. 좌표·색·폰트는 스크립트가 고정, 모델은 내용만 채운다
@@ -244,6 +282,12 @@ python skills/create-best-proposal/scripts/score_completeness.py audit.json   # 
 
 
 ### 제출 검증의 실행 범위
+
+- 통합 게이트의 하위 검사는 각각 240초로 제한한다. 시간 초과·실행 불가는 `INVALID`(exit 2)이며
+  통과나 제출 승인으로 바꾸지 않는다. 렌더 보조 도구의 버전·페이지 정보 조회도 15초로 제한한다.
+- `deck_check.py --png-dir`로 요청한 썸네일은 이번 PDF 변환에서 생성한 페이지별 PNG만 인정한다.
+  변환 실패·누락·빈 파일·도구 부재는 차단하고 `render_succeeded`·`verified`를 false로 남긴다.
+  기존 폴더의 PNG는 새 증거를 채우는 데 쓰지 않으며, 남아 있는 과거 파일은 별도로 알린다.
 
 - 제출 모드의 PPTX는 통합 게이트가 `deck_check.py`를 직접 실행한다. audit의
   `layout_checked: true`만으로 실제 글자 크기·화면 밖 도형·페이지 검사를 대체하지 않는다.

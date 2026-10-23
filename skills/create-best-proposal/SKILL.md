@@ -20,12 +20,19 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
 단독 설치에서는 작성 지침과 meta→audit 변환만 사용할 수 있다. 통합 게이트와 장표
 생성·검사는 두 형제 스킬을 함께 설치해야 실행할 수 있다.
 
-## 공통 실행 규칙 (Claude·Grok·ChatGPT/Codex)
+## 공통 실행 규칙 (호스트 중립)
+
+먼저 현재 세션에서 파일 읽기·쓰기, Python/하위 프로세스 실행, 렌더, 이미지 확인의 가능 여부를
+확인한다. 제품명만으로 도구가 있다고 가정하지 않는다. ChatGPT·Claude의 일반 채팅과
+Codex·Claude Code의 로컬 실행을 구분한다. 환경에 맞는 시작·실행·인계 방법은
+[references/host-portability.md](references/host-portability.md)를 필요한 때 읽는다.
 
 - 같은 `SKILL.md`와 형제 폴더를 사용한다. 로컬 스킬은 Claude Code/Grok의
   `/create-best-proposal`, Codex의 `$create-best-proposal`로 명시 호출할 수 있다.
   Claude/Grok 플러그인으로 설치한 경우 `/proposal-skills:create-best-proposal`을 사용한다.
-  ChatGPT의 스킬·플러그인 선택기는 등록된 항목을 선택한다.
+  ChatGPT에서 스킬 선택이 지원되면 `@`로 등록된 스킬을 선택한다.
+  선택기가 없으면 제공된 SKILL.md를 참고 자료로 읽고 자연어로 작업을 요청한다.
+  파일 첨부·프로젝트 업로드가 스킬 설치나 자동 호출을 의미하지는 않는다.
 - 파일 경로는 이 `SKILL.md`가 있는 폴더를 기준으로 해석한다. 현재 작업 폴더나
   특정 운영체제의 홈 경로를 가정하지 않는다. 형제는 같은 상위 폴더에서 찾는다.
 - 작업 산출물은 사용자의 작업 폴더에 쓴다. 설치된 스킬·플러그인 폴더에 고객 자료를 저장하지 않는다.
@@ -56,6 +63,10 @@ description: "제안서 작성·검토·제출 게이트의 단일 진입점(PPT
 `artifact_mode=simulation-only`로 쓰되 bid 판정은 바꾸지 않는다.
 
 상세 결정 트리: [references/master-playbook.md](references/master-playbook.md)
+
+새 디자인의 사전 검증, 수정 후 재검사, 여러 세션에 걸친 작업은
+[references/iteration-and-handoff.md](references/iteration-and-handoff.md)를 따른다.
+짧은 검토에는 별도 진행 파일을 만들지 않는다. 작업 기록은 제출 승인이나 게이트 결과를 대신하지 않는다.
 
 ## 1. Full 워크플로 (순서 고정)
 

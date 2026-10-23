@@ -1,16 +1,20 @@
 {
   "name": "proposal-skills-marketplace",
   "owner": {
-    "name": "ProposalSkills"
+    "name": "yjj3019",
+    "url": "https://github.com/yjj3019"
   },
   "plugins": [
     {
       "name": "proposal-skills",
       "source": "./",
-      "description": "Korean IT/public proposal workflows with a flagship entry and explicit-only content and governance layers."
+      "description": "Korean IT/public proposal workflows with a flagship entry and explicit-only content and governance layers.",
+      "homepage": "https://github.com/yjj3019/ProposalSkills",
+      "repository": "https://github.com/yjj3019/ProposalSkills",
+      "keywords": ["proposal", "rfp", "skills", "governance"]
     }
   ],
   "metadata": {
-    "description": "Shared proposal workflows for Claude Code and Grok Build."
+    "description": "ProposalSkills marketplace: a shared three-skill plugin for Claude Code, ChatGPT, Codex and other compatible hosts."
   }
 }

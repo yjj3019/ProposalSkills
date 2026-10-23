@@ -1,4 +1,4 @@
 interface:
   display_name: "Best Proposal (Unified)"
   short_description: "Content + governance proposal workflow with deterministic gates"
-  default_prompt: "Use $create-best-proposal to run bid decision, draft the proposal, build audit JSON, and run unified gates."
+  default_prompt: "Use create-best-proposal to run bid decision and proposal work with the current session's tools. Run available scripts and report checks that could not be performed."

@@ -3,6 +3,6 @@
 interface:
   display_name: "제안서 거버넌스 레이어 (create-winning-proposal)"
   short_description: "bid/no-bid·audit·결정론적 제출 게이트 레이어(명시 호출 전용)"
-  default_prompt: "Use $create-winning-proposal only for bid/audit/gate layer work (or when create-best-proposal is unavailable). For full proposal writing prefer $create-best-proposal."
+  default_prompt: "Use create-winning-proposal only for bid/audit/gate layer work (or when create-best-proposal is unavailable). For full proposal writing prefer create-best-proposal. Use available host tools and report unperformed checks."
 policy:
   allow_implicit_invocation: false

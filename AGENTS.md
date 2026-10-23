@@ -8,8 +8,9 @@
 python install_skill.py --auto
 ```
 
-Python이 없으면 `python3`로 시도하고, 그래도 없으면 사용자에게 Python 3.10 이상을 설치해
-달라고 요청하십시오. 외부 패키지는 설치에 필요 없습니다.
+이 명령은 파일·명령 실행이 가능한 로컬 환경에서 사용합니다. Python이 없으면 `python3`로
+확인하고, 실행 환경이 없으면 설치 미수행으로 알린 뒤 제공된 자료의 작성·검토를 진행하십시오.
+로컬 설치는 ChatGPT 웹 계정에 설치하는 작업이 아닙니다. 외부 패키지는 설치에 필요 없습니다.
 
 ## 스킬 라우팅 (모델 공통)
 
@@ -68,6 +69,18 @@ python <설치경로>/create-best-proposal/scripts/unified_gate.py \
 나머지 둘은 내부 레이어이며, 사용자가 명시하거나 플래그십 워크플로가 가리킬 때만 엽니다.
 
 ## 플러그인 및 실행 도구가 없는 환경
+
+마켓플레이스 등록·설치·업데이트·릴리스 요청은
+[관리 가이드](references/marketplace-management.md)를 먼저 확인하십시오.
+카탈로그 ID와 플러그인 ID를 구분하고, 로컬 직접 설치를 마켓플레이스 설치와 혼동하지 마십시오.
+배포 ZIP은 `package_plugin.py`로 생성하며 매니페스트·카탈로그 연결 검사 실패를 무시하지 마십시오.
+
+ChatGPT·Claude 일반 채팅과 Codex·Claude Code 로컬 실행을 구분하십시오.
+호스트 이름으로 파일·Python·렌더 도구의 존재를 가정하지 말고 현재 세션에서 확인하십시오.
+공통 실행 가이드와 자연어 시작 요청은
+[host-portability.md](skills/create-best-proposal/references/host-portability.md)를 따릅니다.
+지원되는 ChatGPT의 `@` 스킬 선택, Codex의 `$` 호출, Claude Code의 `/` 호출은 각 호스트의
+진입 방법이며 파일 업로드가 자동 설치·등록을 뜻하지 않습니다.
 
 `plugin.json`은 공통 Agent Plugins 형식이고 `.codex-plugin/plugin.json`과
 `.claude-plugin/plugin.json`은 호환 매니페스트다. 세 스킬을 함께 배포하며

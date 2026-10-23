@@ -23,6 +23,21 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_DIR = SCRIPT_DIR.parent
 SKILLS_ROOT = SKILL_DIR.parent
+CHECK_TIMEOUT_SECONDS = 240
+
+
+def _run_check(cmd: list[str]) -> tuple[int, str]:
+    """Bound child checks; missing evidence is an execution error, never a pass."""
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
+            timeout=CHECK_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return 2, f"{Path(cmd[1]).name}: check timed out after {CHECK_TIMEOUT_SECONDS}s"
+    except OSError as exc:
+        return 2, f"{Path(cmd[1]).name}: check could not start ({type(exc).__name__})"
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
 def _find_proposal_gate() -> Path | None:
@@ -84,10 +99,7 @@ def run_deck_check(doc: Path) -> tuple[int, str]:
     checker = SKILLS_ROOT / "create-proposal-document" / "scripts" / "deck_check.py"
     if not checker.is_file():
         return 2, "deck_check.py not found (install create-proposal-document)"
-    proc = subprocess.run([sys.executable, str(checker), str(doc), "--stage", "submission"],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
-    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+    return _run_check([sys.executable, str(checker), str(doc), "--stage", "submission"])
 
 
 def sha256_file(path: Path) -> str:
@@ -151,11 +163,7 @@ def run_check_numbers(doc: Path, audit_path: Path) -> tuple[int, str]:
     if cn is None:
         return 2, "check_numbers.py not found (install create-proposal-document " \
                   "or set CHECK_NUMBERS_PATH; use install_skill.py --with-deps)"
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-    proc = subprocess.run([sys.executable, str(cn), str(doc), "--audit", str(audit_path)],
-                          capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", env=env)
-    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+    return _run_check([sys.executable, str(cn), str(doc), "--audit", str(audit_path)])
 
 
 def verify_bundle(data: dict, root: Path) -> list[str]:
@@ -176,6 +184,8 @@ def verify_bundle(data: dict, root: Path) -> list[str]:
             problems.append(f"bundle: 첨부 파일명이 문자열이 아니다 — {name}")
             continue
         try:
+            if "\x00" in filename:
+                raise ValueError("embedded null in attachment path")
             path = (root / filename).resolve()
         except (OSError, RuntimeError, ValueError):
             problems.append(f"bundle: 첨부 경로를 해석할 수 없다 — {filename!r}")
@@ -210,11 +220,7 @@ def run_quality_gate(doc: Path, stage: str, lang: str, names: Path | None,
         cmd += ["--names", str(names)]
     if palette:
         cmd += ["--palette", palette]
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", env=env)
-    out = (proc.stdout or "") + (proc.stderr or "")
-    return proc.returncode, out
+    return _run_check(cmd)
 
 
 def main(argv: list[str] | None = None) -> int:

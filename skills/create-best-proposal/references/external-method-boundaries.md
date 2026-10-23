@@ -27,6 +27,7 @@
 | 리뷰 단계 규율(Pink/Red/Gold) | [master-playbook.md](master-playbook.md) 경로 계약 |
 | 확약 과잉 경계 | `writing-style.md` 모호 확약 규칙 + RFI 확약 차단 게이트 |
 | 위험·방법론 구조 | 유형 A/B/C 목차 뼈대 |
+| 반복 제작·단계별 증거·세션 인계 | [iteration-and-handoff.md](iteration-and-handoff.md) — 기존 게이트 재사용, 장기 작업에만 상태 기록 |
 
 ## 3. 가져오지 않는 것
 
