@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -188,10 +189,25 @@ def _parse_simple_yaml(text: str) -> dict[str, Any]:
             value.startswith("'") and value.endswith("'")
         ):
             parent[key] = value[1:-1]
-        elif value in {"true", "false"}:
-            parent[key] = value == "true"
+        elif value.lower() in {"true", "false"}:
+            parent[key] = value.lower() == "true"
+        elif value.lower() == "null" or value == "~":
+            parent[key] = None
+        elif value.lower() in {".nan", ".inf", "+.inf", "-.inf"}:
+            parent[key] = float(value.lower().replace(".inf", "inf").replace(".nan", "nan"))
+        elif value.startswith(("!", "&", "*", "|", ">")):
+            raise ValueError(f"Unsupported YAML syntax for {key}; quote a single-line string")
         elif re.fullmatch(r"-?\d+", value):
             parent[key] = int(value)
+        elif re.fullmatch(r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?", value):
+            parent[key] = float(value)
+        elif value.startswith(("[", "{")):
+            # JSON flow values are unambiguous. Other YAML flow syntax is outside
+            # this dependency-free subset; never silently turn it into a string.
+            try:
+                parent[key] = json.loads(value)
+            except ValueError as exc:
+                raise ValueError(f"Unsupported YAML flow value for {key}; use block syntax or quote a string") from exc
         else:
             parent[key] = value
     return root
@@ -209,14 +225,20 @@ def allow_implicit_invocation(meta: dict[str, Any] | None) -> bool:
     if not meta:
         return True
     policy = meta.get("policy")
-    if not isinstance(policy, dict):
+    if policy is None and "policy" not in meta:
         return True
+    if not isinstance(policy, dict):
+        raise ValueError("policy must be an object")
     if "allow_implicit_invocation" not in policy:
         return True
-    return bool(policy["allow_implicit_invocation"])
+    value = policy["allow_implicit_invocation"]
+    if not isinstance(value, bool):
+        raise ValueError("policy.allow_implicit_invocation must be a boolean")
+    return value
 
 
-def skill_schema_problems(skill_dir: Path) -> list[str]:
+def skill_schema_problems(skill_dir: Path, *, skills_root: Path | None = None,
+                          strict_common: bool = False) -> list[str]:
     """Validate skill package schema (source tree or install). Model-neutral routing rules."""
     problems: list[str] = []
     name = skill_dir.name
@@ -226,45 +248,62 @@ def skill_schema_problems(skill_dir: Path) -> list[str]:
         return problems
 
     body = skill_md.read_text(encoding="utf-8")
-    fm = parse_frontmatter(body)
-    if not fm.get("name"):
+    try:
+        fm = parse_frontmatter(body)
+    except ValueError as exc:
+        return [f"{name}: {exc}"]
+    if not isinstance(fm.get("name"), str) or not fm["name"].strip():
         problems.append(f"{name}: frontmatter name 없음")
     elif fm["name"] != name:
         problems.append(f"{name}: frontmatter name={fm['name']!r} != dir")
-    if not fm.get("description"):
+    if not isinstance(fm.get("description"), str) or not fm["description"].strip():
         problems.append(f"{name}: frontmatter description 없음")
 
-    disable = bool(fm.get("disable-model-invocation", False))
-    openai = load_openai_yaml(skill_dir)
+    # Host extensions remain valid. Strict common checks are an explicit profile,
+    # not a reason to remove Claude's explicit-only invocation protection.
+    if strict_common:
+        fields = {"name", "description", "license", "compatibility", "metadata", "allowed-tools",
+                  "disable-model-invocation"}
+        for key in sorted(fm.keys() - fields):
+            problems.append(f"{name}: unsupported frontmatter field: {key}")
+    disable = fm.get("disable-model-invocation", False)
+    if not isinstance(disable, bool):
+        problems.append(f"{name}: disable-model-invocation must be a boolean")
+    try:
+        openai = load_openai_yaml(skill_dir)
+    except ValueError as exc:
+        return problems + [f"{name}: {exc}"]
     if openai is None:
         problems.append(f"{name}: agents/openai.yaml 없음")
     elif "interface" not in openai:
         problems.append(f"{name}: openai.yaml interface 없음")
+    elif not isinstance(openai["interface"], dict):
+        problems.append(f"{name}: openai.yaml interface must be an object")
     else:
-        implicit = allow_implicit_invocation(openai)
+        try:
+            implicit = allow_implicit_invocation(openai)
+        except ValueError as exc:
+            problems.append(f"{name}: {exc}")
+            implicit = None
         if name in SIBLINGS:
-            if implicit:
+            if implicit is True:
                 problems.append(
                     f"{name}: sibling must set policy.allow_implicit_invocation: false")
-            if not disable:
+            if disable is not True:
                 problems.append(
                     f"{name}: sibling must set disable-model-invocation: true")
         elif name == FLAGSHIP:
-            if not implicit:
+            if implicit is False:
                 problems.append(
                     f"{name}: flagship must allow implicit invocation "
                     "(omit policy or allow_implicit_invocation: true)")
-            if disable:
+            if disable is True:
                 problems.append(
                     f"{name}: flagship must NOT set disable-model-invocation")
-            if "policy" in openai and openai["policy"].get(
-                    "allow_implicit_invocation") is False:
-                problems.append(
-                    f"{name}: flagship must not disable implicit invocation")
 
     # Packaged dependencies must exist in the repository skills/ tree.
     for dep in DEPS.get(name, []):
-        if not (SKILLS_ROOT / dep / "SKILL.md").is_file():
+        if not ((skills_root or SKILLS_ROOT) / dep / "SKILL.md").is_file():
             problems.append(f"{name}: packaged dependency missing: {dep}")
 
     return problems
@@ -315,6 +354,11 @@ def _utf8_console() -> None:
 def install_all(root: Path, names: list[str], force: bool) -> list[str]:
     """한 대상 디렉터리에 여러 스킬을 설치하고 사람이 읽을 결과 줄을 만든다."""
     lines: list[str] = []
+    # Reject invalid source metadata before touching an installation.
+    for name in names:
+        problems = skill_schema_problems(SKILLS_ROOT / name)
+        if problems:
+            raise SystemExit("Invalid source metadata: " + "; ".join(problems))
     installed: list[tuple[Path, bool]] = []
     for name in names:
         try:

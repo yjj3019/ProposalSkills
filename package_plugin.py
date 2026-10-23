@@ -7,6 +7,8 @@ import sys
 import zipfile
 from pathlib import Path
 
+from install_skill import skill_schema_problems
+
 REPO = Path(__file__).resolve().parent
 PACKAGE_FILES = (
     "plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json",
@@ -76,10 +78,13 @@ def build_archive(destination: Path, *, root: Path = REPO) -> Path:
             raise FileNotFoundError(f"Required package file missing: {path.relative_to(root)}")
         if not path.resolve().is_relative_to(root):
             raise ValueError(f"Package path escapes source root: {path.relative_to(root)}")
+    validate_distribution(root)
     for name in ("create-best-proposal", "create-proposal-document", "create-winning-proposal"):
         if root / "skills" / name / "SKILL.md" not in files:
             raise FileNotFoundError(f"Required skill missing: {name}")
-    validate_distribution(root)
+        problems = skill_schema_problems(root / "skills" / name, skills_root=root / "skills")
+        if problems:
+            raise ValueError("Invalid skill metadata: " + "; ".join(problems))
     destination = destination.resolve()
     if destination in files:
         raise ValueError("Output must not replace a package source file")

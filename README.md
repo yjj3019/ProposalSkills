@@ -21,6 +21,13 @@ RFP·수정공고 → 요구사항·평가표 원장 → Win Theme·리드문 �
 
 ## 수록 스킬
 
+고품질 작성은 [근거 중심 작성·Red 검토](skills/create-proposal-document/references/quality-first-authoring.md)를
+기준으로 합니다. 평가 질문에 답하는 수행 방식, 검증 가능한 증거, 주장과 도식의 일치를 확인합니다.
+[선택형 증거 도구](skills/create-proposal-document/references/source-and-visual-evidence.md)는
+RFP 구조 추출(Docling/JSON import), 사람이 매칭한 수정공고 비교, 페이지별 PDF 시각 회귀를
+제공합니다. 기본 설치 의존성은 늘리지 않으며 추출·비교 결과가 제출 승인으로 승격되지 않습니다.
+메타데이터 타입과 정책은 설치·ZIP 생성 전에 검증합니다.
+
 | 스킬 | 역할 | 호출 | 이런 작업에 사용 |
 |---|---|---|---|
 | **[`create-best-proposal`](skills/create-best-proposal/SKILL.md)** ★ **진입점** | **통합 플래그십** — 콘텐츠+거버넌스 오케스트레이션, meta→audit, 통합 게이트, 대량 조견표 | 암시·명시 (「제안서 작성」은 항상 여기) | 실전 제안서 작성부터 bid 판정·제출 게이트까지 **한 경로**로 끝낼 때 |

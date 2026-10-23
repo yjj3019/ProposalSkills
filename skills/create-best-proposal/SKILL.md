@@ -70,6 +70,12 @@ Codex·Claude Code의 로컬 실행을 구분한다. 환경에 맞는 시작·�
 
 ## 1. Full 워크플로 (순서 고정)
 
+작성·검토에서는 [근거 중심 작성 지침](../create-proposal-document/references/quality-first-authoring.md)을
+적용한다. 고배점 요구의 수행 방식·증거·검증과 리드문/본문의 결론 일치를 먼저 확인한다.
+원문 추출·수정공고 비교·PDF 회귀가 필요한 경우에만
+[선택형 증거 도구](../create-proposal-document/references/source-and-visual-evidence.md)를 읽는다.
+추출·비교 성공은 사실·설득력·사람의 시각 승인이나 제출 판정을 대신하지 않는다.
+
 ### Phase A — 접수·참여 판단 (거버넌스 선행)
 
 1. 입력 인벤토리: RFP·수정공고·Q&A·평가표·양식·사내 증빙 경로.

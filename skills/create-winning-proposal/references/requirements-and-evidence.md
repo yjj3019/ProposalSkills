@@ -39,6 +39,12 @@ Within tier 1, apply this precedence unless the issuer says otherwise: formal am
 | `open_question` | exact missing decision or evidence |
 
 - Split compound requirements when owner, evidence, or approval differs.
+- For amendments, keep internal IDs stable while recording the revision-specific source clause label.
+  `scripts/compare_requirements.py` compares human-matched IDs and marks changed responses/evidence
+  for review. It does not infer split/merge matches or approve ledger records. Its JSON is a separate
+  review sidecar, not an audit. Input: `{"requirements": [{"id": "REQ-001", "text": "synthetic requirement", "source_clause_label": "1.1"}]}`.
+  Run `python compare_requirements.py before.json after.json --output amendment-diff.json` from the
+  actual script location. Do not store customer source text or diffs in the installed skill directory.
 - Record submission mechanics as requirements.
 - Map source-to-proposal, not topic-to-topic.
 - `not-applicable` requires rationale and reviewer approval.

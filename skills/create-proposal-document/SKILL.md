@@ -93,6 +93,11 @@ RFP 원문, 고객 현황, 제품 버전·EOL·로드맵, 실적·인증. 최신
   다음 장으로의 전환을 넣고, 분할 조견표는 생성 후 각 장의 설명을 확인한다.
 
 ### 5. 품질 게이트 — `references/review-checklist.md` 읽기
+내용·장표 품질은 [quality-first-authoring.md](references/quality-first-authoring.md)에 따라
+평가 질문·수행 방식·근거·검증 방법을 연결하고 실제 전 장을 검토한다.
+필요한 경우 [source-and-visual-evidence.md](references/source-and-visual-evidence.md)의
+선택형 원문 추출·수정공고·시각 비교 도구를 사용한다. 결과는 미검토 sidecar로 보존하며
+기존 제출 게이트나 사람 승인을 자동 갱신하지 않는다.
 제출 전 통합 검수 1회. 체크리스트 8개 항목 전부 통과해야 완료 선언.
 특히: 조견표 전수 매핑, 수치·버전·일정의 문서 내 일관성, PDF 변환 후 렌더 확인.
 기계 검사 가능한 항목은 `scripts/quality_gate.py`로 실행한다(금지어·플레이스홀더·

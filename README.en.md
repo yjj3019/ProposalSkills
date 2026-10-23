@@ -1,5 +1,12 @@
 # ProposalSkills
 
+Quality-first authoring now connects evaluation questions, delivery mechanisms, evidence and verification:
+[authoring and Red review](skills/create-proposal-document/references/quality-first-authoring.md).
+Optional [source and visual evidence tools](skills/create-proposal-document/references/source-and-visual-evidence.md)
+preserve RFP structure, compare human-matched amendment IDs and report page-level PDF changes.
+They do not approve requirements or submissions. Base installation dependencies are unchanged;
+metadata types are checked before installation and ZIP packaging.
+
 English · [한국어](README.md)
 
 ProposalSkills is a Korean Proposal Production & Governance Engine. It turns the requirements and

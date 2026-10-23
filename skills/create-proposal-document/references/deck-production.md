@@ -194,6 +194,10 @@ RFP 규정으로 확인, 보통 표지·목차 제외).
 
 ## 5. 생산 단계 체크
 
+내용 검토는 [quality-first-authoring.md](quality-first-authoring.md)를 따른다. 승인 기준본과
+수정본의 PDF를 비교할 때는 [source-and-visual-evidence.md](source-and-visual-evidence.md)의
+선택형 회귀 도구를 쓴다. 비교 결과가 사람의 시각 승인이나 제출 상태를 높이지 않는다.
+
 1. 리드문 맵(제목+lead만 있는 slides.json) → `build_deck.py --strict` → 리드문만 이어 읽어 스토리 확인.
 2. 본문 채움 → `deck_check.py --stage draft` (경고 목록이 작업 목록).
 3. 제출 후보 → `deck_check.py --stage submission --require-req-ids --render --emit-render` +
