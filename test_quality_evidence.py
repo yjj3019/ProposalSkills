@@ -166,6 +166,50 @@ class ExtractionTests(PrivateWorkspace):
                 extraction.extract(self.source, self.root / "run", timeout=1)
         self.assertFalse((self.root / "run/extraction.json").exists())
 
+    def test_ocr_review_points_to_unchanged_numeric_text_and_table_cells(self):
+        self.document["texts"] = [
+            {"text": value} for value in ("운영 09:00~18:00", "점검 O9.00~1800", "OO:OO~OO:OO", "수량 105")]
+        original = copy.deepcopy(self.document)
+        result = extraction.make_sidecar(self.source, self.document, {"ocr": True})
+        self.assertEqual(result["document"], original)
+        review = result["ocr_review"]
+        self.assertTrue(review["required"])
+        expected = [
+            ("/document/texts/0/text", ["numeric_content"]),
+            ("/document/texts/1/text", ["numeric_content", "time_format_review"]),
+            ("/document/texts/2/text", ["time_format_review"]),
+            ("/document/texts/3/text", ["numeric_content"]),
+            ("/document/tables/0/data/table_cells/0/text", ["numeric_content"]),
+        ]
+        self.assertEqual([(item["pointer"], item["reasons"]) for item in review["candidates"]], expected)
+        for item in review["candidates"]:
+            value = result
+            for part in item["pointer"].split("/")[1:]:
+                value = value[int(part)] if isinstance(value, list) else value[part]
+            self.assertIsInstance(value, str)
+        self.assertFalse(result["submission_approval"])
+        self.assertEqual(result["review_status"], "UNREVIEWED")
+        self.assertIn("non-exhaustive", review["coverage"])
+
+    def test_ocr_review_does_not_claim_import_or_non_ocr_provenance(self):
+        for setting in (False, "unknown"):
+            self.assertNotIn("ocr_review", extraction.make_sidecar(self.source, self.document, {"ocr": setting}))
+        empty = extraction.make_sidecar(self.source, {"schema_name": "DoclingDocument"}, {"ocr": True})
+        self.assertEqual(empty["ocr_review"]["candidates"], [])
+        self.assertTrue(empty["ocr_review"]["required"])
+
+    def test_worker_records_ocr_settings_only_when_enabled(self):
+        for enabled in (False, True):
+            output = self.root / str(enabled)
+            output.mkdir()
+            argv = ["extract_rfp.py", str(self.source), "--worker", "--output", str(output)]
+            if enabled:
+                argv.append("--ocr")
+            with patch.object(sys, "argv", argv), patch.object(extraction, "convert", return_value=(self.document, "test")):
+                self.assertEqual(extraction.main(), 0)
+            converter = json.loads((output / "converter.json").read_text(encoding="utf-8"))
+            self.assertEqual(converter["ocr_settings"], extraction.OCR_SETTINGS if enabled else None)
+
 
 class AmendmentTests(PrivateWorkspace):
     def test_renumber_and_text_changes_preserve_human_ids(self):

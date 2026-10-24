@@ -6,11 +6,39 @@ import argparse
 import importlib.metadata
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 from visual_compare import read_object, sha256, write_json
+
+
+OCR_SETTINGS = {"lang": ["ko", "en"], "confidence_threshold": 0.0, "scale": 3.0}
+TIME_RANGE = re.compile(r"([0-9OoIl:.]{3,6})\s*[~～–-]\s*([0-9OoIl:.]{3,6})")
+COLON_TIME = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]")
+
+
+def review_candidates(document: dict) -> list[dict]:
+    """Non-exhaustive review pointers into the unchanged sidecar document."""
+    items = [(f"/document/texts/{i}/text", item.get("text", ""))
+             for i, item in enumerate(document.get("texts", []))]
+    for i, table in enumerate(document.get("tables", [])):
+        data = table.get("data", {})
+        if isinstance(data, dict):
+            items.extend((f"/document/tables/{i}/data/table_cells/{j}/text", cell.get("text", ""))
+                         for j, cell in enumerate(data.get("table_cells", [])) if isinstance(cell, dict))
+    candidates = []
+    for pointer, text in items:
+        if not isinstance(text, str):
+            raise ValueError("Invalid Docling text")
+        reasons = ["numeric_content"] if re.search(r"\d", text) else []
+        if any(not all(COLON_TIME.fullmatch(value) for value in match.groups())
+               for match in TIME_RANGE.finditer(text)):
+            reasons.append("time_format_review")
+        if reasons:
+            candidates.append({"pointer": pointer, "reasons": reasons})
+    return candidates
 
 
 def capabilities(document: dict) -> dict:
@@ -36,7 +64,7 @@ def make_sidecar(source: Path, document: dict, converter: dict) -> dict:
     for item in document.get("texts", []) + document.get("tables", []):
         if not isinstance(item, dict) or not isinstance(item.get("prov", []), list):
             raise ValueError("Invalid Docling item/provenance")
-    return {
+    result = {
         "schema_version": 1, "kind": "proposal-rfp-extraction",
         "source": {"sha256": sha256(source), "format": source.suffix.lower()},
         "converter": converter, "capabilities": capabilities(document),
@@ -45,6 +73,14 @@ def make_sidecar(source: Path, document: dict, converter: dict) -> dict:
         # Docling's origin.binary_hash is NOT our source SHA-256.
         "document": document,
     }
+    if converter.get("ocr") is True:
+        result["ocr_review"] = {
+            "required": True, "candidates": review_candidates(document),
+            "coverage": "non-exhaustive; missing text and other recognition errors may not be listed",
+            "warning": "Low-confidence candidates retained; pointers are review aids, not errors or approvals. "
+                       "OCR enabled does not prove each item came from OCR. Compare against original pages.",
+        }
+    return result
 
 
 def validate_models(folder: Path, manifest: dict) -> None:
@@ -74,7 +110,8 @@ def convert(source: Path, artifacts: Path | None, ocr: bool) -> tuple[dict, str]
     if ocr:
         if artifacts is None or not (artifacts / "easyocr").is_dir():
             raise ValueError("Prepared easyocr models are required")
-        options.ocr_options = EasyOcrOptions(lang=["ko", "en"], download_enabled=False,
+        # Retain uncertain lines for review instead of silently discarding requirements.
+        options.ocr_options = EasyOcrOptions(**OCR_SETTINGS, download_enabled=False,
                                              model_storage_directory=str(artifacts / "easyocr"))
     converter = DocumentConverter(allowed_formats=[InputFormat.PDF, InputFormat.DOCX],
                                   format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
@@ -155,7 +192,10 @@ def main() -> int:
         if args.worker:
             document, version = convert(args.source, args.artifacts, args.ocr)
             write_json(args.output / "document.json", document)
-            write_json(args.output / "converter.json", {"name": "docling", "version": version})
+            write_json(args.output / "converter.json", {
+                "name": "docling", "version": version,
+                "ocr_settings": OCR_SETTINGS if args.ocr else None,
+            })
         else:
             extract(args.source, args.output, imported_json=args.import_json, artifacts=args.artifacts,
                     model_manifest=args.model_manifest, ocr=args.ocr, timeout=args.timeout)
