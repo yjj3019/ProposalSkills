@@ -81,6 +81,11 @@ python scripts/unified_gate.py audit.json --no-explain   # 조치표 생략
   이었다면 "제출 판정이 아니다" NOTE를 함께 출력한다.
 - 문서 경로를 주면 quality_gate를 먼저 실행하고, 실패 시 audit 평가 전 BLOCKED.
   quality_gate exit 2(손상·미지원 파일)는 INVALID(exit 2)로 구분한다.
+- audit은 파싱한 동일 바이트, 문서는 첫 하위 검사 전의 SHA-256을 최종 판정 직전에
+  다시 대조한다. 내용 변경·삭제·읽기 실패는 INVALID(exit 2)이며 다시 검사한다.
+  quality_gate 실패와 입력 변경이 함께 발생해도 INVALID로 구분한다. 첨부는 audit 평가
+  이후 실제 파일·해시를 대조한다. 이 검사는 파일 잠금이 아니며 중간 변경 후 원복이나
+  최종 대조 이후의 변경까지 보장하지 않는다. 검증된 제출 후보를 별도로 보존한다.
 - 자식 프로세스는 UTF-8로 실행한다(한국어 Windows cp949 콘솔에서도 크래시 없음).
 - 형제 스크립트를 못 찾으면 `PROPOSAL_GATE_PATH` / `QUALITY_GATE_PATH` 또는
   `install_skill.py --with-deps` 안내 후 exit 2.

@@ -110,6 +110,14 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _inputs_changed(inputs: dict[Path, str]) -> bool:
+    # shortcut: endpoint hashes miss edits restored between reads; use immutable inputs when needed.
+    try:
+        return any(sha256_file(path) != digest for path, digest in inputs.items())
+    except OSError:
+        return True
+
+
 def _norm_digest(value: object) -> str:
     """비교용 정규화 — 'sha256:' 접두사 제거 + 소문자. 64 hex가 아니면 빈 문자열."""
     if not isinstance(value, str):
@@ -259,13 +267,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        data = json.loads(args.audit.read_text(encoding="utf-8-sig"))
+        audit_bytes = args.audit.read_bytes()
+        data = json.loads(audit_bytes.decode("utf-8-sig"))
     except (OSError, ValueError) as exc:
         print(f"INVALID: {exc}")
         return 2
     if not isinstance(data, dict):
         print("INVALID: audit root must be an object")
         return 2
+    inputs = {args.audit: hashlib.sha256(audit_bytes).hexdigest()}
 
     try:
         mod = _load_gate_module(gate_path)
@@ -299,6 +309,11 @@ def main(argv: list[str] | None = None) -> int:
         if not args.doc.is_file():
             print(f"INVALID: 문서 없음: {args.doc}", file=sys.stderr)
             return 2
+        try:
+            inputs[args.doc] = sha256_file(args.doc)
+        except OSError:
+            print("INVALID: 문서를 읽을 수 없다", file=sys.stderr)
+            return 2
         code, qout = run_quality_gate(args.doc, args.stage, args.lang, args.names, args.palette)
         print("=== quality_gate ===")
         print(qout.rstrip() or "(no output)")
@@ -306,9 +321,16 @@ def main(argv: list[str] | None = None) -> int:
             print("INVALID: quality_gate usage/dependency failure")
             return 2
         if code != 0:
+            if _inputs_changed(inputs):
+                print("INVALID: 검사 중 audit 또는 문서가 변경되었거나 읽을 수 없다. 다시 검사한다")
+                return 2
             print("BLOCKED: document quality_gate failed")
             return 1
-        doc_failures = bind_document(data, args.doc)
+        try:
+            doc_failures = bind_document(data, args.doc)
+        except OSError:
+            print("INVALID: 검사 중 문서를 읽을 수 없다", file=sys.stderr)
+            return 2
         if audit_mode == "submission" and args.doc.suffix.lower() == ".pptx":
             code, out = run_deck_check(args.doc)
             print("=== deck_check ===")
@@ -345,20 +367,27 @@ def main(argv: list[str] | None = None) -> int:
             isinstance(a, dict) and (a.get("required", True) is not False or a.get("present") is True)
             for a in data.get("attachments", [])):
         doc_failures.append("제출에는 첨부 실물 검사가 필요하다 — --bundle <제출폴더>로 다시 실행한다")
-    if args.bundle:
-        if not args.bundle.is_dir():
-            print(f"INVALID: 묶음 폴더 없음: {args.bundle}", file=sys.stderr)
-            return 2
-        bundle_problems = verify_bundle(data, args.bundle)
-        print("=== bundle ===")
-        print("\n".join(f"- {p}" for p in bundle_problems)
-              or f"첨부 해시가 모두 일치한다 ({args.bundle})")
-        doc_failures.extend(bundle_problems)
-
     try:
         failures = mod.evaluate(data)
     except Exception as exc:  # GateEnvironmentError 등 — 게이트 판정이 아닌 환경 오류
         print(f"INVALID: gate error: {exc}", file=sys.stderr)
+        return 2
+    if args.bundle:
+        if not args.bundle.is_dir():
+            print(f"INVALID: 묶음 폴더 없음: {args.bundle}", file=sys.stderr)
+            return 2
+        try:
+            bundle_problems = verify_bundle(data, args.bundle)
+        except OSError:
+            print("INVALID: 첨부 파일을 읽을 수 없다", file=sys.stderr)
+            return 2
+        print("=== bundle ===")
+        print("\n".join(f"- {p}" for p in bundle_problems)
+              or f"첨부 해시가 모두 일치한다 ({args.bundle})")
+        doc_failures.extend(bundle_problems)
+    # Bind the verdict to the bytes loaded/checked, not just to an earlier hash observation.
+    if _inputs_changed(inputs):
+        print("INVALID: 검사 중 audit 또는 문서가 변경되었거나 읽을 수 없다. 다시 검사한다")
         return 2
     decision = data.get("bid_decision", "")
     if decision in {"no-bid", "intake-incomplete"}:

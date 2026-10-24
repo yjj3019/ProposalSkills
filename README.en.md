@@ -61,6 +61,7 @@ The other two skills are internal layers used by the integrated skill. Invoke th
 ## Verification scope
 
 Automated checks verify consistency across requirements, evidence, numbers, file hashes, and submission bundles.
+If the final hash comparison detects an audit or document change or deletion during checks, the gate returns `INVALID`.
 People must compare claims, OCR results, persuasiveness, and final visual quality against the sources and actual output.
 `AUDIT-VALID` means the records passed validation; it is not submission approval. `SUBMISSION-READY` applies
 when the file matches the required checks and approval records. It does not guarantee a successful bid.

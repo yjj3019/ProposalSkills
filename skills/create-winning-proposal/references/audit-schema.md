@@ -188,6 +188,10 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   차단된다(검토 이후 바뀐 파일에 과거 판정을 재사용할 수 없다). 문서 없이 audit만
   점검하려면 `--audit-only`를 쓰고, 이때 최선의 결과는 `SUBMISSION-READY`가 아니라
   `AUDIT-VALID`다.
+  audit의 파싱된 바이트와 문서의 첫 하위 검사 전 SHA-256을 최종 판정 전에 다시 대조한다.
+  내용 변경·삭제·읽기 실패가 확인되면 `INVALID`(exit 2)이며, 변경 없는 quality 실패는
+  기존 `BLOCKED`(exit 1)를 유지한다. 첨부는 audit 평가 이후 실제 파일·해시를 확인한다.
+  파일 잠금은 아니므로 중간 변경 후 원복이나 최종 대조 이후의 변경까지 보장하지 않는다.
 - **단계 강제(stage)**: `mode: submission` audit은 `--stage submission`으로만 검사한다.
   `--stage draft`로 낮춰 `[NEEDS INPUT]`을 경고로 만드는 우회는 사용 오류(exit 2)다.
 - **시뮬레이션 산출물**: `artifact_mode: simulation-only`는 `mode: submission`과 함께 쓸 수

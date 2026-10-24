@@ -241,6 +241,103 @@ class ArtifactBindingTests(unittest.TestCase):
         self.assertTrue(any("must be a sha256 digest" in f for f in pg.evaluate(data)))
 
 
+class InFlightInputBindingTests(unittest.TestCase):
+    """A passing child must not authorize files that changed during verification."""
+
+    def setUp(self):
+        import contextlib
+        from unittest.mock import patch
+        import unified_gate
+        self.gate, self.patch = unified_gate, patch
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.doc = make_pptx(self.root / "candidate.pptx")
+        data = ready_audit()
+        data["attachments"] = []
+        data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest_of(self.doc)
+        self.audit = self.root / "audit.json"
+        self.audit.write_text(json.dumps(data), encoding="utf-8")
+        self.original = {p: p.read_bytes() for p in (self.audit, self.doc)}
+        self.stack = contextlib.ExitStack()
+        self.addCleanup(self.stack.close)
+        self.checks = {name: self.stack.enter_context(patch.object(self.gate, name, return_value=(0, "ok")))
+                       for name in ("run_quality_gate", "run_deck_check", "run_check_numbers")}
+
+    def invoke(self, *extra, document=True):
+        import contextlib
+        import io
+        args = [str(self.audit), "--no-explain", *extra]
+        args += ["--doc", str(self.doc)] if document else ["--audit-only"]
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+            code = self.gate.main(args)
+        return code, output.getvalue()
+
+    def test_changed_or_deleted_inputs_are_invalid_for_each_child(self):
+        for helper in self.checks:
+            for target in self.original:
+                for delete in (False, True):
+                    for child_code in ((0, 1) if helper == "run_quality_gate" else (0,)):
+                        with self.subTest(helper=helper, target=target.name, delete=delete, code=child_code):
+                            for p, content in self.original.items():
+                                p.write_bytes(content)
+                            for check in self.checks.values():
+                                check.side_effect = None
+                            def change(*args):
+                                if delete:
+                                    target.unlink()
+                                else:
+                                    target.write_bytes(target.read_bytes() + b"changed")
+                                return child_code, "synthetic check"
+                            self.checks[helper].side_effect = change
+                            code, output = self.invoke()
+                            self.assertEqual(code, 2, output)
+                            self.assertIn("INVALID", output)
+                            self.assertNotIn("STATUS: SUBMISSION-READY", output)
+
+    def test_unchanged_inputs_still_pass_and_quality_failure_stays_blocked(self):
+        code, output = self.invoke()
+        self.assertEqual(code, 0, output)
+        self.assertIn("STATUS: SUBMISSION-READY", output)
+        self.checks["run_quality_gate"].return_value = (1, "quality failure")
+        code, output = self.invoke()
+        self.assertEqual(code, 1, output)
+        self.assertIn("BLOCKED", output)
+
+    def test_audit_only_detects_changes_during_evaluation(self):
+        evaluate = pg.evaluate
+        def change(data):
+            failures = evaluate(data)
+            self.audit.write_bytes(self.audit.read_bytes() + b"changed")
+            return failures
+        with self.patch.object(self.gate, "_load_gate_module", return_value=pg), \
+                self.patch.object(pg, "evaluate", side_effect=change):
+            code, output = self.invoke(document=False)
+        self.assertEqual(code, 2, output)
+        self.assertNotIn("STATUS: AUDIT-VALID", output)
+
+    def test_bundle_is_checked_after_evaluation(self):
+        attachment = make_pptx(self.root / "appendix.pptx")
+        data = json.loads(self.audit.read_text(encoding="utf-8"))
+        data["attachments"] = [{"name": attachment.name, "present": True, "role": "proposal",
+                                "sha256": digest_of(attachment), "price_screened": True}]
+        self.audit.write_text(json.dumps(data), encoding="utf-8")
+        code, output = self.invoke("--bundle", str(self.root))
+        self.assertEqual(code, 0, output)
+        evaluate = pg.evaluate
+        def change(data):
+            failures = evaluate(data)
+            attachment.write_bytes(attachment.read_bytes() + b"changed")
+            return failures
+        with self.patch.object(self.gate, "_load_gate_module", return_value=pg), \
+                self.patch.object(pg, "evaluate", side_effect=change):
+            code, output = self.invoke("--bundle", str(self.root))
+        self.assertEqual(code, 1, output)
+        self.assertIn("bundle:", output)
+        self.assertNotIn("STATUS: SUBMISSION-READY", output)
+
+
 class StageAndLabelTests(unittest.TestCase):
     """F02 — 단계·라벨·설명이 하나의 판정에서 나온다."""
 
