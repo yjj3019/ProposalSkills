@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Preserve the tested render/font environment during the ubuntu-latest migration.
-        os: [ubuntu-24.04, windows-latest]
+        # Compare explicit Ubuntu releases without following ubuntu-latest migrations.
+        os: [ubuntu-24.04, ubuntu-26.04, windows-latest]
         python: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v5
@@ -311,6 +311,28 @@ jobs:
           for BAD in broken_slide broken_rels; do
             if python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/$BAD.pptx"; then exit 1; fi
           done
+      - name: Render deck smoke (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          dpkg-query -W libreoffice-impress poppler-utils fonts-nanum
+          python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/draft.pptx" \
+            --max-pages 40 --exclude-cover-toc --require-req-ids --stage draft --render \
+            --png-dir "${RUNNER_TEMP}/rendered-deck" --emit-render "${RUNNER_TEMP}/render.json"
+          python - "${RUNNER_TEMP}" <<'PY'
+          import json, sys
+          from pathlib import Path
+          from pptx import Presentation
+          root = Path(sys.argv[1])
+          block = json.loads((root / "render.json").read_text(encoding="utf-8"))
+          assert block["render_succeeded"] and block["verified"], block
+          pngs = list((root / "rendered-deck").glob("slide-*.png"))
+          slides = len(Presentation(str(root / "draft.pptx")).slides)
+          assert len(pngs) == slides > 0, (len(pngs), slides)
+          assert all(p.stat().st_size > 0 for p in pngs), "empty rendered page"
+          assert block["visual_review_approved"] is False
+          print(f"RENDER-SMOKE: {slides} slides, {len(pngs)} non-empty PNGs; {block['tool']}")
+          PY
       - name: Auto-install smoke test
         shell: bash
         env:
