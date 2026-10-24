@@ -15,6 +15,13 @@ from visual_compare import read_object, sha256, write_json
 
 
 OCR_SETTINGS = {"lang": ["ko", "en"], "confidence_threshold": 0.0, "scale": 3.0}
+RAPID_SETTINGS = {"lang": ["iso:ko"], "backend": "onnxruntime", "model_size": "small",
+                  "text_score": 0.0, "scale": 3.0, "use_cls": False, "force_full_page_ocr": True}
+RAPID_MODELS = {
+    "det_model_path": "RapidOcr/ch_PP-OCRv5_det_mobile.onnx",
+    "cls_model_path": "RapidOcr/ch_ppocr_mobile_v2.0_cls_mobile.onnx",
+    "rec_model_path": "RapidOcr/korean_PP-OCRv5_rec_mobile.onnx",
+}
 TIME_RANGE = re.compile(r"([0-9OoIl:.]{3,6})\s*[~～–-]\s*([0-9OoIl:.]{3,6})")
 COLON_TIME = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]")
 
@@ -97,7 +104,7 @@ def validate_models(folder: Path, manifest: dict) -> None:
             raise ValueError("Model file missing, outside artifacts directory, or hash mismatch")
 
 
-def convert(source: Path, artifacts: Path | None, ocr: bool) -> tuple[dict, str]:
+def convert(source: Path, artifacts: Path | None, ocr: bool, *, ocr_engine: str = "easyocr") -> tuple[dict, str]:
     """Worker-only import: no models or Docling needed for JSON import mode."""
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import EasyOcrOptions, PdfPipelineOptions
@@ -108,10 +115,22 @@ def convert(source: Path, artifacts: Path | None, ocr: bool) -> tuple[dict, str]
         do_ocr=ocr, do_table_structure=True,
     )
     if ocr:
-        if artifacts is None or not (artifacts / "easyocr").is_dir():
+        if ocr_engine == "rapidocr":
+            from docling.datamodel.accelerator_options import AcceleratorOptions
+            from docling.datamodel.pipeline_options import RapidOcrOptions
+            if artifacts is None or not all((artifacts / name).is_file() for name in RAPID_MODELS.values()):
+                raise ValueError("Prepared RapidOCR models are required")
+            # Full-page detection avoids cropped-title corruption; upright Korean needs no line rotation.
+            options.ocr_options = RapidOcrOptions(**RAPID_SETTINGS, **{
+                key: str(artifacts / name) for key, name in RAPID_MODELS.items()})
+            options.accelerator_options = AcceleratorOptions(device="cpu", num_threads=2)
+        elif ocr_engine != "easyocr":
+            raise ValueError("Unsupported OCR engine")
+        elif artifacts is None or not (artifacts / "easyocr").is_dir():
             raise ValueError("Prepared easyocr models are required")
-        # Retain uncertain lines for review instead of silently discarding requirements.
-        options.ocr_options = EasyOcrOptions(**OCR_SETTINGS, download_enabled=False,
+        else:
+            # Retain uncertain lines for review instead of silently discarding requirements.
+            options.ocr_options = EasyOcrOptions(**OCR_SETTINGS, download_enabled=False,
                                              model_storage_directory=str(artifacts / "easyocr"))
     converter = DocumentConverter(allowed_formats=[InputFormat.PDF, InputFormat.DOCX],
                                   format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=options)})
@@ -124,11 +143,15 @@ def convert(source: Path, artifacts: Path | None, ocr: bool) -> tuple[dict, str]
 
 def extract(source: Path, output: Path, *, imported_json: Path | None = None,
             artifacts: Path | None = None, model_manifest: Path | None = None,
-            ocr: bool = False, timeout: int = 240) -> dict:
+            ocr: bool = False, timeout: int = 240, ocr_engine: str = "easyocr") -> dict:
     if source.suffix.lower() not in {".pdf", ".docx"} or not source.is_file():
         raise ValueError("A local PDF or DOCX is required")
     if timeout < 1 or timeout > 1800:
         raise ValueError("timeout must be 1..1800 seconds")
+    if ocr_engine not in {"easyocr", "rapidocr"} or (ocr_engine != "easyocr" and not ocr):
+        raise ValueError("--ocr-engine rapidocr requires --ocr")
+    if ocr and (source.suffix.lower() != ".pdf" or imported_json is not None):
+        raise ValueError("--ocr is only supported for direct PDF conversion")
     original_hash = sha256(source)
     manifest = None
     if imported_json is None and source.suffix.lower() == ".pdf":
@@ -136,8 +159,8 @@ def extract(source: Path, output: Path, *, imported_json: Path | None = None,
             raise ValueError("PDF conversion requires prepared --artifacts and --model-manifest")
         manifest = read_object(model_manifest)
         validate_models(artifacts, manifest)
-    if ocr and (source.suffix.lower() != ".pdf" or imported_json is not None):
-        raise ValueError("--ocr is only supported for direct PDF conversion")
+        if ocr and ocr_engine == "rapidocr" and not all(name in manifest["files"] for name in RAPID_MODELS.values()):
+            raise ValueError("All RapidOCR models must be hash-bound in the manifest")
     output.mkdir(parents=True, exist_ok=False)
     if imported_json is not None:
         import_hash = sha256(imported_json)
@@ -155,7 +178,7 @@ def extract(source: Path, output: Path, *, imported_json: Path | None = None,
         if artifacts:
             command += ["--artifacts", str(artifacts.resolve())]
         if ocr:
-            command.append("--ocr")
+            command += ["--ocr", "--ocr-engine", ocr_engine]
         # Native model/runtime failures are errors, never partial successful extractions.
         try:
             subprocess.run(command, env=env, capture_output=True, check=True, timeout=timeout)
@@ -184,21 +207,28 @@ def main() -> int:
     parser.add_argument("--import-json", type=Path, help="Import an existing DoclingDocument without dependencies")
     parser.add_argument("--artifacts", type=Path)
     parser.add_argument("--model-manifest", type=Path)
-    parser.add_argument("--ocr", action="store_true", help="Prepared Korean/English EasyOCR models required")
+    parser.add_argument("--ocr", action="store_true", help="Enable OCR with prepared local models (default: EasyOCR ko/en)")
+    parser.add_argument("--ocr-engine", choices=("easyocr", "rapidocr"), default="easyocr",
+                        help="RapidOCR: optional upright Korean full-page profile; requires --ocr and local models")
     parser.add_argument("--timeout", default=240, type=int)
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     try:
         if args.worker:
-            document, version = convert(args.source, args.artifacts, args.ocr)
+            document, version = convert(args.source, args.artifacts, args.ocr, ocr_engine=args.ocr_engine)
             write_json(args.output / "document.json", document)
             write_json(args.output / "converter.json", {
                 "name": "docling", "version": version,
-                "ocr_settings": OCR_SETTINGS if args.ocr else None,
+                "ocr_engine": args.ocr_engine if args.ocr else None,
+                "ocr_settings": (RAPID_SETTINGS if args.ocr_engine == "rapidocr" else OCR_SETTINGS) if args.ocr else None,
+                "ocr_packages": {name: importlib.metadata.version(name) for name in ("rapidocr", "onnxruntime")}
+                                if args.ocr and args.ocr_engine == "rapidocr" else {},
+                "accelerator": {"device": "cpu", "num_threads": 2}
+                               if args.ocr and args.ocr_engine == "rapidocr" else None,
             })
         else:
             extract(args.source, args.output, imported_json=args.import_json, artifacts=args.artifacts,
-                    model_manifest=args.model_manifest, ocr=args.ocr, timeout=args.timeout)
+                    model_manifest=args.model_manifest, ocr=args.ocr, timeout=args.timeout, ocr_engine=args.ocr_engine)
             print("EXTRACTED-UNREVIEWED (not approved requirements)")
         return 0
     except (ImportError, OSError, ValueError, TypeError, subprocess.SubprocessError) as exc:

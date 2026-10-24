@@ -210,6 +210,44 @@ class ExtractionTests(PrivateWorkspace):
             converter = json.loads((output / "converter.json").read_text(encoding="utf-8"))
             self.assertEqual(converter["ocr_settings"], extraction.OCR_SETTINGS if enabled else None)
 
+    def test_rapid_profile_requires_direct_ocr_and_hash_bound_models(self):
+        for options in ({"ocr_engine": "rapidocr"}, {"ocr_engine": "unknown"},
+                        {"ocr_engine": "rapidocr", "ocr": True}):
+            with self.assertRaises(ValueError):
+                extraction.extract(self.source, self.root / "rejected", **options)
+            self.assertFalse((self.root / "rejected").exists())
+        self.source = self.root / "source.pdf"
+        self.source.write_bytes(b"%PDF-synthetic")
+        models = self.root / "models"
+        models.mkdir()
+        (models / "layout.bin").write_bytes(b"test")
+        manifest = self.json("models.json", {"revision": "test", "files": {
+            "layout.bin": visual.sha256(models / "layout.bin")}})
+        with self.assertRaisesRegex(ValueError, "hash-bound"):
+            extraction.extract(self.source, self.root / "rejected", ocr=True, ocr_engine="rapidocr",
+                               artifacts=models, model_manifest=manifest)
+        self.assertFalse((self.root / "rejected").exists())
+        with self.assertRaises(ValueError):
+            extraction.extract(self.source, self.root / "rejected", ocr=True, ocr_engine="rapidocr",
+                               imported_json=self.json("import.json", self.document))
+
+    def test_rapid_worker_records_the_tested_profile_and_packages(self):
+        output = self.root / "rapid"
+        output.mkdir()
+        argv = ["extract_rfp.py", str(self.source), "--worker", "--output", str(output),
+                "--ocr", "--ocr-engine", "rapidocr"]
+        with patch.object(sys, "argv", argv), \
+                patch.object(extraction, "convert", return_value=(self.document, "test")) as convert, \
+                patch.object(extraction.importlib.metadata, "version", return_value="test"):
+            self.assertEqual(extraction.main(), 0)
+        convert.assert_called_once_with(self.source, None, True, ocr_engine="rapidocr")
+        converter = json.loads((output / "converter.json").read_text(encoding="utf-8"))
+        self.assertEqual(converter["ocr_engine"], "rapidocr")
+        self.assertEqual(converter["ocr_settings"], extraction.RAPID_SETTINGS)
+        self.assertFalse(converter["ocr_settings"]["use_cls"])
+        self.assertTrue(converter["ocr_settings"]["force_full_page_ocr"])
+        self.assertEqual(set(converter["ocr_packages"]), {"rapidocr", "onnxruntime"})
+
 
 class AmendmentTests(PrivateWorkspace):
     def test_renumber_and_text_changes_preserve_human_ids(self):

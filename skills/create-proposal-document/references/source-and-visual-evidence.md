@@ -58,6 +58,56 @@ OCR 사용 시 `ocr_review.candidates`는 sidecar 전체 기준 JSON Pointer와 
 이는 작은 합성 표본의 누락 완화 증거이며 실제 한국어 RFP 정확도 보증이 아니다.
 설정 의미는 [Docling 공식 옵션](https://docling-project.github.io/docling/reference/pipeline_options/)을 확인한다.
 
+### 스캔 시간대: 선택형 RapidOCR 비교
+
+기본 EasyOCR는 유지한다. 똑바로 놓인 한국어 스캔 PDF에는 다음 선택 프로필을 사용할 수 있다.
+자동 회전 분류를 끄고 전체 페이지를 OCR한다. 디지털 텍스트도 OCR로 대체할 수 있으므로
+디지털·혼합 PDF에 일괄 적용하지 않는다. 회전·기울기·잡음이 있는 실제 RFP는 별도 검증한다.
+
+```bash
+python scripts/extract_rfp.py scan.pdf --artifacts models --model-manifest models-rapid.json --ocr --ocr-engine rapidocr --output extraction-run
+```
+
+별도 환경에서 검증한 조합은 Docling 2.142.1, RapidOCR 3.10.0, ONNX Runtime 1.31.0,
+CPU 2개 스레드다. 이 선택 프로필은 실행 장치·스레드도 해당 설정으로 고정한다.
+기본 requirements에는 추가하지 않는다. 모델은 사전 준비하며 변환 중 다운로드·다른 엔진으로
+자동 대체하지 않는다. [Docling 모델 준비](https://docling-project.github.io/docling/usage/advanced_options/)의
+`RapidOcrModel.download_models(backend="onnxruntime", lang="iso:ko", model_size="small", local_dir=...)`로
+준비한 아래 파일 모두를 모델 폴더에 놓고 manifest에 full SHA-256과 revision을 기록한다.
+`small`이라는 옵션 이름과 별개로 이 조합의 한국어 인식기는 PP-OCRv5 mobile이다.
+
+- `RapidOcr/ch_PP-OCRv5_det_mobile.onnx`
+- `RapidOcr/ch_ppocr_mobile_v2.0_cls_mobile.onnx` (분류를 꺼도 엔진 초기화에 필요)
+- `RapidOcr/korean_PP-OCRv5_rec_mobile.onnx`
+
+프로필은 `lang=["iso:ko"], backend="onnxruntime", model_size="small", text_score=0,
+scale=3, use_cls=false, force_full_page_ocr=true`다. 실제 모델 경로를 명시하고 세 파일의
+manifest 포함·hash를 검사한다. `converter`에 엔진·설정·패키지 버전·manifest를 기록한다.
+문자열 교정이나 다수결 병합은 하지 않는다.
+
+같은 합성 표본의 비교 결과(2026-10-24):
+
+| 엔진·방식 | 시간대 정확 일치 | 함께 확인한 한계·채택 판단 |
+|---|---:|---|
+| 기본 EasyOCR | 0/6 | 기존 누락 완화 설정 유지 |
+| EasyOCR 회색조·Otsu·적응 이진화 | 각 0/2 | 기존 문서의 두 DPI 단독 OCR; 개선 없어 미채택 |
+| Tesseract 5.5.3 / tesserocr 2.12.0 / tessdata_best kor+eng, 원본 PSM 3·6 | 각 2/2 | 단독 OCR; CER 71.58% 또는 32.63~33.68%, 표 내용 누락으로 미채택 |
+| RapidOCR 자동 줄 회전 분류 | 0/6 | 전체 변환에서 한국어·시간 문자열 역전, 미채택 |
+| RapidOCR 회전 분류 끔·영역 OCR | 6/6 | 전체 변환 제목 훼손; backend·300 DPI 변경도 해결 못해 미채택 |
+| RapidOCR 회전 분류 끔·전체 페이지 | 6/6 | 선택형으로 채택; 한국어 제목 내용·표 셀 6개와 위치·금액·수량 보존 |
+
+마지막 프로필의 CER는 기존 150/300 DPI 모두 2.11%, 추가 문서는 모두 0%다.
+제품 추출 경로의 worker CLI로 네 스캔과 디지털 PDF 대조군을 다시 변환해 확인했다.
+디지털 대조군은 OCR을 끈 기존 CER 0%에서 이 프로필 적용 시 2.11%로 악화되어,
+텍스트가 있는 PDF에는 기본 비OCR 경로를 우선한다.
+기존 제목의 `○○→OO` 두 문자 오류는 남아 제목 전체 정확 일치로 계산하지 않았다.
+단독 RapidOCR에서도 회색조·Otsu·적응 이진화는 원본 대비 개선이 없어 추가하지 않았다.
+엔진 비교는 [공식 RapidOCR 모델](https://rapidai.github.io/RapidOCRDocs/main/model_list/)과
+[Tesseract best 모델](https://github.com/tesseract-ocr/tessdata_best)의 로컬 변환으로 수행했다.
+단독 OCR의 2건과 전체 Docling 변환의 6건은 다른 분모이며, 깨끗한 합성 문서 2종의
+DPI 변형일 뿐 독립적인 실제 RFP 6건이 아니다. 정확한 형식의 시간도 원문 대조 대상이며
+추출은 계속 UNREVIEWED다. UI는 검증 범위에서 제외했다.
+
 원격 서비스·외부 플러그인을 끄고 HF/Transformers offline 플래그와 EasyOCR 다운로드 금지를
 설정한다. 이 설정은 OS 네트워크 격리가 아니다. 모델/backend 버전에 따라 별도 통신 경로가
 있을 수 있어 기밀 자료는 허용된 격리 환경에서 먼저 합성 표본으로 검증한다. 부족한 모델,
