@@ -170,6 +170,16 @@ class MultiHostDistributionTests(unittest.TestCase):
         self.assertEqual(manifests[0]["$schema"],
                          "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json")
         self.assertEqual(manifests[1]["skills"], "./skills/")
+        interface = manifests[0]["extensions"]["com.openai"]["interface"]
+        self.assertEqual(interface, manifests[1]["interface"])
+        for key in ("displayName", "shortDescription", "developerName", "category", "websiteURL"):
+            self.assertIsInstance(interface[key], str)
+            self.assertTrue(interface[key].strip())
+        self.assertEqual(interface["websiteURL"], manifests[0]["repository"])
+        self.assertIn("Instructions", interface["capabilities"])
+        self.assertIsInstance(interface["defaultPrompt"], list)
+        self.assertTrue(all(isinstance(p, str) and p.strip() for p in interface["defaultPrompt"]))
+        self.assertTrue(any("create-best-proposal" in p for p in interface["defaultPrompt"]))
 
     def test_marketplaces_point_at_the_complete_plugin(self):
         import json

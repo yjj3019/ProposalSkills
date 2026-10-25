@@ -8,7 +8,7 @@
     {
       "name": "proposal-skills",
       "source": "./",
-      "description": "Korean IT/public proposal workflows with a flagship entry and explicit-only content and governance layers.",
+      "description": "Korean IT proposal workflows for RFP analysis, editable slide decks, evidence review, and submission checks.",
       "homepage": "https://github.com/yjj3019/ProposalSkills",
       "repository": "https://github.com/yjj3019/ProposalSkills",
       "keywords": ["proposal", "rfp", "skills", "governance"]

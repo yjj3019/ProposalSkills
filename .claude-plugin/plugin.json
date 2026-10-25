@@ -1,7 +1,7 @@
 {
   "name": "proposal-skills",
-  "version": "1.2.2",
-  "description": "Korean IT/public proposal workflows with a flagship entry and explicit-only content and governance layers.",
+  "version": "1.2.3",
+  "description": "Korean IT proposal workflows for RFP analysis, editable slide decks, evidence review, and submission checks.",
   "author": {
     "name": "ProposalSkills"
   },

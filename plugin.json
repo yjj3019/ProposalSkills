@@ -1,10 +1,28 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "proposal-skills",
-  "version": "1.2.2",
-  "description": "Korean IT/public proposal workflows with a flagship entry and explicit-only content and governance layers.",
+  "version": "1.2.3",
+  "description": "Korean IT proposal workflows for RFP analysis, editable slide decks, evidence review, and submission checks.",
   "author": {
     "name": "ProposalSkills"
   },
-  "repository": "https://github.com/yjj3019/ProposalSkills"
+  "repository": "https://github.com/yjj3019/ProposalSkills",
+  "homepage": "https://github.com/yjj3019/ProposalSkills",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "ProposalSkills",
+        "shortDescription": "Korean IT proposals: RFP analysis, slide decks, and submission checks",
+        "developerName": "yjj3019",
+        "category": "Productivity",
+        "capabilities": [
+          "Instructions"
+        ],
+        "websiteURL": "https://github.com/yjj3019/ProposalSkills",
+        "defaultPrompt": [
+          "create-best-proposal 스킬로 첨부 RFP의 제안서를 작성하고 요구사항·근거·수치를 검토해줘."
+        ]
+      }
+    }
+  }
 }

@@ -1,20 +1,21 @@
 # ProposalSkills
 
-English · [한국어](README.md)
+[한국어](README.md)
 
-Skills for Korean IT proposals, from requirements analysis to PPTX production, review, and submission preparation.
-ChatGPT/Codex, Claude, and Grok share the same guidance and verification scripts.
+A Korean IT proposal plugin for RFP analysis, editable PPTX authoring, review, and submission checks.
 
-## Installation
+## Install
 
-Choose marketplace installation or direct local installation. All three skills are installed together.
+### Codex · ChatGPT desktop
 
-### Codex
+Register the marketplace and install with the Codex CLI.
 
 ```bash
 codex plugin marketplace add yjj3019/ProposalSkills --ref main
 codex plugin add proposal-skills@proposal-skills-marketplace
 ```
+
+Restart the app and start a new conversation after installation.
 
 ### Claude Code
 
@@ -23,68 +24,35 @@ codex plugin add proposal-skills@proposal-skills-marketplace
 /plugin install proposal-skills@proposal-skills-marketplace
 ```
 
-### Direct local installation
+All three skills install together. See the [management guide](references/marketplace-management.md) for updates, direct installation, and ZIP packaging.
 
-```bash
-git clone https://github.com/yjj3019/ProposalSkills.git
-cd ProposalSkills
-python install_skill.py --auto
-```
-
-Use `--list-targets` to preview installation locations. To update an existing installation, run
-`git pull`, then `python install_skill.py --auto --force`.
-See [marketplace management](references/marketplace-management.md) for updates and ZIP distribution.
-
-## Usage
-
-The entry point is **`create-best-proposal`**.
-Use `$create-best-proposal` in Codex, `/create-best-proposal` for a direct Claude Code installation,
-or `/proposal-skills:create-best-proposal` for the Claude plugin.
-In supported ChatGPT environments, select the registered skill. Attaching files does not install a skill.
+## Use
 
 Provide the RFP, amendments, evaluation criteria, required templates, and available evidence, then ask:
 
-> Use create-best-proposal to draft a proposal for the attached RFP.
-> Organize the requirements and evaluation criteria, and flag unsupported content for confirmation.
-> Define the outline and key messages, create the PPTX, and run the available checks.
+> Use create-best-proposal to write a proposal for the attached RFP.
+> Map requirements and evidence, create the PPTX, and review numbers and slide quality.
 
-Workflow: **requirements and evaluation ledgers → outline and key messages → slides → review and submission checks**.
+Start with `$create-best-proposal` in Codex or `/proposal-skills:create-best-proposal` in the Claude plugin.
+In supported ChatGPT environments, select the installed skill.
+
+## Included skills
 
 | Skill | Role |
 |---|---|
-| [create-best-proposal](skills/create-best-proposal/SKILL.md) | Integrated workflow from authoring to submission checks |
-| [create-proposal-document](skills/create-proposal-document/SKILL.md) | Content, writing style, and slide production |
-| [create-winning-proposal](skills/create-winning-proposal/SKILL.md) | Evidence, approvals, and submission requirements |
+| [create-best-proposal](skills/create-best-proposal/SKILL.md) | Unified entry for authoring, review, and submission checks |
+| [create-proposal-document](skills/create-proposal-document/SKILL.md) | Content, writing style, and PPTX generation |
+| [create-winning-proposal](skills/create-winning-proposal/SKILL.md) | Requirements, evidence, and approval validation |
 
-The other two skills are internal layers used by the integrated skill. Invoke them directly only when explicitly named.
+The unified entry uses the two internal skills; name them explicitly for standalone work.
 
-## Verification scope
+## Runtime and verification
 
-Automated checks verify consistency across requirements, evidence, numbers, file hashes, and submission bundles.
-Business days, months, and years are not converted across duration units without a calendar basis.
-If the final hash comparison detects an audit or document change or deletion during checks, the gate returns `INVALID`.
-People must compare claims, OCR results, persuasiveness, and final visual quality against the sources and actual output.
-`AUDIT-VALID` means the records passed validation; it is not submission approval. `SUBMISSION-READY` applies
-when the file matches the required checks and approval records. It does not guarantee a successful bid.
+PPTX generation and inspection require Python 3.10+ and `python-pptx`; automated rendering requires LibreOffice and Poppler.
+Installing the plugin does not install these tools. Automated checks do not replace factual review, visual review, or submission approval.
+Keep customer materials and generated output outside this public repository.
 
-PPTX generation and inspection require `python-pptx`; rendering checks require LibreOffice and Poppler.
-Without file or execution tools, proceed with text authoring and review, and mark unrun checks as not performed.
-Keep source documents, customer materials, and working output outside this public repository.
-
-## Detailed guides
-
-- [Host-specific installation, invocation, and execution scope](skills/create-best-proposal/references/host-portability.md)
-- [Evidence-based authoring and Red review](skills/create-proposal-document/references/quality-first-authoring.md)
-- [Slide production and output specifications](skills/create-proposal-document/references/deck-production.md)
-- [Source extraction, OCR, amendments, and visual comparison](skills/create-proposal-document/references/source-and-visual-evidence.md)
-- [Submission gate and audit schema](skills/create-winning-proposal/references/audit-schema.md)
-- [Related project analysis](references/proposal-related-git-repositories.md)
-
-## Development and testing
-
-```bash
-pip install -r requirements.txt
-python -m unittest discover -s . -p "test_*.py" -q
-```
-
-Before contributing, read [AGENTS.md](AGENTS.md) for change, verification, and public-data rules.
+[Authoring and review](skills/create-proposal-document/references/quality-first-authoring.md) ·
+[Slide specifications](skills/create-proposal-document/references/deck-production.md) ·
+[Submission checks](skills/create-winning-proposal/references/audit-schema.md) ·
+[Development and contribution](AGENTS.md)
