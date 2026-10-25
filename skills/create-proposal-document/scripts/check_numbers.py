@@ -81,9 +81,9 @@ def document_text(path: Path, body_only: bool = True) -> str:
 
 
 # 수 뒤에 붙는 한국어·기호 단위. 같은 숫자라도 단위가 다르면 다른 값이다(37원 ≠ 37개월).
-# 공백 없이 붙은 것만 단위로 본다. "400 VM"의 VM은 명사이고, 한국어 제안서의 단위
-# 표기는 "37개월"·"37원"처럼 숫자에 붙는다 — 띄어쓴 낱말까지 단위로 보면 정상 표기를 차단한다.
-UNIT_TOKEN_RE = re.compile(r"^(%|퍼센트|원|달러|KRW|USD|억|만|천|조|개월|년|월|일|주|시간|분|초|명|개|건|식|대|회|배|점|배럴|GB|TB|MB|Gbps|Mbps|VM|core|vCPU)",
+# 붙어 있는 단위와 명확히 분리된 시간 단위를 대조한다. "400 VM" 같은 띄어쓴 일반
+# 명사는 기존처럼 해석하지 않는다 — 표 헤더에만 단위가 있는 문서도 별도 의미 대조가 필요하다.
+UNIT_TOKEN_RE = re.compile(r"^(%|퍼센트|원|달러|KRW|USD|억|만|천|조|영업일|분기|개월|년|월|일|주|시간|분|초|명|개|건|식|대|회|배|점|배럴|GB|TB|MB|Gbps|Mbps|VM|core|vCPU)",
                            re.IGNORECASE)
 # 원장 단위 → 문서에서 허용되는 표기. 여기 없는 단위는 인접 단위를 검사하지 않는다.
 UNIT_ALIASES: dict[str, set[str]] = {
@@ -91,9 +91,14 @@ UNIT_ALIASES: dict[str, set[str]] = {
     "USD": {"달러", "USD"}, "달러": {"달러", "USD"},
     "%": {"%", "퍼센트"}, "퍼센트": {"%", "퍼센트"},
     "개월": {"개월", "월"}, "월": {"개월", "월"}, "년": {"년"},
-    "일": {"일"}, "주": {"주"}, "시간": {"시간"},
+    "일": {"일"}, "영업일": {"영업일"}, "주": {"주"}, "시간": {"시간"},
+    "분": {"분"}, "초": {"초"},
     "명": {"명"}, "개": {"개"}, "건": {"건"}, "대": {"대"}, "회": {"회"}, "점": {"점"},
 }
+
+
+# 띄어쓴 시간 단위만 판별한다. "분석" 같은 낱말과 "400 VM"은 단위로 추정하지 않는다.
+SPACED_TIME_RE = re.compile(r"^\s+(영업일|개월|시간|초|분|일|주|월|년)(?![가-힣A-Za-z])")
 
 
 def _unit_conflict(after: str, unit: str) -> bool:
@@ -101,10 +106,14 @@ def _unit_conflict(after: str, unit: str) -> bool:
     allowed = UNIT_ALIASES.get(str(unit).strip())
     if not allowed:
         return False  # 모르는 단위는 판단하지 않는다 — 거짓 차단을 만들지 않는다
-    m = UNIT_TOKEN_RE.match(after.lstrip() if str(unit).strip() in {"KRW", "원", "USD", "달러"} else after)
+    currency = str(unit).strip() in {"KRW", "원", "USD", "달러"}
+    m = UNIT_TOKEN_RE.match(after.lstrip() if currency else after)
+    if not m and str(unit).strip() in {"초", "분", "시간", "일", "영업일", "주", "개월", "월", "년"}:
+        m = SPACED_TIME_RE.match(after)
     if not m:
         return False  # 단위가 붙어 있지 않으면(표 셀 등) 판단 근거가 없다
-    return m.group(1) not in allowed
+    actual = m.group(1).upper() if currency else m.group(1)
+    return actual not in allowed
 
 
 def _find_spans(haystack: str, needle: str) -> list[re.Match]:

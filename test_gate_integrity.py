@@ -100,6 +100,61 @@ class SubmissionValidationRegressionTests(unittest.TestCase):
         _, checks = self.numbers.compare(entries[:1], "최초 응답 8시간\n최초 응답: 지속 응답 8시간")
         self.assertFalse(checks[0]["matched"])
 
+    def test_explicit_time_units_cannot_match_a_different_duration(self):
+        for unit, text, expected in (
+            ("분", "응답 15분", True), ("초", "응답 15초", True),
+            ("분", "응답 15시간", False), ("초", "응답 15분", False),
+            ("시간", "응답 15초", False), ("분", "응답 15분기", False),
+            ("영업일", "응답 15영업일", True), ("영업일", "응답 15일", False),
+            ("일", "응답 15영업일", False),
+            ("시간", "응답 15 분", False), ("분", "응답 15 시간", False),
+            ("영업일", "응답 15 일", False), ("일", "응답 15 영업일", False),
+            ("분", "응답 15 분", True),
+            ("시간", "응답 15", True), ("시간", "응답 15 | 기준", True),
+            ("분", "응답 15 분석 대상", True), ("대", "대상 15 VM", True),
+            ("KRW", "총액 15krw", True),
+        ):
+            with self.subTest(unit=unit, text=text):
+                _, checks = self.numbers.compare(
+                    [{"id": "N", "label": "응답", "value": 15, "unit": unit}], text)
+                self.assertEqual(checks[0]["matched"], expected, checks)
+
+    def test_nonfinite_tolerance_cannot_disable_sum_or_ratio_validation(self):
+        for tolerance in (float("inf"), float("-inf"), float("nan")):
+            for kind in ("sum", "ratio"):
+                with self.subTest(tolerance=tolerance, kind=kind):
+                    entries = [{"id": "A", "label": "기준", "value": 100, "unit": "개"},
+                               {"id": "B", "label": "추가", "value": 200, "unit": "개"}]
+                    bad = {"id": "T", "label": "계산값", "value": 900,
+                           "unit": "개", "components": ["A", "B"], "tolerance": tolerance}
+                    if kind == "ratio":
+                        bad.update(unit="%", percent_of="A", amount=10)
+                        bad.pop("components")
+                    failures = pg.check_numbers(entries + [bad])
+                    self.assertTrue(any("tolerance" in f for f in failures), failures)
+                    self.assertTrue(any("합계가 맞지 않는다" in f or "비율이 맞지 않는다" in f
+                                        for f in failures), failures)
+        normal = [{"id": "A", "label": "기준", "value": 100, "unit": "개"},
+                  {"id": "T", "label": "합계", "value": 100, "unit": "개",
+                   "components": ["A"], "tolerance": 0}]
+        self.assertEqual(pg.check_numbers(normal), [])
+
+    def test_calendar_dependent_units_are_not_assumed_to_be_fixed_hours(self):
+        for left, right in (("영업일", "일"), ("개월", "일"), ("월", "시간"),
+                            ("년", "일"), ("개월", "년")):
+            with self.subTest(left=left, right=right):
+                entries = [{"id": "A", "label": "기간A", "value": 1,
+                            "unit": left, "at_most": "B"},
+                           {"id": "B", "label": "기간B", "value": 10000, "unit": right}]
+                self.assertTrue(any("cannot be compared" in f for f in pg.check_numbers(entries)))
+                entries[1]["unit"] = left
+                self.assertEqual(pg.check_numbers(entries), [])
+                entries[0]["value"] = 10001
+                self.assertTrue(any("이하" in f for f in pg.check_numbers(entries)))
+        fixed = [{"id": "A", "label": "기간A", "value": 60, "unit": "분", "at_most": "B"},
+                 {"id": "B", "label": "기간B", "value": 1, "unit": "시간"}]
+        self.assertEqual(pg.check_numbers(fixed), [])
+
     def test_label_matching_input_is_validated(self):
         entry = {"id": "N", "value": 8, "unit": "시간", "label": "응답", "match_label": "yes"}
         self.assertTrue(pg.check_numbers([entry]))
@@ -117,6 +172,20 @@ class SubmissionValidationRegressionTests(unittest.TestCase):
         audit = self.dir / "audit.json"
         audit.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         return run(UG, audit, "--doc", doc, "--no-explain", *extra)
+
+    def test_submission_rechecks_minute_unit_in_actual_pptx(self):
+        doc, data = self._submission()
+        data["numbers"].append({"id": "SLA", "label": "장애응답", "value": 15,
+                                "unit": "분", "match_label": True})
+        for shown, expected in (("15시간", 1), ("15분", 0)):
+            with self.subTest(shown=shown):
+                make_pptx(doc, "정상 문서 " + LEDGER_TEXT + " · 장애응답 " + shown)
+                result = self._run(doc, data)
+                self.assertEqual(result.returncode, expected, result.stdout)
+                if expected:
+                    self.assertIn("[차단] SLA", result.stdout)
+                else:
+                    self.assertIn("SUBMISSION-READY", result.stdout)
 
     def test_recorded_layout_approval_does_not_hide_tiny_text(self):
         from pptx import Presentation

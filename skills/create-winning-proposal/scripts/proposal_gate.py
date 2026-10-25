@@ -37,10 +37,8 @@ REQUIRED_PACKAGE_CHECKS = {
 OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibility", "numbers"}
 REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
 VENDOR_KINDS = {"support", "supply"}
-# 시간 단위 환산 — SLA 표는 시간·영업일·개월을 섞어 쓴다. 환산 없이 값만 보면
-# "4시간 → 2일"처럼 단위가 바뀌는 자리에서 뒤바뀐 값을 잡지 못한다.
-DURATION_HOURS = {"분": 1 / 60, "시간": 1.0, "일": 24.0, "영업일": 24.0,
-                  "주": 168.0, "개월": 730.0, "월": 730.0, "년": 8760.0}
+# 고정 경과시간만 환산한다. 영업일·개월·년은 시작일·달력 근거 없이 시간으로 추정하지 않는다.
+DURATION_HOURS = {"분": 1 / 60, "시간": 1.0, "일": 24.0, "주": 168.0}
 CLAIM_KINDS = {"material", "commitment", "informational"}
 # 요구 강도. 실제 공고는 필수/권장/선택/조건부/참고를 구분하는데 mandatory 불리언 하나로는
 # 권장 분량 초과와 필수 위반이 같은 무게가 된다. mandatory는 후방호환으로 남긴다.
@@ -418,8 +416,8 @@ def check_numbers(entries: object) -> list[str]:
             failures.append(f"number {nid} match_label must be a boolean")
     for nid, item in by_id.items():
         tol = item.get("tolerance", 0.005)
-        if not _is_number(tol) or tol < 0:
-            failures.append(f"number {nid} tolerance must be a non-negative number")
+        if not _is_finite(tol) or tol < 0:
+            failures.append(f"number {nid} tolerance must be a finite non-negative number")
             tol = 0.005
         if not isinstance(item.get("unit"), str):
             # 단위가 문자열이 아니면 위에서 이미 차단됐다. 여기서 계속 진행하면
@@ -466,11 +464,12 @@ def check_numbers(entries: object) -> list[str]:
             mine = _to_hours(item)
             theirs = _to_hours(other)
             if mine is None or theirs is None:
-                # 시간 단위가 아니면 같은 단위끼리만 비교한다(사과와 오렌지를 재지 않는다).
+                # 고정시간으로 환산할 수 없으면 같은 단위끼리만 비교한다.
                 if item.get("unit") != other.get("unit"):
                     failures.append(
                         f"number {nid} cannot be compared with {other_id}: units differ "
-                        f"({item.get('unit')!r} vs {other.get('unit')!r})")
+                        f"({item.get('unit')!r} vs {other.get('unit')!r}) — "
+                        "달력·업무시간 기준 없는 기간 환산은 하지 않는다")
                     continue
                 mine, theirs = item.get("value"), other.get("value")
                 if not (_is_finite(mine) and _is_finite(theirs)):
