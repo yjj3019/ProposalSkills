@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run 10 independent architecture reviews against ProposalSkills tree.
+"""Generate 10 reproducible, persona-weighted architecture review views of ProposalSkills.
 
 Each review uses a distinct lens (persona) and scores 8 dimensions 0–10.
 Findings are evidence-backed checks against the filesystem, not freeform prose.
@@ -286,7 +286,7 @@ def base_scores(ev: dict) -> dict[str, float]:
 
 
 def persona_adjust(base: dict[str, float], weights: dict[str, float], run: int) -> dict[str, float]:
-    """Slight deterministic jitter per run so reviews are independent but reproducible."""
+    """Apply slight deterministic variation so weighted review views are reproducible."""
     out = {}
     for dim, score in base.items():
         # jitter ±0.35 based on run and dim hash
@@ -381,7 +381,7 @@ def render_markdown(data: dict) -> str:
         "# Architecture Review Report — ProposalSkills ×10",
         "",
         f"- Generated: `{data['meta']['generated_at']}`",
-        f"- Root: `{data['meta']['root']}`",
+        "- Root: repository root",
         f"- Skills: {', '.join(f'`{s}`' for s in data['meta']['skills'])}",
         f"- Method: {data['meta']['method']}",
         "",
@@ -471,8 +471,8 @@ def render_markdown(data: dict) -> str:
         "",
         "### Verdict",
         "",
-        f"Across 10 independent lenses the architecture scores **{data['overall']['mean']}/10** "
-        f"(range {data['overall']['min']}–{data['overall']['max']}, σ={data['overall']['stdev']}). ",
+        f"Across 10 weighted review lenses the recorded architecture score is **{data['overall']['mean']}/10** "
+        f"(range {data['overall']['min']}–{data['overall']['max']}, σ={data['overall']['stdev']}).",
         "",
         "The **3-layer model is sound** and is the main source of high layering/modularity/extensibility scores. "
         "The main drag is **deploy topology** (best skill depends on siblings without vendoring) and "

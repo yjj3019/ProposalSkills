@@ -1,6 +1,6 @@
 ---
 name: create-winning-proposal
-description: "create-best-proposal이 로드하는 거버넌스 레이어(한/영). bid/no-bid 판정, 원자 요구사항·근거 원장, 승인 체인, audit JSON 스키마와 결정론적 제출 게이트(proposal_gate.py)를 담는다. PPTX·DOCX·PDF 산출물에 공통 적용. 사용자가 게이트·audit·bid 판정만 요구할 때, 또는 create-best-proposal이 없을 때만 직접 사용한다."
+description: "Evidence, approval, and submission-review layer loaded by create-best-proposal. Covers bid/no-bid decisions, atomic requirements, evidence ledgers, approval chains, audit JSON, and proposal_gate.py for PPTX/DOCX/PDF. Use directly only for explicitly requested layer work or when create-best-proposal is unavailable."
 disable-model-invocation: true
 ---
 
@@ -18,6 +18,12 @@ Create evaluator-readable proposals in which every requirement, claim, commitmen
 ## Stay model-neutral
 
 Apply the same workflow with ChatGPT, Claude, Gemini, Grok, or another capable model. Treat platform-specific tools, agent syntax, memory, and retrieval as optional adapters. Never make proposal logic, evidence rules, review states, or audit outputs depend on one model vendor.
+
+Check the current session's file, Python/subprocess, rendering, and image-viewing capabilities before
+running scripts. Use equivalent host tools; do not require a named Claude tool, agent, or document skill.
+For a combined installation, read `../create-best-proposal/references/host-portability.md`.
+If that guide is absent in a standalone installation, continue the supplied-text review and mark unavailable
+checks `NOT INSPECTED`. Attaching files is not skill installation, and code shown in chat is not execution.
 
 ## Execute the workflow
 

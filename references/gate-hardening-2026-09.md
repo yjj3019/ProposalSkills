@@ -1,546 +1,347 @@
-# 게이트 신뢰성 감사와 수정 (2026-09)
+# Gate reliability audit and fixes (2026-09)
 
-기존 테스트 132개 전부 통과 상태에서, 합성 PPTX/DOCX/XLSX와 변조 audit JSON으로 게이트 스크립트를
-직접 찔러 본 결과다. 문서 레이어(목차·패턴·문체)가 아니라 **게이트가 약속한 "결정론적 차단"이
-실제로 성립하는지**만 봤다. 발견 항목은 전부 `test_gate_hardening.py`에 재현 테스트로 고정했다.
+These findings came from directly probing the gate scripts with synthetic PPTX/DOCX/XLSX files and tampered audit JSON while all 132 existing tests passed. The scope was whether the gate's promised **deterministic blocking actually worked**, rather than the document layer (outlines, patterns, or writing style). Every finding was captured as a reproduction test in `test_gate_hardening.py`.
 
-## P0 — 허위 통과 (게이트가 "통과"라고 말했지만 틀린 경우)
+## P0 — False passes (the gate reported a pass incorrectly)
 
-| # | 위치 | 재현 | 수정 |
+| # | Location | Reproduction | Fix |
 |---|---|---|---|
-| 1 | quality_gate | 노트·레이아웃·마스터·차트에 잔존 고객명 → 통과 | `ppt/notesSlides`, `slideLayouts`, `slideMasters`, `charts`, `comments`, `docProps/core.xml` 스캔 |
-| 2 | quality_gate | DOCX 머리말·바닥글·각주·주석에 과장어 → 통과 | `word/header*`, `footer*`, `footnotes`, `endnotes`, `comments` 스캔 |
-| 3 | quality_gate | 텍스트박스 중첩 `<w:p>` 뒤 본문 유실 | 최상위 문단 깊이 추적으로 분할 |
-| 4 | quality_gate | run 분할(`최`+`고`), NBSP 포함 마커 → 미탐지 | run을 공백 없이 결합, 공백류 정규화 |
-| 5 | proposal_gate | `accepted:"pending"`, `present:"no"`, `cleared:"no"`, `verified:"failed"` → READY | 엄격 불리언 스키마 검증(문자열 → INVALID) |
-| 6 | proposal_gate | claim `kind` 누락·오타(`Material`) → 검사 생략 | 누락=material, 미지원 kind=스키마 오류 |
-| 7 | unified_gate | `mode:"draft"` audit에 `SUBMISSION-READY` 표시 | mode=submission일 때만 표시, 그 외 `DRAFT-READY` + NOTE |
-| 8 | quality_gate/unified_gate | 한국어 Windows cp949 콘솔에서 `—` 출력 크래시 → 정상 문서 BLOCKED | stdout UTF-8 재구성, 자식 프로세스 `PYTHONIOENCODING=utf-8` |
-
-## P1 — fail-open·견고성
-
-- `evidence_refs=["[NEEDS INPUT]"]`, `artifact_hash:"TBD"`, `receipt_plan:"TBD"`, 규제 `evidence:"TBD"`가
-  근거로 통과 → 플레이스홀더(TBD·TODO·???·needs input·입력요망·미정 등)는 근거로 인정하지 않음.
-
-- names 파일 UTF-8 BOM으로 첫 명칭 무시 → `utf-8-sig`. 금지 명칭 대소문자·공백 무시 매칭.
-- 손상·미지원 파일이 exit 1(차단)로 섞임 → exit 2(검사 불가). XLSX 셀·주석 검사 추가.
-- `bid_conditions[].deadline` 과거여도 CONDITIONAL-GO → 미래 검증 추가.
-- `mode:"submission"` + `conditional-bid` exit 0 → 차단(조건부는 내부 상태).
-- 빈 `requirements`로 submission READY → 필수 요구 1건 이상 요구. `mandatory` 누락=필수.
-- 빌더가 `"requirements": "R1 R2"` 문자열을 조용히 `[]`로 → ValueError.
-- 빌더가 `slide:N`을 `evidence_refs`로 조작해 반낙관 검사 우회 → 근거 미생성 + 경고.
-- 빌더 `bool("no") == True` → 문자열 불리언 ValueError.
-- `PROPOSAL_GATE_NOW` 형식 오류 시 벽시계 폴백 → 환경 오류 exit 2.
-- score_completeness 지표 범위·타입 미검증(157점 산출) → 4개 필수·0~1 검증, INVALID exit 2.
-- unified_gate `PROPOSAL_GATE_PATH`에 임의 .py → 모듈 함수 존재 확인 후 INVALID.
-- bulk_matrix: 공란 `mandatory`=False → True. `o`/`Y`/`△` 정규화, 미지원 코드 오류. CSV 다중행 셀 보존.
-- install_skill: `--name ../..` 경로 이탈 차단, SKILL.md 없는 불완전 디렉터리 교체, `--force`, 캐시 제외.
-- proposal_gate argparse(`-h`, 미지원 플래그 exit 2). 비UTF-8 JSON exit 2.
-
-## 유지 사항 (의도된 동작으로 확인)
-
-- 마스터 색상 NOT INSPECTED 경고는 비차단으로 유지(테스트 계약).
-- 스킬 디렉터리 내 `test_*.py`는 설치 후 자가검증용으로 배포본에 포함.
-
-## 관련 문서 갱신
-
-`unified-gates.md` §3·§4·§6, `audit-schema.md`(엄격 불리언·조건부 범위), `create-best-proposal/SKILL.md`
-Phase D·E, `create-proposal-document/SKILL.md` 자료 위치, README 테스트 절, `.github/workflows/ci.yml`.
-
-## 2차 (2026-09-05) — 장표 생산 레이어 추가
-
-미니 RFP로 스킬을 그대로 따라간 드라이런 결과, Phase D(시각·산출)가 텍스트 지침만 있고 도구가
-없어 100% 모델 재발명이었고(슬라이드 1장 전 1,583줄 열람), 렌더·레이아웃 검사가 없어 페이지 제한·
-리드문·REQ-ID·폰트 축소를 어떤 게이트도 잡지 못했다. 반영:
-
-- `build_deck.py`: slides.json → PPTX. 레이아웃 12종, 좌표·토큰 고정, 도형 역할명(TITLE/LEAD/REQID…)
-  부여, 조견표 자동 분할, `--strict`(리드문 누락·페이지 제한), `--template` 사내 양식.
-- `deck_check.py`: 리드문·REQ-ID·페이지 수·최소 폰트·밀도·표 헤더 린트 + LibreOffice 렌더 대조·PNG
-  썸네일 + audit `render` 블록 출력(렌더 성공+차단 0 → verified). soffice 없으면 NOT INSPECTED.
-- 골든 `fixtures/e2e-mini-rfp/`(rfp.md·slides.json·meta.json)와 `test_deck_pipeline.py` 14건.
-- 게이트 조정: draft/review 모드는 `artifact_required`·`package.required`·`checks.submission`을 요구하지
-  않는다(Pink/Red 체크포인트 도달 가능). submission 모드는 변경 없음.
-- 어휘 통일: 수용여부 6코드(`O/부분/조건부/X/N/A/확인필요`, 한글 라벨은 표시형), 요구 상태는 게이트
-  어휘(`pending→drafted→needs-review→approved`), 사람 검토 판정 `CONDITIONAL GO`→`FIX-AND-RECHECK`
-  (게이트 `CONDITIONAL-GO`와 이름 충돌 제거) + 게이트 라벨 대응표.
-- `score_completeness.py`를 create-best-proposal/scripts로 이동(설치 트리에서 동작), 루트는 진입점 유지.
-- quality_gate 마커: `○○`·`[unverified]`·`미정`(초안 경고/제출 차단), `p.__`(차단).
-- 3 스킬 frontmatter를 "단일 진입점 + 형제는 로드 전용"으로 재작성(라우터 중복 트리거 제거).
-
-## 3차 (2026-09-05) — 산출물 결속·판정 단일화 (외부 정밀 진단 F01~F05 대응)
-
-외부 진단서(고정 커밋 f346a18)의 지적을 현재 main에서 재현한 뒤 유효한 것만 수정했다.
-재현 결과 F05의 `[unverified]` 미탐, F06 제작 레이어 부재, F09 scorer 미배포는 2차(PR #14)에서
-이미 해소된 상태였고 `package.checks={}`의 TypeError도 재현되지 않았다. 나머지는 모두 유효했다.
-
-**F01 산출물 해시 결속** — audit이 '어느 파일'의 기록인지 확인한다.
-`unified_gate.py`가 `--doc`의 sha256을 계산해 `render/package.artifact_hash`와 대조하고,
-불일치면 차단한다(검토 이후 바뀐 파일에 과거 판정 재사용 금지). `mode=submission` +
-`artifact_required=true`인데 `--doc`이 없으면 차단하며, 문서 없이 audit만 볼 때는
-`--audit-only`를 쓰고 최선의 결과는 `SUBMISSION-READY`가 아니라 `AUDIT-VALID`다.
-제출 모드의 artifact_hash는 실제 `sha256:<64 hex>`여야 하고 render·package가 같은 파일을
-가리켜야 한다(문자열 라벨 `sha256:proposal`은 차단).
-
-**F02 단계·라벨·설명의 단일 판정** — `readiness(data, failures)` 하나가 라벨과 종료 코드를
-정하고 `explain_markdown`·CLI가 같은 함수를 쓴다(draft audit이 "제출 가능"으로 설명되던 불일치
-제거). `mode=submission` audit을 `--stage draft`로 낮춰 검사하는 우회는 사용 오류(exit 2),
-`artifact_mode=simulation-only`는 제출 모드에서 차단.
-
-**F03 변환·스키마 유실 차단** — `_str_list()`가 문자열을 리스트로 감싸지 않는다
-(`"TBD"` → `['T','B','D']` 오변환 제거). 원장 배열의 비객체 항목은 위치와 함께 오류
-(`requirements[2] must be an object`) — 문자열 요구 하나가 조용히 버려져 3건이 2건이 되던
-유실 차단. `requirements[]`·`claims[]`의 id는 필수·유일이며, 열거값 검사는 `_enum_ok()`로
-비문자열을 안전하게 거부한다(`mode=[]`가 트레이스백 대신 INVALID exit 2).
-
-**F04 근거·준수·응답 위치의 분리** — 제출 모드에서 `supported|qualified` 주장은
-`evidence_refs` 필수. `support=X`/`fit=GAP`인데 `state=approved`이면 차단하고, 발주처 예외는
-`exception:{granted_by, evidence}`로만 인정한다. `bulk_matrix.py`는 응답 위치를
-`response_refs`로 분리한다(더 이상 `evidence_refs`로 승격되지 않음).
-
-**F05 문서 검사 범위** — `chart_text()`가 차트 파트에서 run(a:t) 외에 범주·계열 캐시(`c:v`)까지
-읽는다. 제목이 있는 차트에서 범주의 잔존 고객명을 놓치던 미탐 해소(제목 없는 차트는 이전에도
-탐지됐다). 확장자만 `.pptx`인 일반 ZIP은 `NOT INSPECTED` 통과가 아니라 사용 오류(exit 2)다.
-
-**검증** — `test_gate_integrity.py` 22건 신설(정상 대조군 포함), 전체 149건 + proposal_gate 58건
-+ best_proposal 11건 통과. 골든 픽스처와 테스트 베이스의 해시를 실제 digest로 교체했다.
-
-**남은 항목(미착수)** — F06 산술·좌표 검증(unified_gate가 `checks.arithmetic`을 실제 계산과
-대조하지 않는다), F07 업종 프로파일(공공·기업·학교·병원), F08 산출물 종류별 시각 규격 분리
-(발표본 18pt+), F10 품질 주장의 근거(블라인드 비교 평가).
-
-## 4차 (2026-09-05) — 외부 재점검 R01~R08 대응
-
-3차 이후 받은 재점검 보고서의 8건을 현재 main에서 전부 재현한 뒤 수정했다. 이 중 셋은
-3차에서 내가 "고쳤다"고 기록한 항목의 빈틈이었다.
-
-**R01 검증 의무 우회** — `artifact_required=false`, 렌더 미검증, 해시 라벨 상태로도
-`SUBMISSION-READY`가 나왔다. 제출 모드에서는 입력값과 무관하게 렌더 검증·해시 형식·패키지
-검사를 요구하도록 바꿨다(`artifact_required = data[...] or mode == "submission"`).
-
-**R02 열리지 않는 패키지** — `[Content_Types].xml`이 없어 python-pptx가 열지 못하는 ZIP이
-제출 통과했다. `validate_package()`가 필수 파트(`[Content_Types].xml`·`_rels/.rels`·본문 파트)
-존재와 main 파트 XML 파싱을 확인한다(zipfile만 사용, 의존성 추가 없음). **CI의 양성 대조군도
-같은 결함이 있었다** — python-pptx로 만든 실제 파일로 교체했다. 테스트 픽스처는
-`ooxml_fixtures.py` 한 곳에서 만들고, 실제 로더로 열리는지까지 검사한다.
-
-**R03 템플릿 잔존 슬라이드** — 2장짜리 템플릿에 표지 1장을 생성하면 이전 고객명·금액이 남은
-3장 파일이 나오는데 "1 slides"로 보고했다(기밀 유출 + 페이지 제한 검사 무력화). 슬라이드가 든
-템플릿은 거부하고, 페이지 수는 내부 카운터가 아니라 실제 슬라이드 수로 센다.
-
-**R04 화면 밖 배치** — 18pt 정상 폰트를 슬라이드 밖에 두어도 차단 0건이었다. `out_of_bounds()`가
-텍스트 도형의 좌표를 슬라이드 경계와 대조한다(완전히 밖 또는 25% 초과 잘림 → 차단). 이 검사가
-골든 덱의 간트 마일스톤 라벨이 오른쪽 여백을 넘던 실제 결함을 찾아내 함께 고쳤다.
-`render_succeeded`(기계)와 `visual_review_approved`(사람)를 분리했고, 제출 모드는 후자와
-`visual_reviewer` 실명을 요구한다 — PDF 변환 성공은 디자인 승인이 아니다.
-
-**R05 행 유실** — `rows_per_slide=-1`이면 `--strict`에서도 조견표 데이터가 0행이 됐다. 양의
-정수만 허용하고, 입력 행 수와 출력 행 수를 대조한다.
-
-**R06 별칭·필드 유실** — `support="X 미수용"`은 승인 모순 검사를 빠져나갔다(`is_unsupported()`로
-표기 변형을 하나로 본다). 더 심각한 것은 3차에서 만든 예외 경로가 **문서대로 쓰면 작동하지
-않았다**는 점이다 — meta→audit 빌더가 `exception`과 `response_refs`를 버려서 정당한 발주처
-예외가 허위 차단됐다. 두 필드를 타입 검증과 함께 보존한다.
-
-**R07 설명문 모순** — `STATUS: AUDIT-VALID` 옆에 "게이트 결과: SUBMISSION-READY / 제출 가능."이
-찍혔다. 3차의 회귀 테스트가 전부 `--no-explain`이라 보지 못했다. `explain_markdown(..., label)`이
-호출자의 판정을 받고, 새 테스트는 설명 경로를 함께 검사한다.
-
-**R08 enum 타입** — `claim.kind=[]`, `package.checks.metadata={}` 등이 TypeError로 터졌다.
-모든 열거 비교를 `_enum_ok()`로 통일했다(비문자열은 조용히 거부 → 구조화된 INVALID).
-
-### 검증
-`test_gate_integrity2.py` 24건 신설(정상 대조군 포함) — 전체 183건 + proposal_gate 58건 +
-best_proposal 11건 통과. CI 골든에 우회 차단·설명문 모순·템플릿 거부·행 유실 음성 대조군을
-추가했다. 보고서의 재현 8건을 원래 절차대로 다시 실행해 전부 차단됨을 확인했다.
-
-### 남은 항목
-F06 산술 실측(본문 수치 vs 원장), F07 업종 프로파일, F08 산출물 종류별 시각 규격,
-F10 블라인드 비교 평가. 표 셀 내부 넘침과 도형 간 가림은 여전히 썸네일 육안 검토 영역이다.
-
-## 5차 (2026-09-05) — 수치 원장과 산술 실측 (F06 잔여)
-
-`checks.arithmetic: true`는 사람이 기록하는 자기선언이라, 본문에 `100원 + 200원 = 900원`이
-적혀 있어도 게이트가 알 수 없었다. 4차까지의 수정은 "어느 파일인지"와 "열리는 파일인지"를
-닫았지만, "그 파일에 적힌 수가 맞는지"는 여전히 사람 말만 믿었다.
-
-**수치 원장(numbers[])** — 금액·기간·수량을 `{id, label, value, unit, source}`로 적고,
-`components`로 구성 요소를 연결하면 게이트가 합계를 다시 계산한다. `percent_of`+`amount`는
-비율을 재계산한다. 단위가 섞인 합계, 미지의 구성 요소 참조, 중복 id, 숫자가 아닌 value는
-각각 위치와 함께 오류가 된다. 허용오차는 기본 0.5%이며 항목별로 조정한다.
-
-**자기선언의 결속** — 제출 모드에서 원장이 없으면 `checks.arithmetic: true`만으로 통과하지
-못한다. 무엇을 검산했는지 보이지 않는 '검산 완료'는 검증이 아니다. draft/review는 종전대로
-원장을 요구하지 않는다(체크포인트 도달성 유지).
-
-**문서 대조(check_numbers.py)** — 게이트는 원장 안의 산술만 보므로, 그 값이 실제 장표에 적힌
-값과 같은지는 문서를 열어야 안다. 한국어 제안서는 같은 수를 여러 표기로 쓰기 때문에
-(`3,700,000,000` / `3700000000` / `37억` / `370,000만`) 표기 변형을 생성해 대조하고, 어느
-표기로도 없으면 차단한다. 숫자 경계를 지켜 `370억`이 `37억`으로 오탐되지 않는다. 중간
-계산값은 `must_appear: false`로 제외한다.
-
-**빌더 보존** — meta→audit 변환이 `numbers`를 버리면 제출 모드가 "원장 없음"으로 차단되므로,
-원장을 타입 검증과 함께 보존한다(비객체 항목은 위치와 함께 오류).
-
-### 검증
-`test_numbers_ledger.py` 18건 신설 — 전체 201건 + proposal_gate 58건 + best_proposal 11건 통과.
-골든 픽스처(제출·e2e 미니 RFP)에 원장을 넣어 CI가 매번 계산하도록 했다.
-
-### 남은 항목
-F07 업종 프로파일, F08 산출물 종류별 시각 규격, F10 블라인드 비교 평가. 원장에 올리지 않은
-본문 수치의 오류는 여전히 잡지 못한다(무엇을 원장에 올릴지는 작성자의 판단이다).
-
-## 6차 (2026-09-05) — 산출물 종류별 시각 규격 (F08)
-
-인쇄해서 채점하는 상세본과 회의실 스크린에 띄우는 발표본에 같은 11pt·600자를 강제하면 한쪽은
-반드시 잘못된다. 규격을 프로파일로 나누되, **생성기와 검사기가 같은 정의를 읽게** 했다 —
-이 저장소가 반복해서 겪은 결함이 정확히 "두 도구가 각자 상수를 들고 갈라지는" 것이었기 때문이다.
-
-**deck_profiles.py** — `detailed-submission`(기본, 22/11/10pt·600자·조견표 12행),
-`presentation`(30/18/14pt·250자·6행), `executive-summary`(26/14/12pt·400자·9행). 폰트·리드문
-길이·밀도·표 행 수·조견표 분할이 한 정의에서 나온다. 최소 폰트 하한은 상수가 아니라 프로파일의
-가장 작은 본문 크기에서 유도한다. 생성물의 core properties에 `proposal-deck:<프로파일>` 표시를
-남겨 검사기가 인자 없이도 같은 기준을 쓴다.
-
-착수 전 이미 갈라져 있던 값도 함께 정리했다: 표 행 경고(생성기 14 · 검사기 15), 밀도(불릿
-450 · 본문 600).
-
-### 자체 검토에서 나온 결함 (구현 직후 적대적 리뷰로 발견해 함께 수정)
-
-- **밀도 검사가 표를 못 봤다.** 표는 GraphicFrame이라 `shape_text`가 빈 문자열을 돌려줬고,
-  조견표처럼 가장 빽빽한 장표가 0자로 집계됐다. 발표본의 250자 제한은 표 장표에서 아무 일도
-  하지 않았다. 셀 텍스트를 읽게 고쳤다(골든 발표본 조견표가 295자로 정상 경고).
-- **도형 이름이 겹치면 밀도 짝이 밀렸다.** 이름 dict와 텍스트 list를 따로 만들어 zip하는 방식
-  때문에, 간트 마일스톤이 둘 이상인 장표에서 남의 텍스트를 세거나 본문을 통째로 빠뜨렸다.
-  도형을 한 번만 순회하도록 바꿨다.
-- **범례가 검사에서 빠져 있었다.** `BODY_LEGEND`가 메타 도형 취급이라 본문 하한보다 작은
-  크기로 남았다. 메타 제외에서 빼고 본문 하한 이상으로 그린다.
-- **표시 없는 덱이 가장 느슨한 기준으로 조용히 통과했다.** '표시 없음'과 '모르는 표시'를
-  구분하고, 제출 단계에서는 차단한다(초안은 경고). 외부 덱은 `--profile`로 기준을 명시한다.
-- **조견표만 표 행 한계를 우회했다.** `rows_per_slide`가 프로파일 한계를 넘으면 생성기도 경고한다.
-
-### 검증
-`test_output_profiles.py` 25건 신설 — 프로파일 간 크기·밀도 관계, 표시 왕복, 표 셀 밀도, 이름
-중복, 범례 검사, 하한과 실제 생성물 대조, 표시 없음/모름의 fail-closed. 전체 226건 통과.
-CI가 세 프로파일을 각각 생성·검사하고, 상세본을 발표 기준으로 재면 차단되는지 확인한다.
-
-### 남은 항목
-F07 업종 프로파일, F10 블라인드 비교 평가. 표 셀 내부 글자 넘침과 도형 간 가림은 여전히
-썸네일 육안 검토 영역이다.
-
-## 7차 (2026-09-05) — 제안 맥락 분류 (F07, 범위 축소)
-
-진단서가 요구한 4개 업종 프로파일을 그대로 만들지 않았다. 이 저장소의 가치는 전부 "기계가
-검증한다"에서 나왔는데, 병원·학교 프로파일은 검증할 수 없는 서술이기 때문이다. "병원 제안서는
-환자 안전을 다뤄야 한다" 같은 문장은 이 스킬 없이도 나온다. 대신 **분류가 게이트 요구사항을
-바꾸게** 만들어 F07을 검증 가능한 형태로 좁혔다.
-
-**분류 축(context)** — `buyer_types[]`(복수 허용: 공공병원 → public+healthcare), `engagement`,
-`stage`, `reading_mode`, `constraints[]`. 기관 이름 하나로 정하지 않는다.
-
-**분류가 바꾸는 것(기계 검사)**
-- 공공 + 제출 단계 → `evaluation_criteria[]` 평가표 원장 필수. 배점 합계 100(±0.5),
-  **대응 요구가 없는 배점 항목은 차단**(목차가 통째로 빠진 신호), 요구는 `criterion_ids`로 연결.
-- `reading_mode` ↔ `render.output_profile` 대조 — 발표라면서 인쇄용 규격으로 만든 덱을 잡는다
-  (6차의 산출물 프로파일과 연결).
-- `constraints`에 `sensitive-data` → 패키지 검사 metadata·hidden-content·stale-customer-data가
-  모두 `pass`여야 한다.
-
-**업종 프로파일은 공공 하나만** — `references/sectors/public.md`. 저장소 지침 대부분이 이미
-공공 입찰을 전제로 쓰여 있어 창작이 아니라 추출이다. 기업·교육·의료는 축과 규칙까지만 두고
-내용은 비웠으며, README에 왜 비웠는지와 추가 방법을 적었다. 확인되지 않은 내용을
-"프로파일"이라는 이름으로 신뢰하게 만드는 것이 비워 두는 것보다 나쁘다.
-
-이 검사가 골든 픽스처의 실제 결함을 잡았다 — 미니 RFP의 배점표에 가격 20점이 있는데 대응하는
-요구가 원장에 없었다. 요구를 추가해 고쳤다.
-
-### F10은 하지 않는다
-근거 없는 점수 주장은 3차·4차에서 제거했고 그것이 F10이 요구한 정직함의 본질이었다. 남은
-블라인드 비교 평가는 독립 평가자가 필요한 작업이며, 아무도 돌리지 않는 평가 하네스는 "검증
-절차가 있다"는 외양만 남겨 없는 것보다 나쁘다. 미실시로 명시하고 닫는다(README «게이트가
-검사하지 않는 것»에 기재).
-
-### 검증
-`test_context_classification.py` 21건 신설 — 전체 247건 통과. 문서에 적힌 축 값과 코드의
-열거값이 일치하는지도 테스트가 확인한다.
-
-## 8차 (2026-09-05) — 3차 진단(D01–D09)과 공개 저장소 위생
-
-### 이번에 막은 것
-
-**변환에서 사라지던 승인 기록 (D01).** `build_audit_from_meta.py`가 `render_succeeded`·
-`layout_checked`·`visual_review_approved`·`visual_reviewer`·`output_profile`을 옮기지 않아,
-육안 승인까지 마친 정상 경로가 "승인 없음"으로 차단됐다. 허위 차단은 허위 통과의 거울상이며
-게이트를 끄게 만든다. 입력에 있는 것만 그대로 옮기도록 고쳤다 — 없는 승인을 만들지는 않는다.
-이 저장소에서 세 번째로 반복된 결함이라(근거, 예외, 수치 원장에 이어) 회귀 테스트로 고정했다.
-
-**필드를 지우면 사라지던 요구 (D02).** `layout_checked`는 "있으면 검사"였다. 지우면 검사 자체가
-없어졌다. 누락 = 미검사 = 차단으로 바꿨고, `verified: true` + `render_succeeded: false` 같은
-자기모순 기록도 차단한다.
-
-**계산할 수 없는 원장이 통과했다 (D04).** `Infinity`·`NaN`, 자기참조, `amount` 없는 비율,
-0인 모수가 모두 조용히 넘어갔다. 계산 불가는 통과가 아니라 미검증이다. 금액 합계는 상대
-오차(0.5%)로 재면 37억 규모에서 1,850만 원 차이가 통과하므로, 통화 단위는 1원 절대 오차로
-바꿨다. 제출 모드에서 원장이 비어 있으면 `numbers_not_applicable` 사유를 요구한다.
-
-**같은 숫자, 다른 뜻 (D03).** `37`이 `37.5`·`370`·`-37`에 걸렸고, `37개월`이 `37원`의 근거로
-쓰였으며, **노트에만 있는 값이 "문서에 있다"로 집계**됐다. 숫자 경계에 소수점·부호를 넣고,
-숫자에 **붙어 있는** 단위만 대조하며(`400 VM`의 VM은 명사이므로 판단하지 않는다), 대조 대상을
-평가위원이 보는 본문으로 한정했다. 비본문에만 있으면 그 사실을 적어 차단한다.
-
-**열리지 않는 패키지 (D05).** 구조 검사가 main 파트와 `[Content_Types].xml`만 파싱해서,
-`slide1.xml`이나 `_rels/.rels`가 깨진 파일이 통과했다. 관계 파트와 본문 파트를 모두 파싱하고,
-`deck_check.py`는 python-pptx로 한 번 실제로 열어 본다(`quality_gate.load_check`). 텍스트 추출
-경로 전체를 라이브러리에 묶지 않으려고 로더 검사는 최종 산출물 검사에서만 쓴다.
-이 변경이 픽스처의 결함도 드러냈다 — 네임스페이스 선언이 없는 파트와 루트가 여러 개인 조각은
-실제 파일이 아니었다. 픽스처를 실제 파일에 맞췄다.
-
-**폰트 하한이 본문을 지키지 못했다 (D06).** 하한이 `min(본문, 표) - 1`이라 표 하한이 본문에도
-적용됐고, 상세본 본문을 9pt까지 줄여도 통과했다. 본문·소형 텍스트 하한을 분리했다
-(`min_body_font` / `min_table_font`). 크기가 문단 수준에만 지정된 텍스트는 `run.font.size`가
-None이라 검사에서 통째로 빠졌다 — run → 문단 → 도형 순으로 실제 적용 크기를 찾는다.
-그룹 안 도형은 자식 좌표계 값을 슬라이드 좌표로 착각해 화면 밖 판정이 틀렸다. 그룹 변환
-(`chOff`/`chExt` → `off`/`ext`)을 누적해 잰다.
-범례·간트 라벨은 본문 산문이 아니라 표 셀과 같은 소형 텍스트다. 이 분류(`SMALL_TEXT_PREFIXES`)도
-`deck_profiles.py` 한 곳에 두어 생성기와 검사기가 갈리지 않게 했다.
-
-**설치기가 사용자 파일을 지웠다 (D07).** `SKILL.md`가 없는 디렉터리를 "중단된 설치"로 보고
-`rmtree`했다. 설치기는 중단 잔여물과 사용자 폴더를 구분할 수 없다. 비어 있지 않으면 거부하고,
-교체는 `--force`로만 한다.
-
-**보지 않은 파일을 "해시 일치"라고 썼다 (D08).** `--audit-only` 경로의 설명문이 제출 승인처럼
-읽혔다. 문서를 검사했을 때만 해시 일치를 말한다.
-
-**껍데기 원장과 면제 경로 (D09).** ID만 있고 내용이 없는 요구·주장은 "R1 승인"이 무엇을 승인한
-기록인지 확인할 수 없다 — 제출 모드에서 사람이 읽을 수 있는 내용을 요구한다(초안은 부분 원장
-허용). 근거 검사가 면제되는 유일한 분류인 `kind: informational`에는 면제 사유를 요구한다.
-단위가 문자열이 아닐 때 set 구성에서 `TypeError`로 게이트가 죽던 것도 고쳤다.
-
-### 공개 저장소 위생
-
-이 저장소는 공개돼 있고, 제안서 작업은 성격상 고객사명·담당자·견적·내부 경로를 다룬다. 사람이
-매번 눈으로 거르는 대신 `test_repo_hygiene.py`가 `git ls-files` 전체를 훑어 로컬 절대 경로,
-이메일, 사내 워크스페이스 링크, 자격증명 형태 문자열을 차단한다. 판별 가능한 것만 검사하고
-("이 이름이 고객사인가"는 기계가 모른다), 나머지는 AGENTS.md의 작성 규칙에 맡긴다.
-`references/architecture-review-10x.*`에 남아 있던 작성자 로컬 경로를 지웠다.
-
-### 검증
-`test_gate_hardening_d.py` 29건 신설 — 전체 280건 통과. 여기에는 **정상 경로 e2e**가 포함된다:
-승인된 입력·원장 → 실제 PPTX 생성 → 배치·수치 검사 → 그 파일에 대한 렌더·시각 승인 기록 →
-meta→audit 변환 → 같은 파일의 최종 판정(SUBMISSION-READY). 강화가 정상 산출물을 막지 않는지
-차단 테스트와 같은 무게로 확인한다.
-
-## 9차 (2026-09-06) — 공개 RFx 검토 반영: 규칙은 원문에서 온다
-
-외부 검토(공개 RFP·RFI 12건 대조)의 지적 가운데 검증 가능한 것만 골랐다. 8차와 겹치는 항목
-(변환의 렌더 필드 유실, 수치 대조 오탐)은 이미 닫혀 있었고, 실측으로 확인했다.
-
-### 8차에서 놓친 것 — `output_profile` 누락
-`layout_checked`에는 "누락 = 미검사 = 차단"을 적용했는데 바로 옆 필드에는 적용하지 않았다.
-`reading_mode`가 규격을 기대하는 상황에서 `render.output_profile` 값이 틀리면 잡고, **지우면
-통과**했다. 제출 모드에서 차단하고, 모르는 규격 이름도 거절한다.
-
-### 제출 기록에 분류가 없으면 검사가 꺼진다
-`context`는 후방호환으로 선택이었다. 그래서 분류를 빼면 공공 평가표·규격 대조·민감정보 검사가
-전부 조용히 꺼졌다 — "검사를 통과했다"와 "검사가 없었다"가 같은 결과였다. 제출 모드에서는
-`buyer_types`·`stage`를 요구한다. 초안·검토 단계는 그대로 허용한다.
-
-### 평가 방식은 기관 분류가 아니라 원문에서 (P0-3)
-`{id, label, weight}` + 합계 100은 실제 공고를 표현하지 못했다. 기술 90점만 원장에 있고 가격이
-별책이면 **게이트가 100으로 고치라고 잘못 차단**했고, 1단계 기술평가 100 = 정량 20 + 정성 80을
-한 배열에 적으면 200이 됐다. 원장을 계층 구조로 바꿨다: 최상위 합 = `evaluation_total`, 하위
-합 = 상위 배점, 미공개는 `disclosed: false`, 과락은 `minimum_ratio`/`minimum_score`로 보존.
-게이트는 합을 검사할 뿐 심사 점수를 예측하지 않는다.
-
-외부 검토가 사용자 첨부안의 "공공 기술 85%·SW 90:10 고정"을 반박한 부분은 옳다. 협상적격
-기준의 85%는 기술능력평가분야 **배점한도**의 85%이지 총점 85가 아니고, 90:10에는 예외 조항이
-있다. 이런 값을 게이트 상수로 넣으면 이 저장소가 지금까지 제거해 온 "근거 없는 숫자"를 다시
-들이는 셈이다. 원문에서 읽어 원장에 적고 게이트는 그 원장으로만 계산한다.
-
-### 요구 강도 (P0-4)
-`mandatory` 불리언 하나로는 권장 분량 초과와 필수 위반이 같은 무게였다. `strength`
-(required/recommended/optional/conditional/informational)를 추가하고 `mandatory`는 유도값으로
-남겼다. 둘이 어긋나면 스키마 오류. 조건부는 조건이 있어야 하고 필수로 센다. 권장을 따르지
-않은 채 제출하려면 사유가 필요하다 — 권장을 잊은 것과 사유를 갖고 넘긴 것은 구분돼야 한다.
-조견표(`bulk_matrix`)의 `필수` 열에 적힌 권장·조건부·참고는 강도로 옮겨진다.
-
-### RFI는 입찰이 아니다 (P0-2)
-검토는 `stage=rfi-response`를 제안했지만 같은 검토의 다른 문단이 더 맞다 — "구매 단계와 문서
-종류를 한 축에 넣지 않는다". `context.rfx_type`(rfp/rfi/rfq)을 따로 뒀다. `rfi`이면 공공이라도
-평가표를 요구하지 않고, 대신 `commitment` 주장을 차단한다(추정치의 확약 승격 방지). 자격·첨부·
-형식 검사는 RFI에서도 그대로다 — "RFI니까 검사를 끈다"가 아니라 무엇이 다른지를 명시했다.
-
-### 채택하지 않은 것
-- **업종 프로파일 4종.** 검토 스스로 "사례의 원문에 나오는 기술은 그 사례의 요구이지 업종의
-  의무가 아니다"라고 썼고, 그 기준을 적용하면 업종당 1건의 표본으로 만든 지침은 실을 근거가
-  없다. `engagement`별 목차 분기(검토 P1-2)가 검증 가능한 대안이며 다음 배치 후보다.
-- **외부 RFx 수집 기능.** 병목은 수집이 아니라 수집한 것을 표현할 원장이었다. 이번 배치가 그
-  자리를 만들었다.
-- **제출 묶음(기명본·익명본·가격 별책) 검사**와 `check_numbers`의 통합 게이트 편입은 스키마
-  변경 폭이 커서 10차로 분리한다.
-
-### 검증
-`test_rfx_rules.py` 17건 신설, 분류 테스트 2건 계약 갱신 — 전체 298건 통과. 공개 사례의 규칙은
-합성 데이터로만 재현하고 원문·출처 URL은 저장소에 싣지 않는다(공고 링크는 종료 후 끊긴다).
-
-## 10차 (2026-09-06) — 제출 묶음과 수치 대조의 자동 편입
-
-9차에서 다음으로 미룬 두 가지. 둘 다 "검사는 있는데 아무도 안 돌린다"를 없애는 작업이다.
-
-### 제출은 파일 하나가 아니다
-경기문화재단형 공고는 기명 원본·익명 사본·두 종류의 전자파일·밀봉 가격서를 구분하고, MU
-Health Care형은 비가격 제출물과 가격 워크시트를 별권으로 요구한다. 지금까지 게이트는
-`attachments[]`의 존재 여부만 봤고, 해시는 대표 파일 하나에만 묶여 있었다. 그래서 **기명본은
-정상인데 익명본 노트에 업체명이 남은 경우**나 **가격 별책이 빠진 경우**가 통과했다.
-
-`role`을 도입했다(proposal / proposal-anonymous / price / form / certificate / presentation /
-appendix / other). 역할을 적으면 그 역할의 규칙이 붙고, 없으면 예전처럼 존재 여부만 본다.
-제출 모드에서 `present: true`인 첨부는 `sha256`이 필요하고, 익명 사본은 식별정보 검사 기록과
-검토자가, 가격서가 아닌 산출물은 가격 혼입 검사 기록이 필요하다. 제출본 역할이 둘 이상이면
-어느 파일이 제출본인지 정하게 한다.
-
-`unified_gate.py --bundle <폴더>`가 각 첨부를 실제 파일과 해시 대조한다. 대표 파일 하나만 묶어
-두면 나머지 첨부는 검토 뒤 바뀌어도 아무도 모른다.
-
-기계가 하지 않는 것은 그대로 남긴다 — 로고·그림 속 식별 표기, 인쇄·날인·밀봉·현장 제출.
-그래서 익명 사본에는 `reviewer`(사람)를 함께 요구한다.
-
-### 수치 대조를 통합 게이트에 넣었다
-8차에서 `check_numbers`의 정확도를 고쳤지만(소수·단위·부호·본문 한정), 통합 게이트는 그것을
-부르지 않았다. 사람이 따로 돌려야 하는 검사는 안 돌린다. `--doc`으로 문서를 준 경로에서 원장이
-있으면 기본으로 실행한다. 해시가 맞아도 장표에 옛 금액이 남아 있으면 차단된다.
-`--skip-numbers`는 제출 판정에서 통과가 아니라 미검사로 표시하고 차단한다.
-
-이 변경이 기존 테스트의 **양성 대조군 결함**을 드러냈다 — 37억 원장에 묶인 audit을 아무 수치도
-없는 합성 PPTX에 결속하고 "정상"이라 부르고 있었다. 대조군 문서에 원장과 같은 금액을 넣어
-고쳤다. 원장과 어긋난 문서를 정상이라 부르면 대조 자체가 무의미하다.
-
-### 검증
-`test_submission_bundle.py` 15건 신설 — 전체 313건 통과.
-
-## 11차 (2026-09-06) — 사업 성격이 목차를 바꾼다
-
-외부 검토의 지적: "`engagement`에 교육·컨설팅·정책이 추가됐지만 플래그십 Phase B의 구조
-선택은 여전히 A 구축 / B 유지보수 / C 기술답변 셋이다. 분류 값의 존재와 생산 경로 지원은
-구분해야 한다." 맞는 지적이다. 분류가 검증만 되고 목차는 그대로면, 기관명만 바뀐 제안서가
-게이트를 통과한다.
-
-### 뼈대를 원장에 올렸다
-`proposal_archetype`(build / maintenance / technical-response)에 실제로 쓴 목차 뼈대를 적고,
-게이트가 `context.engagement`와 대조한다. 유지보수 사업에 구축 목차를 쓰면 차단되며, 발주처가
-목차를 지정했다면 `archetype_rationale`에 근거를 적어 통과시킨다(RFP 지정이 언제나 우선한다).
-제출 모드에서 매핑되는 사업 성격이면 어떤 뼈대를 썼는지 기록해야 한다 — 한 줄이면 되고,
-"둘 다 아무것도 안 적음"이 정상값이 되지 않게 한다.
-
-`sections[]`를 적으면 뼈대별 필수 절 누락을 검사한다. 구축이면 사업 범위·구축 방안·추진
-일정·시험/검수·이행 조직이 그것이다. 절 이름은 키워드로 느슨하게 대조한다("시험 및 검수",
-"테스트 방안" 모두 인정) — 이름을 강제하는 것이 목적이 아니라 답해야 할 것을 통째로
-빠뜨렸는지 보는 것이 목적이다.
-
-**`slides[]`에서 목차를 유추하지 않는다.** 처음에는 그렇게 만들었는데, `slides[]`는 요구
-대응 매핑(어느 장표가 어느 요구를 받는가)이지 목차가 아니다. 부분 매핑을 목차로 읽으면
-실제로 있는 절을 없다고 잡는다. 골든 픽스처에서 바로 그 오탐이 나서 되돌렸다.
-
-### 근거 없는 목차는 만들지 않는다
-매핑이 있는 사업 성격은 다섯이다(build·migrate·operate·service-improvement·
-product-selection). 교육·컨설팅·정책에는 이 저장소에 목차 근거가 없으므로 **유형을 강제하지
-않는다** — 업종 프로파일을 공공 하나만 두는 것과 같은 이유다. 다만 그런 사업에 IT 구축
-목차를 그대로 쓰면 이유를 묻는다. 강제하지도, 조용히 넘기지도 않는 자리다.
-
-### 골든 덱의 실제 결함을 잡았다
-새 검사가 미니 RFP 골든 덱에 **사업 범위 절과 시험·검수 절이 없다**고 보고했다. 표준 목차
-(유형 A)에 둘 다 있는데 빠져 있었다. 검사를 느슨하게 하는 대신 덱에 두 장표를 추가했다
-(15→17장). 구축 제안에서 범위와 검수 기준이 없으면 계약 분쟁의 자리가 그대로 남는다.
-
-### 함께 정리한 것
-- **읽는 환경 ≠ 문서 역할.** `individual-review → executive-summary` 매핑을 없앴다. 개인이
-  읽는 문서는 임원 요약본일 수도, 상세 기술평가서일 수도 있다. 환경만으로 문서 역할을
-  정하는 것은 근거가 없었다. 발표·인쇄 채점은 환경이 규격을 사실상 결정하므로 남긴다.
-- **`requirements.txt`.** 신규 설치자가 README를 읽어야 `python-pptx`를 알 수 있었다.
-  LibreOffice는 pip 밖 의존성이라는 것도 파일에 적었다. CI도 이 파일을 쓴다.
-
-### 검증
-`test_outline_archetypes.py` 17건 신설 — 전체 330건 통과. CI에 목차 대조군 4건 추가.
-
-### 덧붙임 — 로컬 전체 통과가 CI 실패와 공존했다
-
-10차가 CI에서 4/4 실패했는데 로컬은 전부 통과했다. 원인은 검사 내용이 아니라 **검사 범위**였다.
-`unittest discover -s .`는 `__init__.py`가 없는 하위 디렉터리를 재귀하지 않아
-`skills/*/scripts/test_*.py`를 수집하지 않는다. CI는 그 파일들을 별도 스텝으로 돌리므로,
-"로컬 313건 통과"는 CI가 돌리는 69건을 뺀 숫자였다. 그 69건 안에 10차가 깨뜨린 양성 대조군이
-있었다(`test_best_proposal.py`도 원장 없는 PPTX를 SUBMISSION-READY로 기대하고 있었다).
-
-한 번 헛다리를 짚은 것도 여기서 나왔다 — 재현되지 않는 실패에 추측으로 수정을 얹었고,
-그 수정은 다른 파일의 같은 결함을 고쳤을 뿐이라 CI는 그대로 빨간 상태였다. 재현 없이 고치지
-않는다는 규칙을 지켰어야 했다.
-
-`test_skill_scripts.py`가 load_tests로 그 파일들을 루트 실행에 합류시킨다(401건). 어느 실행
-경로에도 들어가지 않는 테스트 파일이 생기면 테스트가 그것을 잡는다.
-
-## 12차 (2026-09-06) — 로컬에서 전체를 돌릴 수 있게
-
-검사 내용은 그대로 두고 실행 방식만 바꿨다. 전체 실행이 리눅스 47초 / Windows 46분이었다.
-로컬에서 전체를 돌릴 수 없으면 CI만 보고 밀게 되고, 그건 10차·11차에서 실제로 사고로
-이어졌다(로컬 통과가 CI 실패와 공존했고, 그 상태로 머지됐다).
-
-원인은 검사가 아니라 호출 방식이었다. 테스트마다 `subprocess`로 스크립트를 띄우니 호출당
-인터프리터 기동과 import가 반복됐고, Windows에서는 프로세스 생성·백신 검사까지 더해져
-리눅스의 수십 배가 됐다.
-
-`test_support.run_script`가 스크립트를 **같은 프로세스에서** 부른다. 스킬 스크립트는 모두
-`main(argv) -> int` 형태라 그대로 호출하고 stdout/종료코드를 잡으면 된다. 반환값은
-`subprocess.CompletedProcess`와 같은 모양이라 호출부는 바뀌지 않았다.
-
-자식 프로세스가 필요한 경로는 남겼다 — **그 자체가 검사 대상**이기 때문이다.
-- 콘솔 인코딩(cp949 자식 환경에서 죽지 않는지)
-- 종료 코드가 셸에 전달되는지
-- 설치본을 `python <script>`로 직접 실행하는 경로
-
-같은 입력·같은 인자로 반복 생성하던 골든 덱은 한 번 만들어 복사한다(`build_deck_cached`).
-결과가 결정적이므로 검사 대상은 같고 생성 비용만 사라진다.
-
-전환이 판정을 바꾸지 않는지 테스트가 확인한다 — 같은 입력에 in-process와 subprocess가 같은
-종료 코드·출력을 내는지 대조하고, 기본 호출이 자식 프로세스를 띄우지 않는지, 격리 경로는
-여전히 띄우는지도 본다(`SpeedContractTests`). 계약이 깨지면 테스트가 먼저 잡는다.
-
-### 결과
-리눅스 47초 → 21초. 남은 자식 프로세스는 인코딩·설치·`git ls-files` 등 필요한 것뿐이다
-(전체 실행 기준 20회 미만). 전체 404건 통과.
-
-## 13차 (2026-09-06) — 실제 제안서를 태워 찾은 구멍
-
-열두 배치는 전부 이 저장소가 만든 픽스처 기준이었다. 실제 공공 제안서(RHEL 표준화, 9장)
-한 건을 제출 모드로 태웠다. 문서 원문은 저장소에 싣지 않고 규칙만 합성 데이터로 재현한다.
-
-### 게이트가 옳았던 것
-차단 18건 전부 근거가 있었고 **과민 차단은 없었다**. 특히 정확했던 것:
-- 근거 없는 효과 주장("관리 비용 절감·계획외 다운타임 감소")에 `evidence_refs` 없음 — 실무에서
-  가장 흔한 감점 사유를 그대로 짚었다.
-- 구축 뼈대에 사업 범위·추진 일정·시험/검수·이행 조직 절이 없음 — 실제로 없었다.
-- 배점 항목에 대응 요구가 없음 — 무엇에 점수가 걸렸는지 모르고 쓴 상태라는 신호.
-
-### 놓쳤던 것 셋
-
-**제조사에 기대는 확약이 자사 확약처럼 통과했다.** "심각도1 1시간 내 대응"은 제조사 SLA가
-그 계약·구독 등급에 적용될 때만 성립하는데, 제조사 공개 문서를 `evidence_refs`에 넣는 것만으로
-`commitment`가 통과했다. `vendor_confirmations` 필드는 있었지만 **작성자가 스스로 목록에 올릴
-때만** 검사했다 — 올리지 않으면 요구 자체가 없었다. `claims[].depends_on_vendor`로 의존을
-선언하면 같은 이름의 확약이 `present: true`여야 통과한다. 인용은 확약이 아니다.
-
-**시점에 묶인 주장에 기준일을 요구하지 않았다.** "2032년까지 지원", "현재 9.8" 같은 문장은
-기준일이 없으면 시간이 지나 거짓이 된다. 검토한 문서는 "기준: 2026.07"을 적어 뒀지만, 안 적어도
-게이트는 통과시켰다. `time_sensitive: true` + `as_of`(YYYY-MM)를 요구한다. 자유 문자열
-("2026년 여름")은 기준일로 인정하지 않는다 — 재사용된 장표가 조용히 낡는 것을 막는 장치다.
-
-**수치 사이의 관계를 보지 않았다.** SLA 표는 값 하나하나가 맞아도 "최초 응답 ≤ 지속 응답"과
-심각도별 순서가 틀리면 잘못된 표다. `at_most`/`at_least`를 추가하고 기간 단위를 시간으로
-환산해 비교한다(분·시간·일·영업일·주·개월·년). `4시간` vs `2일`처럼 단위가 바뀌는 자리에서
-뒤바뀐 값을 잡는다. 기간이 아닌 단위는 같은 단위끼리만 비교한다 — 대(臺)와 명(名)을 재지 않는다.
-
-### 어휘 보강
-문서의 "최첨단"이 과장어 검사에 걸리지 않았다. `최첨단·압도적·탁월한·독보적·최상위·차원이 다른`을
-추가했다. 다만 "최상위 파트너 등급"은 Red Hat 파트너 등급의 실제 명칭이므로 예외로 뺐다
-("최고 등급"을 이미 예외로 둔 것과 같은 이유). "최상위의 품질"처럼 자기 자랑으로 쓰인 것만 잡는다.
-
-### 검증
-`test_real_proposal_findings.py` 17건 신설 — 전체 421건 통과. 실제 문서를 다시 태우니 두 구멍이
-모두 차단으로 바뀌었다.
+| 1 | quality_gate | Residual customer names in notes, layouts, masters, or charts → pass | Scan `ppt/notesSlides`, `slideLayouts`, `slideMasters`, `charts`, `comments`, and `docProps/core.xml` |
+| 2 | quality_gate | Exaggerated language in DOCX headers, footers, footnotes, or comments → pass | Scan `word/header*`, `footer*`, `footnotes`, `endnotes`, and `comments` |
+| 3 | quality_gate | Body content lost after nested text-box `<w:p>` | Split by tracking top-level paragraph depth |
+| 4 | quality_gate | Split runs (`최`+`고`) or markers containing NBSP → missed | Concatenate runs without spaces and normalize whitespace |
+| 5 | proposal_gate | `accepted:"pending"`, `present:"no"`, `cleared:"no"`, `verified:"failed"` → READY | Strict boolean schema validation (strings → INVALID) |
+| 6 | proposal_gate | Missing or misspelled claim `kind` (`Material`) → checks skipped | Missing=material; unsupported kind=schema error |
+| 7 | unified_gate | `SUBMISSION-READY` displayed for a `mode:"draft"` audit | Display only for mode=submission; otherwise `DRAFT-READY` + NOTE |
+| 8 | quality_gate/unified_gate | Printing `—` crashes on Korean Windows cp949 consoles → valid document BLOCKED | Reconfigure stdout as UTF-8; child processes use `PYTHONIOENCODING=utf-8` |
+
+## P1 — Fail-open behavior and robustness
+
+- `evidence_refs=["[NEEDS INPUT]"]`, `artifact_hash:"TBD"`, `receipt_plan:"TBD"`, and regulatory `evidence:"TBD"` passed as evidence → placeholders (TBD·TODO·???·needs input·입력요망·미정, etc.) are no longer accepted as evidence.
+- A UTF-8 BOM in the names file caused its first name to be ignored → `utf-8-sig`. Match forbidden names ignoring case and whitespace.
+- Damaged/unsupported files were mixed into exit 1 (blocked) → exit 2 (inspection unavailable). Added XLSX cell/comment inspection.
+- Past `bid_conditions[].deadline` still yielded CONDITIONAL-GO → added future-date validation.
+- `mode:"submission"` + `conditional-bid` returned exit 0 → blocked (conditional is an internal state).
+- Empty `requirements` yielded submission READY → require at least 1 mandatory requirement. Missing `mandatory` means mandatory.
+- The builder silently converted the string `"requirements": "R1 R2"` to `[]` → ValueError.
+- The builder manufactured `evidence_refs` from `slide:N` and bypassed anti-optimism checks → no generated evidence, plus a warning.
+- Builder `bool("no") == True` → ValueError for string booleans.
+- Invalid `PROPOSAL_GATE_NOW` fell back to wall-clock time → environment error, exit 2.
+- score_completeness metrics lacked range/type validation (producing 157 points) → require all 4 metrics within 0~1; INVALID exit 2.
+- An arbitrary .py at unified_gate `PROPOSAL_GATE_PATH` → check module functions before returning INVALID.
+- bulk_matrix: blank `mandatory`=False → True. Normalize `o`/`Y`/`△`, reject unsupported codes, and preserve multiline CSV cells.
+- install_skill: block `--name ../..` path escape; replace incomplete directories lacking SKILL.md; add `--force` and cache exclusions.
+- proposal_gate argparse (`-h`, unsupported flags exit 2). Non-UTF-8 JSON exits 2.
+
+## Retained behavior (confirmed intentional)
+
+- Master-color NOT INSPECTED warnings remain nonblocking (test contract).
+- Skill-directory `test_*.py` files remain in distributions for installed self-checks.
+
+## Related documentation updates
+
+`unified-gates.md` §3/§4/§6; `audit-schema.md` (strict booleans and conditional scope); `create-best-proposal/SKILL.md` Phase D/E; material locations in `create-proposal-document/SKILL.md`; README test section; `.github/workflows/ci.yml`.
+
+## Round 2 (2026-09-05) — Added the slide-production layer
+
+A dry run following the skill with a mini RFP found that Phase D (visuals/output) had only prose guidance and no tools, requiring 100% model reinvention (1,583 lines read before the first slide). Without rendering/layout checks, no gate caught page limits, leads, REQ-IDs, or reduced font sizes. Changes:
+
+- `build_deck.py`: slides.json → PPTX. 12 layouts, fixed coordinates/tokens, role-named shapes (TITLE/LEAD/REQID…), automatic matrix splitting, `--strict` for missing leads/page limits, and `--template` for corporate templates.
+- `deck_check.py`: lint leads, REQ-IDs, page counts, minimum fonts, density, and table headers; compare LibreOffice rendering; produce PNG thumbnails and audit `render` blocks (render success + 0 blockers → verified). Missing soffice means NOT INSPECTED.
+- Golden `fixtures/e2e-mini-rfp/` (rfp.md/slides.json/meta.json) and 14 cases in `test_deck_pipeline.py`.
+- Gate adjustment: draft/review do not require `artifact_required`, `package.required`, or `checks.submission`, allowing Pink/Red checkpoints. Submission mode is unchanged.
+- Vocabulary alignment: 6 support codes (`O/부분/조건부/X/N/A/확인필요`; Korean labels are display forms); requirement states use gate vocabulary (`pending→drafted→needs-review→approved`); human-review `CONDITIONAL GO` → `FIX-AND-RECHECK` to avoid collision with gate `CONDITIONAL-GO`, plus a label mapping table.
+- Moved `score_completeness.py` to create-best-proposal/scripts so it works in installed trees; retained the root entry point.
+- quality_gate markers: `○○`, `[unverified]`, and `미정` warn in drafts/block in submissions; `p.__` blocks.
+- Rewrote frontmatter for all 3 skills around one entry point with load-only siblings, removing duplicate router triggers.
+
+## Round 3 (2026-09-05) — Artifact binding and unified decisions (external diagnostic F01~F05)
+
+Reproduced findings from the external diagnostic (fixed commit f346a18) on current main, then fixed only validated issues. F05's missed `[unverified]`, F06's missing production layer, and F09's undistributed scorer had already been resolved in round 2 (PR #14); the `package.checks={}` TypeError did not reproduce. All remaining findings were valid.
+
+**F01 Artifact hash binding** — identify which file an audit records. `unified_gate.py` calculates the sha256 of `--doc` and compares it with `render/package.artifact_hash`, blocking mismatches so changed files cannot reuse old decisions. `mode=submission` + `artifact_required=true` without `--doc` blocks. Use `--audit-only` to inspect an audit without a document; its best result is `AUDIT-VALID`, not `SUBMISSION-READY`. Submission artifact_hash must be an actual `sha256:<64 hex>`, with render/package identifying the same file; the label `sha256:proposal` blocks.
+
+**F02 One decision for stages, labels, and explanations** — `readiness(data, failures)` determines labels and exit codes; `explain_markdown` and CLI share it, removing draft audits described as submission-ready. Downgrading a `mode=submission` audit with `--stage draft` is a usage error (exit 2). `artifact_mode=simulation-only` blocks in submission mode.
+
+**F03 Prevent conversion/schema data loss** — `_str_list()` no longer wraps strings in lists, removing the incorrect `"TBD"` → `['T','B','D']` conversion. Non-object ledger-array entries produce errors with locations (`requirements[2] must be an object`), preventing one string requirement being dropped and 3 entries becoming 2. IDs in `requirements[]` and `claims[]` are required and unique. `_enum_ok()` safely rejects nonstring enums (`mode=[]` produces INVALID exit 2 rather than a traceback).
+
+**F04 Separate evidence, compliance, and response locations** — submission `supported|qualified` claims require `evidence_refs`. `support=X`/`fit=GAP` with `state=approved` blocks; buyer exceptions require `exception:{granted_by, evidence}`. `bulk_matrix.py` separates response locations into `response_refs`, no longer promoting them into `evidence_refs`.
+
+**F05 Document inspection coverage** — `chart_text()` reads category/series caches (`c:v`) as well as run(a:t) text in charts, fixing residual customer names missed in titled charts (untitled charts were already detected). An ordinary ZIP merely named `.pptx` is a usage error (exit 2), not a `NOT INSPECTED` pass.
+
+**Verification** — added 22 cases in `test_gate_integrity.py` including positive controls; all 149 root cases + 58 proposal_gate cases + 11 best_proposal cases passed. Replaced golden-fixture and test-base hashes with actual digests.
+
+**Remaining items (not started)** — F06 arithmetic/coordinate verification (unified_gate does not compare `checks.arithmetic` with actual calculation); F07 sector profiles (public/corporate/school/hospital); F08 output-specific visual specifications (presentations 18pt+); F10 evidence for quality claims (blind comparative evaluation).
+
+## Round 4 (2026-09-05) — External recheck R01~R08
+
+Reproduced all 8 findings from the post-round-3 recheck on current main, then fixed them. Three exposed gaps in items I had recorded as fixed in round 3.
+
+**R01 Verification bypass** — `SUBMISSION-READY` was possible with `artifact_required=false`, unverified rendering, and hash labels. Submission now requires render verification, hash format, and package checks regardless of input (`artifact_required = data[...] or mode == "submission"`).
+
+**R02 Unopenable packages** — ZIPs without `[Content_Types].xml` passed submission although python-pptx could not open them. `validate_package()` checks required parts (`[Content_Types].xml`, `_rels/.rels`, and body parts) and main-part XML parsing, using only zipfile with no new dependencies. **CI positive controls had the same defect** and were replaced with actual python-pptx files. Shared `ooxml_fixtures.py` builders now also verify actual-loader acceptance.
+
+**R03 Residual template slides** — adding 1 cover to a 2-slide template produced a 3-slide file retaining previous customer names/amounts but reported "1 slides" (confidentiality leakage and invalid page-limit checks). Reject templates containing slides and count actual slides rather than internal counters.
+
+**R04 Off-slide placement** — valid 18pt text entirely outside the slide produced 0 blockers. `out_of_bounds()` compares text-shape coordinates with slide bounds (fully outside or more than 25% clipped → blocked). It also found and fixed golden-deck Gantt labels crossing the right margin. Separate `render_succeeded` (machine) from `visual_review_approved` (human); submission requires the latter and the real name in `visual_reviewer`. Successful PDF conversion is not design approval.
+
+**R05 Row loss** — `rows_per_slide=-1` reduced matrix data to 0 rows even under `--strict`. Accept only positive integers and compare input/output row counts.
+
+**R06 Lost aliases/fields** — `support="X 미수용"` bypassed approval consistency checks; `is_unsupported()` now unifies notation variants. More seriously, round 3's exception path **did not work when following the documentation**: meta→audit dropped `exception` and `response_refs`, falsely blocking legitimate buyer exceptions. Preserve both with type validation.
+
+**R07 Contradictory explanations** — `STATUS: AUDIT-VALID` appeared beside "게이트 결과: SUBMISSION-READY / 제출 가능." Round 3 regression tests all used `--no-explain` and missed it. `explain_markdown(..., label)` accepts the caller's decision; new tests also inspect explanations.
+
+**R08 Enum types** — `claim.kind=[]`, `package.checks.metadata={}`, and similar inputs raised TypeError. Unify enum comparisons through `_enum_ok()` (reject nonstrings without crashing → structured INVALID).
+
+### Verification
+
+Added 24 cases in `test_gate_integrity2.py` including positive controls; all 183 root cases + 58 proposal_gate cases + 11 best_proposal cases passed. Added negative CI golden controls for bypass blocking, explanation contradictions, template rejection, and row loss. Repeated all 8 report reproductions using their original procedures and confirmed every one blocked.
+
+### Remaining items
+
+F06 actual arithmetic comparison (body values versus ledger), F07 sector profiles, F08 output-specific visual specifications, and F10 blind comparative evaluation. Table-cell overflow and overlapping shapes still require visual thumbnail review.
+
+## Round 5 (2026-09-05) — Numerical ledger and actual arithmetic checks (remaining F06)
+
+`checks.arithmetic: true` is a human self-declaration: the gate could not detect body text stating `100원 + 200원 = 900원`. Through round 4, fixes established which file was reviewed and whether it opened, but correctness of the numbers in that file still depended on human declarations.
+
+**Numerical ledger (numbers[])** — record amounts, durations, and quantities as `{id, label, value, unit, source}`. Link components through `components` so the gate recalculates totals; `percent_of`+`amount` recalculates ratios. Mixed-unit totals, unknown component references, duplicate IDs, and nonnumeric values each produce errors with locations. Default tolerance is 0.5%, adjustable per entry.
+
+**Binding self-declarations** — submission cannot pass on `checks.arithmetic: true` alone without a ledger. Claiming arithmetic completion without showing what was checked is not verification. Draft/review still do not require ledgers, preserving checkpoint reachability.
+
+**Document comparison (check_numbers.py)** — the gate checks ledger arithmetic, but must open the document to establish that slide values match. Korean proposals use alternate notations (`3,700,000,000` / `3700000000` / `37억` / `370,000만`), so generate variants and block when none appears. Respect numeric boundaries so `370억` cannot falsely match `37억`. Exclude intermediate calculations with `must_appear: false`.
+
+**Builder preservation** — dropping `numbers` during meta→audit would block submission as missing its ledger. Preserve the ledger with type validation; non-object entries produce errors with locations.
+
+### Verification
+
+Added 18 cases in `test_numbers_ledger.py`; all 201 root cases + 58 proposal_gate cases + 11 best_proposal cases passed. Added ledgers to submission/e2e mini-RFP golden fixtures for recalculation on every CI run.
+
+### Remaining items
+
+F07 sector profiles, F08 output-specific visual specifications, and F10 blind comparative evaluation. Errors in body values omitted from the ledger remain undetectable; authors decide what to record.
+
+## Round 6 (2026-09-05) — Output-specific visual specifications (F08)
+
+Imposing the same 11pt/600-character rules on printed evaluation documents and projected meeting slides necessarily fails one of them. Split specifications into profiles while ensuring **generator and checker share one definition**: this repository repeatedly suffered from the two tools maintaining divergent constants.
+
+**deck_profiles.py** — `detailed-submission` (default, 22/11/10pt, 600 characters, 12 matrix rows); `presentation` (30/18/14pt, 250 characters, 6 rows); `executive-summary` (26/14/12pt, 400 characters, 9 rows). Fonts, lead length, density, table rows, and matrix splitting derive from one definition. Minimum font thresholds derive from the smallest body size in the profile rather than constants. Stamp core properties with `proposal-deck:<프로파일>` so checkers apply matching criteria without arguments.
+
+Also reconciled values already divergent before implementation: table-row warnings (generator 14, checker 15) and density (bullets 450, body 600).
+
+### Defects found in immediate adversarial self-review and fixed together
+
+- **Density checks could not see tables.** GraphicFrame tables made `shape_text` return an empty string, counting dense matrices as 0 characters. Presentation 250-character limits did nothing on table slides. Read cell text instead; the golden presentation matrix correctly warned at 295 characters.
+- **Duplicate shape names shifted density pairs.** Separately zipping a name dictionary and text list counted the wrong text or omitted the body when multiple Gantt milestones shared names. Changed to one shape traversal.
+- **Legends bypassed inspection.** `BODY_LEGEND` was treated as metadata and remained below body minima. Removed the metadata exclusion and drew it at or above the body minimum.
+- **Unstamped decks silently passed permissive defaults.** Distinguish missing from unknown stamps and block both at submission (warn in drafts). External decks specify criteria through `--profile`.
+- **Matrices alone bypassed table-row limits.** The generator now warns when `rows_per_slide` exceeds profile limits.
+
+### Verification
+
+Added 25 cases in `test_output_profiles.py`: inter-profile size/density relationships, stamp round trips, table-cell density, duplicate names, legends, thresholds versus actual output, and fail-closed missing/unknown stamps. All 226 cases passed. CI generates and inspects all three profiles and confirms detailed decks block when measured against presentation criteria.
+
+### Remaining items
+
+F07 sector profiles and F10 blind comparative evaluation. Table-cell text overflow and shape occlusion still require visual thumbnail review.
+
+## Round 7 (2026-09-05) — Proposal-context classification (F07, reduced scope)
+
+Did not implement the diagnostic's 4 sector profiles as requested. This repository's value came from machine verification, while hospital/school profile prose cannot be verified. Guidance that hospital proposals should address patient safety can be written without this skill. Instead, narrowed F07 to a verifiable form by making **classification change gate requirements**.
+
+**Classification axes (context)** — `buyer_types[]` allows multiple values (public hospitals → public+healthcare), plus `engagement`, `stage`, `reading_mode`, and `constraints[]`. Do not classify from institution names alone.
+
+**What classification changes (machine checks)**
+
+- Public + submission → require an `evaluation_criteria[]` ledger. Weights total 100 (±0.5); **block criteria without mapped requirements**, signaling an entirely omitted outline subject. Link requirements through `criterion_ids`.
+- Compare `reading_mode` with `render.output_profile` to catch print-profile decks labeled as presentations, connecting to round 6 output profiles.
+- `sensitive-data` in `constraints` → package metadata, hidden-content, and stale-customer-data checks must all be `pass`.
+
+**Only one sector profile: public** — `references/sectors/public.md`. Most existing guidance already assumed public bidding, so this was extraction rather than invention. Corporate, education, and healthcare retain only axes/rules with empty content; README explains the gaps and how to add material. Giving unverified content the authority of a profile is worse than leaving it empty.
+
+The check found an actual golden-fixture defect: the mini RFP evaluation table allocated 20 points to price, but no matching requirement existed in the ledger. Added the requirement.
+
+### F10 will not be implemented
+
+Rounds 3/4 removed unsupported scoring claims, fulfilling F10's central requirement for honesty. Remaining blind comparison requires independent evaluators. An unused evaluation harness creates only the appearance of verification and is worse than none. Close it explicitly as not performed, recorded in README under what the gate does not inspect.
+
+### Verification
+
+Added 21 cases in `test_context_classification.py`; all 247 cases passed. Tests also compare documented axis values with code enums.
+
+## Round 8 (2026-09-05) — Third diagnostic (D01–D09) and public-repository hygiene
+
+### Issues blocked in this round
+
+**Approval records lost during conversion (D01).** `build_audit_from_meta.py` omitted `render_succeeded`, `layout_checked`, `visual_review_approved`, `visual_reviewer`, and `output_profile`, blocking valid visually approved workflows as unapproved. False blocks mirror false passes and encourage disabling gates. Copy only supplied input records without inventing approvals. This recurring conversion defect, following evidence, exceptions, and numerical ledgers, was fixed in regression tests as its third recurrence in this repository.
+
+**Requirements disappeared when fields were removed (D02).** `layout_checked` was inspected only when present; deleting it removed the check entirely. Changed to missing = uninspected = blocked. Also block self-contradictory records such as `verified: true` + `render_succeeded: false`.
+
+**Uncomputable ledgers passed (D04).** `Infinity`, `NaN`, self-references, ratios without `amount`, and zero denominators silently passed. Uncomputable means unverified, not passed. Relative tolerance of 0.5% permits an 18.5-million-won difference on 3.7 billion won, so currency changed to 1-won absolute tolerance. Empty submission ledgers require a `numbers_not_applicable` reason.
+
+**Same digits, different meanings (D03).** `37` matched `37.5`, `370`, and `-37`; `37개월` counted as evidence for `37원`; **values only in notes counted as present in the document**. Include decimal points/signs in numeric boundaries, compare only units **attached** to numbers (VM in `400 VM` is treated as a noun), and limit comparison to evaluator-visible body content. Values confined to non-body content block with that explanation.
+
+**Unopenable packages (D05).** Structural checks parsed only main and `[Content_Types].xml`, allowing broken `slide1.xml` or `_rels/.rels`. Parse relationship and body parts, and open once with python-pptx in `deck_check.py` (`quality_gate.load_check`). Loader checks apply only to final-artifact inspection to avoid tying every text-extraction path to libraries. This exposed fixture defects too: parts without namespace declarations and multi-root fragments were not real files. Aligned fixtures with real files.
+
+**Font minima did not protect body text (D06).** `min(본문, 표) - 1` applied table minima to body text, allowing detailed body text reduced to 9pt. Separate body and small-text thresholds (`min_body_font` / `min_table_font`). Paragraph-only font sizes were omitted because `run.font.size` was None; resolve effective sizes from run → paragraph → shape. Group-local child coordinates were mistaken for slide coordinates, producing wrong bounds decisions; accumulate group transforms (`chOff`/`chExt` → `off`/`ext`). Legends/Gantt labels are small text like table cells, not body prose. Define `SMALL_TEXT_PREFIXES` only in `deck_profiles.py` so generator/checker agree.
+
+**The installer deleted user files (D07).** Directories missing `SKILL.md` were treated as interrupted installations and removed with `rmtree`. The installer cannot distinguish leftovers from user folders. Reject nonempty directories and replace only with `--force`.
+
+**Claimed hash agreement for uninspected files (D08).** `--audit-only` explanations read like submission approval. Claim matching hashes only after inspecting the document.
+
+**Hollow ledgers and exemption paths (D09).** ID-only requirements/claims do not establish what an R1 approval actually approved. Require human-readable content at submission; drafts allow partial ledgers. `kind: informational`, the sole evidence-exempt classification, requires an exemption reason. Also fixed `TypeError` crashes while constructing sets from nonstring units.
+
+### Public-repository hygiene
+
+This public repository handles proposal material containing customer names, contacts, quotations, and internal paths. Instead of manual filtering every time, `test_repo_hygiene.py` scans all `git ls-files` and blocks local absolute paths, email addresses, internal workspace links, and credential-shaped strings. Inspect only detectable content: machines cannot decide whether a name belongs to a customer. AGENTS.md writing rules cover the rest. Removed author-local paths remaining in `references/architecture-review-10x.*`.
+
+### Verification
+
+Added 29 cases in `test_gate_hardening_d.py`; all 280 cases passed. This includes a **valid-path end-to-end case**: approved inputs/ledger → actual PPTX generation → layout/numerical checks → render/visual approval records for that file → meta→audit → final decision on the same file (SUBMISSION-READY). Verify that hardening preserves valid artifacts with the same priority as blocking tests.
+
+## Round 9 (2026-09-06) — Public RFx review: rules come from source documents
+
+Selected only verifiable findings from an external comparison of 12 public RFP/RFI documents. Items overlapping round 8 (render-field loss in conversion and false numerical matches) were already resolved and confirmed by measurement.
+
+### Missed in round 8 — missing `output_profile`
+
+Applied missing = uninspected = blocked to `layout_checked` but not the adjacent field. When `reading_mode` implied a specification, an invalid `render.output_profile` was caught, but **deleting it passed**. Block omission at submission and reject unknown profile names.
+
+### Missing submission classification disables checks
+
+`context` was optional for backward compatibility. Removing classification silently disabled public evaluation criteria, specification comparison, and sensitive-data checks: passing checks and having no checks produced the same result. Require `buyer_types` and `stage` in submission mode; drafts/reviews remain allowed.
+
+### Evaluation methods come from source documents, not institution classifications (P0-3)
+
+`{id, label, weight}` plus a total of 100 could not represent real notices. With only technical 90 points in the ledger and price separately bound, **the gate falsely demanded a total of 100**. Recording stage-1 technical 100 = quantitative 20 + qualitative 80 in one array yielded 200. Changed to hierarchical ledgers: top-level sum = `evaluation_total`; children sum to parent weight; undisclosed weights use `disclosed: false`; cutoffs are preserved as `minimum_ratio`/`minimum_score`. The gate checks totals without predicting evaluation scores.
+
+The external review correctly challenged the attached proposal's fixed public-sector technical 85% and SW 90:10 assumptions. Negotiation eligibility of 85% means 85% of the **technical-evaluation maximum**, not 85 total points, and 90:10 has exceptions. Hardcoding these values would reintroduce the unsupported numbers this repository has been removing. Read source documents, record their values, and calculate only from that ledger.
+
+### Requirement strength (P0-4)
+
+One `mandatory` boolean gave recommended-length overruns and mandatory violations equal weight. Added `strength` (required/recommended/optional/conditional/informational), retaining `mandatory` as a derived value. Disagreement is a schema error. Conditional requirements need conditions and count as mandatory. Submitting without following a recommendation requires a reason, distinguishing omission from a deliberate exception. Terms 권장·조건부·참고 in the `필수` column of `bulk_matrix` become strength values.
+
+### RFI is not a bid (P0-2)
+
+The review proposed `stage=rfi-response`, but another paragraph made the better distinction: procurement stage and document kind belong on different axes. Added `context.rfx_type` (rfp/rfi/rfq). `rfi` does not require public-sector evaluation criteria, but blocks `commitment` claims to prevent estimates becoming commitments. Qualification, attachment, and format checks remain active for RFIs. Specify what differs rather than disabling checks because the document is an RFI.
+
+### Not adopted
+
+- **Four sector profiles.** The review itself said technologies in a case are that case's requirements, not sector-wide obligations. Applying that standard leaves insufficient evidence for profiles based on 1 example per sector. Outline branching by `engagement` (review P1-2) is a verifiable alternative and candidate for the next batch.
+- **External RFx collection.** The bottleneck was representing collected material in a ledger, not collection. This batch supplied that representation.
+- **Submission-bundle inspection** (named/anonymous copies and separate price volumes) and integrating `check_numbers` into the unified gate require broader schema changes and are deferred to round 10.
+
+### Verification
+
+Added 17 cases in `test_rfx_rules.py` and updated 2 classification-test contracts; all 298 cases passed. Reproduce public-case rules with synthetic data only; do not include original documents/source URLs because procurement links expire after closure.
+
+## Round 10 (2026-09-06) — Submission bundles and automatic numerical comparison
+
+The two items deferred from round 9 both remove checks that exist but nobody runs.
+
+### Submission is a bundle, not one file
+
+Gyeonggi Cultural Foundation-style notices distinguish named originals, anonymous copies, two electronic-file types, and sealed prices; MU Health Care-style notices require separate non-price submissions and price worksheets. The gate previously checked only `attachments[]` presence, with only the main file hash-bound. Thus **valid named originals with bidder names still in anonymous-copy notes**, or **missing price volumes**, passed.
+
+Added `role` (proposal / proposal-anonymous / price / form / certificate / presentation / appendix / other). A role activates its rules; absent roles retain presence-only checking. Submission attachments marked `present: true` require `sha256`. Anonymous copies require identification-inspection records and reviewers; non-price artifacts require price-contamination inspection records. If multiple artifacts use submission roles, require an explicit choice of the submission file.
+
+`unified_gate.py --bundle <폴더>` compares every attachment with actual files and hashes. Binding only the main file leaves changes to other attachments after review undetected.
+
+Machine limits remain: identifying content in logos/images, printing, stamping, sealing, and on-site submission. Anonymous copies therefore also require a human `reviewer`.
+
+### Integrated numerical comparison into the unified gate
+
+Round 8 corrected `check_numbers` accuracy (decimals, units, signs, body-only scope), but the unified gate did not invoke it. Checks requiring separate manual execution do not get run. Run by default when `--doc` supplies a document and a ledger exists. Stale slide amounts block even with matching hashes. `--skip-numbers` marks submission uninspected and blocks rather than passing.
+
+This exposed **defective positive controls**: audits containing 37억 ledgers were bound to synthetic PPTX files containing no numbers and called valid. Added matching amounts to control documents. Calling a ledger-mismatched document valid makes the comparison meaningless.
+
+### Verification
+
+Added 15 cases in `test_submission_bundle.py`; all 313 cases passed.
+
+## Round 11 (2026-09-06) — Engagement type changes outlines
+
+The external review correctly noted that `engagement` included training, consulting, and policy while flagship Phase B still selected only A implementation / B maintenance / C technical response. Classification values and production-path support are different. If only classification is checked while outlines remain unchanged, proposals with merely renamed institutions pass.
+
+### Recorded outline archetypes in the ledger
+
+`proposal_archetype` (build / maintenance / technical-response) records the outline actually used; the gate compares it with `context.engagement`. An implementation outline for maintenance blocks. Buyer-specified outlines pass with supporting `archetype_rationale` because RFP instructions always take precedence. Submission records for mapped engagements must identify the chosen archetype; one line suffices, and omission on both sides cannot count as valid.
+
+With `sections[]`, check required sections per archetype. Implementation requires scope, implementation approach, schedule, testing/acceptance, and delivery organization. Match section names loosely by keywords (both "시험 및 검수" and "테스트 방안" qualify). The goal is detecting entire missing subjects, not forcing names.
+
+**Do not infer outlines from `slides[]`.** The first implementation did so, but `slides[]` maps requirement responses, not outlines. Treating partial mappings as outlines falsely reports existing sections as missing. The golden fixture immediately exposed that false positive and the approach was reverted.
+
+### Do not invent unsupported outlines
+
+Five engagements are mapped (build/migrate/operate/service-improvement/product-selection). Training, consulting, and policy have no repository-backed outlines, so **do not force archetypes**, for the same reason only the public-sector profile has content. Still require a rationale when these engagements reuse IT implementation outlines. Neither force unsupported structure nor silently ignore it.
+
+### Found an actual golden-deck defect
+
+The new check reported **missing scope and testing/acceptance sections** in the mini-RFP golden deck, both required by standard type A. Added two slides instead of weakening the check (15→17 slides). Missing scope and acceptance criteria in implementation proposals leave room for contract disputes.
+
+### Related cleanup
+
+- **Reading environment ≠ document role.** Removed `individual-review → executive-summary`. Individual readers may use executive summaries or detailed technical evaluation documents; environment alone did not justify choosing a role. Retained presentation/printed-evaluation mappings because those environments effectively determine specifications.
+- **`requirements.txt`.** New installers previously had to read README to discover `python-pptx`. Also documented LibreOffice as a dependency outside pip. CI uses this file too.
+
+### Verification
+
+Added 17 cases in `test_outline_archetypes.py`; all 330 cases passed. Added 4 outline controls in CI.
+
+### Addendum — a full local pass coexisted with CI failure
+
+Round 10 failed 4/4 CI jobs while all local tests passed. The cause was **coverage**, not test content. `unittest discover -s .` does not recurse into directories without `__init__.py` and therefore omits `skills/*/scripts/test_*.py`. CI runs them separately, so the local 313-case pass excluded 69 CI cases. Those included positive controls broken in round 10 (`test_best_proposal.py` also expected SUBMISSION-READY for a PPTX without ledger values).
+
+This also caused a mistaken fix: I speculated about an unreproduced failure and patched it, fixing the same defect in a different file while CI remained red. I should have followed the rule to reproduce before fixing.
+
+`test_skill_scripts.py` uses load_tests to include those files in root execution (401 cases). A test catches tracked test files omitted from every execution path.
+
+## Round 12 (2026-09-06) — Make the full suite practical locally
+
+Changed execution, preserving test content. Full runs took Linux 47 seconds / Windows 46 minutes. Impractical local runs encourage CI-only validation, which caused actual incidents in rounds 10/11: local passes coexisted with CI failures and were merged in that state.
+
+Invocation was the cause. Each test launched a script through `subprocess`, repeating interpreter startup/imports; Windows added process creation and antivirus overhead, reaching tens of times the Linux duration.
+
+`test_support.run_script` invokes scripts **in the same process**. All skill scripts use `main(argv) -> int`, so direct calls can capture stdout and exit codes. Return objects match `subprocess.CompletedProcess`, preserving callers.
+
+Retained child-process paths because **the process itself is under test**:
+
+- Console encoding, including survival in cp949 child environments.
+- Propagation of exit codes to the shell.
+- Direct installed execution through `python <script>`.
+
+Generate repeatedly requested golden decks once and copy them (`build_deck_cached`). Determinism preserves test inputs while removing redundant generation cost.
+
+Tests verify decisions remain unchanged: compare in-process/subprocess exit codes and output for identical inputs, confirm default calls spawn no child processes, and confirm isolated paths still spawn (`SpeedContractTests`). Tests catch contract violations first.
+
+### Results
+
+Linux 47 seconds → 21 seconds. Remaining child processes serve necessary encoding, installation, `git ls-files`, and similar checks (fewer than 20 per full run). All 404 cases passed.
+
+## Round 13 (2026-09-06) — Gaps found with an actual proposal
+
+The first twelve batches used repository-built fixtures. Ran one actual public-sector RHEL-standardization proposal (9 slides) in submission mode. Do not include the original document in the repository; reproduce only rules with synthetic data.
+
+### Correct gate findings
+
+All 18 blockers were justified, with **no excessive blocking**. Particularly accurate findings:
+
+- Unsupported benefit claims ("관리 비용 절감·계획외 다운타임 감소") lacked `evidence_refs`, identifying a common practical reason for score deductions.
+- The implementation archetype lacked scope, schedule, testing/acceptance, and delivery-organization sections; they were actually absent.
+- Evaluation criteria had no mapped requirements, indicating writing without knowing what carried scores.
+
+### Three missed issues
+
+**Manufacturer-dependent commitments passed as bidder commitments.** "심각도1 1시간 내 대응" is valid only when the manufacturer's SLA applies to the relevant contract/subscription tier, yet placing public manufacturer documentation in `evidence_refs` let `commitment` pass. `vendor_confirmations` existed but was checked **only if authors populated it**; otherwise no requirement existed. Declaring `claims[].depends_on_vendor` now requires a same-named confirmation with `present: true`. Citation is not confirmation.
+
+**Time-dependent claims required no reference dates.** Statements such as "2032년까지 지원" and "현재 9.8" become outdated without reference dates. The reviewed document stated "기준: 2026.07", but omission would still pass. Require `time_sensitive: true` + `as_of` (YYYY-MM). Free text ("2026년 여름") does not qualify, preventing reused slides from silently becoming stale.
+
+**Relationships between numbers were ignored.** Correct individual SLA values do not make a correct table if initial response ≤ ongoing response or severity ordering is wrong. Added `at_most`/`at_least` and compare duration units converted to hours (minutes, hours, days, business days, weeks, months, years). Detect swapped values across units, such as `4시간` versus `2일`. Compare non-duration values only with matching units; do not compare equipment counts and people counts.
+
+### Vocabulary additions
+
+The document's "최첨단" escaped exaggerated-language checks. Added `최첨단·압도적·탁월한·독보적·최상위·차원이 다른`. Excluded "최상위 파트너 등급" as the actual name of a Red Hat partner grade, just as "최고 등급" was already exempt. Detect only self-promotional uses such as "최상위의 품질".
+
+### Verification
+
+Added 17 cases in `test_real_proposal_findings.py`; all 421 cases passed. Running the actual document again changed both gaps to blockers.

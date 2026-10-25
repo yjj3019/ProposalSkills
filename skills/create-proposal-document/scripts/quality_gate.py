@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
-"""제안서 기계 검수 게이트 — review-checklist.md 중 자동화 가능한 항목을 검사한다.
+"""Automated proposal quality gate for machine-checkable review-checklist.md items.
 
-사용법:
+Usage:
     python3 quality_gate.py 제안서.pptx [--names 금지명단.txt]
         [--palette "1F3864,8FAADC,..."] [--lang ko|en|both] [--stage draft|submission]
 
-검사 항목:
-  1. 과장어(근거가 있어도 사람 검토)   3. 잔존 금지 명칭(이전 고객사 등)
-  2. 플레이스홀더/미확정 마커 잔존       4. 팔레트 일탈(허용 색 외 사용, PPTX만)
-검사 범위: PPTX 슬라이드·노트·레이아웃·마스터·차트·주석, DOCX 본문(텍스트박스 포함)·
-  머리말·바닥글·각주·미주·주석, XLSX 셀·주석, 문서속성. 렌더에 안 보이는 영역 포함.
---lang: 과장어 사전 언어 선택(기본 ko). 영문 제안은 en, 이중언어는 both.
---stage: draft=미확정 마커([NEEDS INPUT]·입력요망)를 비차단 경고로 허용,
-         submission(기본)=차단. 생성 도구 테마색 NOT INSPECTED는 항상 비차단 경고다.
-종료 코드: 0=통과(경고만 있을 수 있음), 1=차단(차단 목록 출력), 2=사용 오류·검사 불가.
-판정은 기계 검사일 뿐이며, 문장 맥락·설득력·법적 적정성은 사람이 검토한다.
+Check exaggerated language (human review even with evidence), unresolved placeholders, residual forbidden names, and palette deviations (PPTX only). Scope includes PPTX slides, notes, layouts, masters, charts, comments; DOCX body including text boxes, headers, footers, footnotes, endnotes, comments; XLSX cells/comments; and document properties, including content invisible in rendered output.
+--lang selects the exaggerated-language dictionary: ko (default), en, or both.
+--stage draft allows unresolved markers ([NEEDS INPUT]·입력요망) as nonblocking warnings; submission (default) blocks them. Theme-color NOT INSPECTED is always nonblocking.
+Exit codes: 0=pass (warnings possible), 1=blocked (list printed), 2=usage error or inspection unavailable.
+These are machine checks; humans review sentence context, persuasiveness, and legal suitability.
 """
 from __future__ import annotations
 import argparse, re, sys, xml.etree.ElementTree as ET, zipfile
@@ -22,10 +17,10 @@ from pathlib import Path
 
 BANNED_KO = ["최고", "완벽", "혁신적", "획기적", "100%", "무중단", "완전 자동화",
              "위험 제로", "유일한", "업계 1위",
-             # 실제 제안서 검토에서 나온 보강 — 근거를 붙일 수 없는 최상급 수식어.
-             # '최상위 등급'처럼 사실 명칭인 경우는 아래 BANNED_EXCEPTIONS로 뺀다.
+             # Additions from actual proposal review: unsupported superlative modifiers.
+             # Exclude factual names such as '최상위 등급' through BANNED_EXCEPTIONS below.
              "최첨단", "압도적", "탁월한", "독보적", "최상위", "차원이 다른"]
-# 영문 관용 과장어(writing-style.md 영문 금지어 사전과 동기화). 단어 경계로 매칭한다.
+# English exaggerated phrases, synchronized with writing-style.md; match word boundaries.
 BANNED_EN = ["best-in-class", "best", "world-class", "industry-leading", "market-leading",
              "leading provider", "leading solution",
              "unique", "perfect", "flawless", "innovative", "revolutionary",
@@ -35,11 +30,11 @@ BANNED_EN = ["best-in-class", "best", "world-class", "industry-leading", "market
              "guaranteeing", "bulletproof", "future-proof",
              "unlimited", "significant savings"]
 PLACEHOLDERS = ["lorem", "xxxx", "TBD", "샘플텍스트", "placeholder", "OOO", "○○○", "p.__", "p. __", "p.XX"]
-# 초안 단계 사실 슬롯 마커. 제출 단계에서는 차단(placeholder), 초안 단계에서는 경고(비차단).
-# 스킬 권장 마커([NEEDS INPUT]·［입력요망］)를 게이트가 스스로 차단하던 자기충돌을 해소한다.
-# '○○공사'류 익명 발주처 표기는 초안 관례이므로 draft=경고, submission=차단.
+# Draft factual-slot markers: block placeholders at submission, warn without blocking in drafts.
+# Avoid blocking the skill's own recommended markers ([NEEDS INPUT]·［입력요망］) in drafts.
+# Anonymous buyer notation such as '○○공사' is a draft convention: warn in draft, block in submission.
 DRAFT_MARKERS = ["needs input", "입력요망", "○○", "[unverified]", "미정"]
-# S7: AI-slop 최소 패턴(빈 수사·템플릿 티). 과장어와 별도. 부분 문자열 매칭.
+# S7: minimal AI-slop patterns (empty rhetoric/template language), separate from exaggeration; substring matching.
 AI_SLOP_KO = [
     "다양한 측면에서", "종합적인 솔루션", "시너지를 창출", "최적의 방안을 제시",
     "고객 맞춤형 서비스 제공", "차별화된 경쟁력", "원스톱",
@@ -48,28 +43,28 @@ AI_SLOP_EN = [
     "in today's fast-paced", "leverage synergies", "holistic solution",
     "delve into", "it is important to note", "game-changer", "unlock the potential",
 ]
-# 아래 접두사로 시작하는 항목은 '비차단 경고'다(종료코드에 반영하지 않는다).
+# These prefixes mark nonblocking warnings and do not affect exit codes.
 WARNING_PREFIXES = ("[NOT INSPECTED]", "[검토필요]", "[모호확약]")
 
-# 모호 확약(AMBIGUOUS_COMMITMENT): 제안사 행위를 "가능/예정/검토"로 흐려 누가·무엇을·언제·
-# 어느 조건에서 하는지 없는 문장. 단어 자체가 아니라 '서비스 행위 + 흐린 서술어' 결합만 잡고,
-# 구체 수치·명시 주체의 조건·발주처 주어 문장은 제외한다. 오탐 검증 전까지 비차단 경고다.
+# AMBIGUOUS_COMMITMENT: bidder actions obscured by "가능/예정/검토" without who, what, when,
+# or conditions. Match service actions combined with vague predicates rather than isolated words;
+# exclude concrete numbers, explicit conditional subjects, and buyer subjects. Nonblocking until false positives are reviewed.
 _AMBIG_ACT = r"(?:지원|대응|제공|조치|투입|교육|점검|협의|검토|추진|고려|개선|반영|수용)"
 AMBIGUOUS_COMMITMENT_RE = re.compile(
     _AMBIG_ACT + r"\s*(?:이|을|를|도)?\s*"
     r"(?:가능(?:합니다|함|하다|\b|$)|(?:할|될)\s*수\s*있(?:습니다|음|다)|예정(?:입니다|임|이다)?)"
     r"|적극\s*(?:검토|협의|지원)|노력하겠습니다|최선을\s*다하겠습니다")
-# 실행 조건을 누가 정하는지 명시한 조건절은 경계가 있는 문장이다("필요 시"는 해당 없음).
+# Conditional clauses naming who determines execution are bounded statements (not "필요 시").
 _AMBIG_CONDITION_RE = re.compile(
     r"(?:발주처|발주기관|고객|주관기관|감리|위원회)(?:가|이|의|에서)?\s*[^,.]{0,20}?"
     r"(?:승인|요청|합의|지정)(?:하는|한|할|이\s*있는)?\s*(?:경우|때|시)")
-# 제안사가 아닌 주체의 권한·기능을 설명하는 문장은 확약이 아니다.
+# Statements about another party's authority or functionality are not bidder commitments.
 _AMBIG_OTHER_SUBJECT_RE = re.compile(r"^\s*(?:발주처|발주기관|고객|주관기관|감리|평가위원)(?:은|는|이|가)\s")
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?。])\s+|\n+")
 
 
 def ambiguous_commitments(text: str) -> list[str]:
-    """모호 확약으로 보이는 문장 목록(원문 그대로). 판정은 문장 단위로 한다."""
+    """Return original sentences that appear to contain ambiguous commitments; evaluate per sentence."""
     hits: list[str] = []
     for sentence in _SENTENCE_SPLIT_RE.split(text):
         s = sentence.strip()
@@ -81,12 +76,12 @@ def ambiguous_commitments(text: str) -> list[str]:
     return hits
 
 
-# 과장어가 아닌 관용 결합(직함·기술 용어). 해당 결합은 과장어 매칭에서 제외한다.
+# Conventional titles/technical terms are not exaggeration; exclude these combinations.
 BANNED_EXCEPTIONS = {
     "최고": [r"최고\s*(?:경영|정보|기술|보안|재무|운영|책임|위험|데이터)\s*(?:책임자|자|임원)?",
              r"최고\s*(?:등급|점수|배점|사양|버전)", r"최고\s*[0-9]"],
-    # 파트너·인증 등급의 실제 명칭은 사실 서술이다("최상위 파트너 등급"). 자기 자랑으로
-    # 쓰인 '최상위'(최상위의 품질)만 남긴다.
+    # Actual partner/certification grade names are factual ("최상위 파트너 등급"); retain only
+    # self-promotional '최상위' uses (최상위의 품질).
     "최상위": [r"최상위\s*(?:파트너\s*)?(?:등급|레벨|티어|인증|자격)"],
     "best": [r"best[\s-]+practices?", r"best[\s-]+effort"],
     "unique": [r"unique\s+(?:id|identifier|key|constraint|index|name|value)s?"],
@@ -101,10 +96,7 @@ def _mask_exceptions(text: str, word: str) -> str:
 
 
 def banned_hits(text: str, word: str) -> bool:
-    """영문은 단어 경계로, 한국어·기호 포함어는 부분 문자열로 매칭한다.
-    경계에 하이픈 포함 — 'best-in-class' 안의 'best', 'industry-leading' 안의
-    'leading'이 이중 검출되지 않게 한다(복합어는 자체 항목으로 검사).
-    직함·기술 용어(최고정보책임자, best practice, unique identifier)는 제외한다."""
+    """Match English at word boundaries and Korean/symbol terms by substring. Include hyphens in boundaries to avoid matching 'best' within 'best-in-class' or 'leading' within 'industry-leading' twice. Exclude titles and technical terms (최고정보책임자, best practice, unique identifier)."""
     text = _mask_exceptions(text, word)
     if re.search(r"[A-Za-z]", word):
         return re.search(r"(?<![A-Za-z-])" + re.escape(word) + r"(?![A-Za-z-])",
@@ -113,15 +105,15 @@ def banned_hits(text: str, word: str) -> bool:
 
 
 _XML_ENTITIES = {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'"}
-# 텍스트 run 요소. 같은 문단의 run은 공백 없이 이어 붙인다 — '최'+'고'가 run으로
-# 갈라져도 '최고'로 매칭되게 한다(태그를 공백으로 치환하던 방식의 허위 통과 해소).
+# Concatenate same-paragraph runs without spaces so split '최'+'고' still matches
+# '최고'; replacing tags with spaces previously caused false passes.
 _RUN_RE = re.compile(r"<(?:a:|w:)?t(?:\s[^>]*)?>(.*?)</(?:a:|w:)?t>|<(?:a|w):(?:br|tab)\b[^>]*/?>",
                      re.DOTALL)
 _PARA_END_RE = re.compile(r"</(?:a|w):p>|</si>")
 
 
 def normalize_text(s: str) -> str:
-    """엔티티 복원 + 모든 공백류(NBSP·전각공백 포함)를 단일 공백으로 정규화."""
+    """Decode entities and normalize all whitespace, including NBSP and full-width spaces, to single spaces."""
     for k, v in _XML_ENTITIES.items():
         s = s.replace(k, v)
     s = re.sub(r"&#(\d+);", lambda m: chr(int(m.group(1))), s)
@@ -130,17 +122,17 @@ def normalize_text(s: str) -> str:
 
 
 def xml_text(xml: str) -> str:
-    """OOXML 조각에서 run 텍스트만 추출. run은 붙이고, 문단 경계는 줄바꿈."""
+    """Extract run text from OOXML fragments; concatenate runs and separate paragraphs with newlines."""
     out: list[str] = []
     pos = 0
     for m in _RUN_RE.finditer(xml):
-        # 문단 종결 태그가 사이에 있으면 줄바꿈 삽입
+        # Insert a newline when paragraph end tags separate runs.
         if _PARA_END_RE.search(xml, pos, m.start()):
             out.append("\n")
         out.append(m.group(1) if m.group(1) is not None else " ")
         pos = m.end()
     text = "".join(out)
-    if not text.strip():  # run 태그가 없는 비정형 XML은 태그 제거로 폴백
+    if not text.strip():  # Fall back to stripping tags for irregular XML without run tags.
         text = re.sub(r"<[^>]+>", " ", xml)
     return "\n".join(normalize_text(line) for line in text.split("\n") if line.strip())
 
@@ -149,18 +141,14 @@ _CV_RE = re.compile(r"<c:v>(.*?)</c:v>", re.DOTALL)
 
 
 def chart_text(xml: str) -> str:
-    """차트 파트 전용 추출 — run(a:t)에 더해 캐시된 범주·계열 값(c:v)까지 읽는다.
-
-    차트에 제목이 있으면 a:t run이 존재해 xml_text가 run 경로만 타고, 범주·계열에
-    남은 이전 고객명(c:v)을 놓쳤다. 제목 유무와 무관하게 값까지 읽는다.
-    """
+    """Extract chart runs (a:t) and cached category/series values (c:v). Previously chart titles selected only the run path and hid old customer names in cached values; inspect values regardless of titles."""
     parts = [xml_text(xml)]
     parts += [v for v in (normalize_text(m.group(1)) for m in _CV_RE.finditer(xml)) if v]
     return "\n".join(p for p in parts if p.strip())
 
 
-# 확장자별 최소 요건 — 이름만 .pptx인 ZIP이나 파트가 빠진 반쪽 패키지를 통과시키지 않는다.
-# (main part, 슬라이드/시트 파트 정규식) — 관계 파트와 [Content_Types].xml은 공통 필수.
+# Minimum package requirements by extension; reject renamed ZIPs and incomplete packages.
+# (main part, slide/sheet part regex); relationships and [Content_Types].xml are always required.
 REQUIRED_PARTS = {
     ".pptx": ("ppt/presentation.xml", r"ppt/slides/slide\d+\.xml$"),
     ".docx": ("word/document.xml", None),
@@ -169,12 +157,7 @@ REQUIRED_PARTS = {
 
 
 def validate_package(z: zipfile.ZipFile, suffix: str) -> None:
-    """OOXML 패키지로서 실제 열 수 있는 구조인지 확인한다. 아니면 KeyError.
-
-    파일명 하나의 존재 확인과 '정상 패키지'는 다르다. python-pptx 같은 로더는
-    [Content_Types].xml이 없으면 열기를 거부하는데, 게이트가 그런 파일을 검사해
-    통과시키면 열리지도 않는 산출물이 제출 준비로 올라간다.
-    """
+    """Verify an actually openable OOXML package structure; otherwise raise KeyError. One filename is insufficient: loaders reject missing [Content_Types].xml, so passing such packages would falsely claim submission readiness."""
     spec = REQUIRED_PARTS.get(suffix)
     if spec is None:
         return
@@ -189,8 +172,8 @@ def validate_package(z: zipfile.ZipFile, suffix: str) -> None:
     bad = z.testzip()
     if bad is not None:
         raise KeyError(f"손상된 ZIP 항목: {bad}")
-    # 관계 파트와 본문 파트를 모두 파싱한다. 두 파일만 보던 때는 slide1.xml이나
-    # _rels/.rels가 깨진 패키지가 통과했고, 그 파일은 실제로 열리지 않는다.
+    # Parse relationship and body parts. Checking only two files let broken slide1.xml or
+    # _rels/.rels pass even though the resulting packages could not open.
     targets = [main, "[Content_Types].xml"]
     targets += [n for n in names if n.endswith(".rels")]
     if part_pattern:
@@ -205,12 +188,7 @@ def validate_package(z: zipfile.ZipFile, suffix: str) -> None:
 
 
 def load_check(path: Path) -> str | None:
-    """실제 로더로 한 번 열어본다. 문제가 있으면 사유 문자열, 없으면 None.
-
-    구조 검사(validate_package)가 놓치는 조합 — 관계 누락, 스키마 위반 — 은 로더가
-    잡는다. 최종 산출물 검사(deck_check)에서만 쓴다: 합성 픽스처까지 로더를 통과해야
-    하면 텍스트 추출 경로 전체가 라이브러리에 묶인다.
-    라이브러리가 없으면 None(구조 검사는 이미 끝났다)."""
+    """Open with the actual loader; return an error reason or None. Catch missing relationships and schema defects missed by validate_package. Used only for final deck_check inspection so synthetic text-extraction fixtures need not depend on loaders. Return None if the library is absent; structural checks already ran."""
     readers = {".pptx": ("pptx", "Presentation"), ".docx": ("docx", "Document"),
                ".xlsx": ("openpyxl", "load_workbook")}
     spec = readers.get(Path(path).suffix.lower())
@@ -223,7 +201,7 @@ def load_check(path: Path) -> str | None:
         return None
     try:
         getattr(module, func_name)(str(path))
-    except Exception as exc:  # 로더가 거부하면 제출할 수 없는 파일이다
+    except Exception as exc:  # Loader rejection means the file cannot be submitted.
         return f"{module_name}로 열 수 없는 패키지다: {type(exc).__name__}: {exc}"
     return None
 
@@ -240,7 +218,7 @@ def _sorted_parts(z: zipfile.ZipFile, pattern: str) -> list[str]:
 
 
 def _pptx_slide_order(z: zipfile.ZipFile) -> list[str]:
-    """presentation.xml의 sldIdLst 순서(실제 슬라이드 번호)로 slide 파트를 정렬한다."""
+    """Sort slide parts by presentation.xml sldIdLst order (actual slide numbering)."""
     try:
         pres = z.read("ppt/presentation.xml").decode("utf-8", "ignore")
         rels = z.read("ppt/_rels/presentation.xml.rels").decode("utf-8", "ignore")
@@ -258,15 +236,13 @@ def _pptx_slide_order(z: zipfile.ZipFile) -> list[str]:
             ordered.append(name)
     if not ordered:
         return _sorted_parts(z, r"ppt/slides/slide\d+\.xml$")
-    # sldIdLst에 없는 잔존 slide 파트도 뒤에 붙여 검사한다(숨김·고아 슬라이드).
+    # Append residual slide parts outside sldIdLst for inspection (hidden/orphan slides).
     ordered += [n for n in _sorted_parts(z, r"ppt/slides/slide\d+\.xml$") if n not in ordered]
     return ordered
 
 
 def extract_labeled_blocks(path: Path) -> list[tuple[str, str]]:
-    """(위치 라벨, 텍스트) 목록. 본문뿐 아니라 노트·레이아웃·마스터·차트(PPTX),
-    머리말·바닥글·각주·미주·주석·텍스트박스(DOCX)까지 포함한다 — PDF 렌더에는
-    안 보여도 원본 패키지에 남는 영역이 허위 통과의 주 경로였다."""
+    """Return (location label, text) pairs, including PPTX notes/layouts/masters/charts and DOCX headers/footers/footnotes/endnotes/comments/text boxes. Content invisible in PDF but retained in the package was a major source of false passes."""
     suffix = path.suffix.lower()
     blocks: list[tuple[str, str]] = []
     with zipfile.ZipFile(path) as z:
@@ -296,8 +272,8 @@ def extract_labeled_blocks(path: Path) -> list[tuple[str, str]]:
             return blocks
         if suffix == ".docx":
             body = z.read("word/document.xml").decode("utf-8", "ignore")
-            # 최상위 문단 단위(중첩 텍스트박스 <w:p> 포함)로 분리 — 비탐욕 정규식이
-            # 내부 문단에서 끊겨 뒷부분을 버리던 결함을 해소한다.
+            # Split by top-level paragraphs, including nested text-box <w:p>; non-greedy regexes
+            # previously stopped at inner paragraphs and discarded trailing content.
             depth, start, idx = 0, -1, 0
             for m in re.finditer(r"<w:p\b[^>]*/>|<w:p\b[^>]*>|</w:p>", body):
                 tok = m.group(0)
@@ -366,7 +342,7 @@ def extract_labeled_blocks(path: Path) -> list[tuple[str, str]]:
 
 
 def extract_blocks(path: Path) -> list[str]:
-    """하위 호환: 라벨 없는 텍스트 블록 목록."""
+    """Backward compatibility: return text blocks without labels."""
     return [t for _, t in extract_labeled_blocks(path)]
 
 
@@ -396,10 +372,9 @@ def read_names(path: Path) -> list[str]:
 
 def run(path: Path, names: list[str], palette: set[str], lang: str,
         stage: str = "submission") -> list[str]:
-    """모든 발견 항목을 문자열 리스트로 반환한다. WARNING_PREFIXES로 시작하는 항목은
-    '비차단 경고'이며 종료코드에 반영되지 않는다(차단 여부는 blocking()이 판정)."""
+    """Return all findings as strings. WARNING_PREFIXES identify nonblocking warnings excluded from exit-code decisions; blocking() decides blocker status."""
     raw = {"ko": BANNED_KO, "en": BANNED_EN, "both": BANNED_KO + BANNED_EN}[lang]
-    banned = list(dict.fromkeys(raw))  # 중복 제거(both의 '100%' 이중 리포트 방지), 순서 유지
+    banned = list(dict.fromkeys(raw))  # Deduplicate while preserving order, avoiding duplicate '100%' reports in both mode.
     slop = {"ko": AI_SLOP_KO, "en": AI_SLOP_EN, "both": AI_SLOP_KO + AI_SLOP_EN}[lang]
     fails: list[str] = []
     blocks = extract_labeled_blocks(path)
@@ -434,26 +409,25 @@ def run(path: Path, names: list[str], palette: set[str], lang: str,
         for c in sorted(colors - allowed):
             fails.append(f"[팔레트 일탈] 허용 목록 외 색상 #{c}")
         if unresolved_theme:
-            # 생성 도구 기본 테마의 schemeClr는 최종 HEX를 자동 판정할 수 없다 → 비차단 경고.
+            # Generator theme schemeClr has no automatically known final HEX; issue nonblocking warnings.
             fails.append("[NOT INSPECTED] 테마·마스터·레이아웃·차트 색상은 최종 HEX 해석 필요")
     return fails
 
 
 def _name_in(name: str, block: str) -> bool:
-    """금지 명칭 매칭: 대소문자·공백 무시('ABC 은행' ≒ 'ABC은행', 'abc bank' ≒ 'ABC Bank')."""
+    """Match forbidden names ignoring case and whitespace ('ABC 은행' ≒ 'ABC은행', 'abc bank' ≒ 'ABC Bank')."""
     squash = lambda t: re.sub(r"\s+", "", t).lower()  # noqa: E731
     key = squash(name)
     return bool(key) and key in squash(block)
 
 
 def blocking(items: list[str]) -> list[str]:
-    """비차단 경고(WARNING_PREFIXES)를 제외한 실제 차단 항목만 반환한다."""
+    """Return actual blockers, excluding nonblocking WARNING_PREFIXES warnings."""
     return [f for f in items if not f.startswith(WARNING_PREFIXES)]
 
 
 def _utf8_console() -> None:
-    """한국어 Windows(cp949) 콘솔에서 '—' 등 출력 중 UnicodeEncodeError로 죽어
-    정상 문서가 BLOCKED 처리되던 결함 방지."""
+    """Prevent valid documents becoming BLOCKED when Korean Windows cp949 consoles raise UnicodeEncodeError while printing characters such as '—'."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
@@ -466,12 +440,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("file", type=Path)
-    ap.add_argument("--names", type=Path, help="잔존 검사할 금지 명칭 목록(줄당 1개)")
-    ap.add_argument("--palette", help="허용 색상 hex 콤마 목록(미지정 시 색 검사 생략)")
+    ap.add_argument("--names", type=Path, help="Forbidden-name list to inspect for residual content (one per line)")
+    ap.add_argument("--palette", help="Comma-separated allowed color HEX values (skip color checks if omitted)")
     ap.add_argument("--lang", choices=["ko", "en", "both"], default="ko",
-                    help="과장어 사전 언어(기본 ko)")
+                    help="Exaggerated-language dictionary language (default ko)")
     ap.add_argument("--stage", choices=["draft", "submission"], default="submission",
-                    help="draft: 미확정 마커를 경고로 허용 / submission(기본): 차단")
+                    help="draft: allow unresolved markers as warnings / submission (default): block")
     a = ap.parse_args()
     if not a.file.is_file():
         print(f"파일 없음: {a.file}", file=sys.stderr); return 2

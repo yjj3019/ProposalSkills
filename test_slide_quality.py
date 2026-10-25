@@ -1,4 +1,4 @@
-"""외부 장표 스킬 비교에서 선정한 입력 보존·대비·노트 회귀 검사."""
+"""Input-preservation, contrast, and notes regressions selected from external slide-skill comparisons."""
 from __future__ import annotations
 
 import sys
@@ -98,7 +98,7 @@ class SlideQualityTests(unittest.TestCase):
         self.assertGreater(color_contrast.slide_issues(builder.prs.slides[0])[1], 0)
 
     def test_patterned_backdrop_is_not_assumed_white(self):
-        # 불명확한 채움은 같은 좌표의 흰 장표 배경으로 추정하지 않는다.
+        # Do not infer unknown fills from a coincident white slide background.
         builder = self.builder({"type": "cover"}, title="T")
         builder.build()
         slide = builder.prs.slides[0]

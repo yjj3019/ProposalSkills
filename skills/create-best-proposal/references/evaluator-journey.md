@@ -1,83 +1,98 @@
-# Evaluator Journey — 평가자가 읽는 순서로 제안 논리를 짠다
+# Evaluator journey — structure proposal logic around reading order
 
-평가위원은 제안서를 처음부터 끝까지 읽지 않는다. 평가표 항목을 들고 해당 페이지를 찾아
-결론과 근거를 확인한다. 이 문서는 기존 요구 원장(`requirements[]`), 평가표 원장
-(`evaluation_criteria[]`), Win Theme, 리드문 맵을 그 읽기 흐름에 맞춰 연결한다.
-새 게이트를 만들지 않는다. Pink·Red 경로의 점검 기준을 구체화한다.
+Evaluators do not read proposals from beginning to end. They use evaluation criteria to locate pages and inspect
+conclusions/evidence. Connect existing `requirements[]`, `evaluation_criteria[]`, Win Themes, and lead maps to
+that reading flow. This creates no new gate; it makes Pink/Red checks concrete.
 
-## 1. 핵심 메시지 모델
+## 1. Core message model
 
-고배점 항목에 대응하는 핵심 장표는 아래 7요소를 갖춘다.
+Key slides for high-weight criteria have 7 elements:
 
-| 요소 | 내용 | 장표 위치 |
+| Element | Content | Slide location |
 |---|---|---|
-| `evaluator_question` | 평가표 항목이 묻는 것(평가자 관점 한 문장) | 작성 메모. 장표에 쓰지 않음 |
-| `conclusion_headline` | 우리 결론 | 리드문 |
-| `evidence` | 증명 수단(구성도·시험 결과·실적·인증) | 본문 도식·표 |
-| `buyer_implication` | 발주처가 얻는 효과(측정 가능하면 수치·기준) | 리드문 후반 또는 효과 박스 |
-| `boundary` | 약속의 범위·전제·제외 | 캡션·각주 |
-| `req_ids` | 대응 요구 ID | 캡션 |
-| `criterion_ids` | 대응 평가 항목 | 작성 메모·조견표 |
+| `evaluator_question` | What the criterion asks (one sentence from evaluator perspective) | Writing notes; not on slide |
+| `conclusion_headline` | Our conclusion | Lead |
+| `evidence` | Proof (architecture/test result/track record/certification) | Body diagram/table |
+| `buyer_implication` | Buyer benefit (figures/criteria if measurable) | End of lead or benefit box |
+| `boundary` | Commitment scope/assumptions/exclusions | Caption/footnote |
+| `req_ids` | Requirement IDs addressed | Caption |
+| `criterion_ids` | Evaluation criteria addressed | Writing notes/matrix |
 
-장표 한 장이 답해야 하는 질문:
+Questions each slide must answer:
 
-1. 무엇을 요구했는가 → `req_ids`, 조견표 행
-2. 우리 결론은 무엇인가 → 리드문
-3. 왜 이 접근인가 → 대안 대비 선택 이유 1줄
-4. 무엇으로 증명하는가 → 도식·표·출처
-5. 발주처 효과는 무엇인가 → 효과 문장
-6. 어디까지 약속하는가 → 경계 캡션
+1. What was required? → `req_ids`, matrix row.
+2. What is our conclusion? → Lead.
+3. Why this approach? → One-line reason versus alternatives.
+4. What proves it? → Diagram/table/source.
+5. What benefits the buyer? → Benefit statement.
+6. What are the commitment boundaries? → Boundary caption.
 
-기술 항목의 3·4·6은 [technical-depth-six-questions.md](technical-depth-six-questions.md)로 채운다.
+For technical items, fill 3/4/6 with [technical-depth-six-questions.md](technical-depth-six-questions.md).
 
-## 2. 작성 순서 (장표 제작 전)
+State current customer problems as facts only with RFP/current-state sources. Otherwise label them as risks to
+prevent or assumptions to verify (Korean examples: `예방할 위험`, `확인할 가정`). Distinguish future test/acceptance
+plans from existing track records/test results and state status (Korean examples: `합성 수용계획`, `검수 예정`).
+Buyer benefits are expected effects, not evidence themselves. Never put benefit statements in `cards` `evidence`.
 
-1. 평가표 항목마다 `evaluator_question`을 한 문장으로 적는다.
-2. 항목을 요구(`criterion_ids`)와 Win Theme(`req_ids`)에 연결한다.
-3. 항목별 핵심 장표를 정하고 리드문(`conclusion_headline`)을 먼저 쓴다.
-4. 증거 위치(어느 도식·표·별첨)를 정한다. 증거가 없으면 `[NEEDS INPUT]`.
-5. 이 표가 확정된 뒤 `slides.json`을 만든다.
+## 2. Writing order (before slide production)
 
-PowerPoint를 열고 내용을 채우며 논리를 찾지 않는다. 리드문 맵이 서지 않으면 장표를 늘려도
-논리는 서지 않는다.
+1. Write one `evaluator_question` per evaluation criterion.
+2. Link criteria to requirements (`criterion_ids`) and Win Themes (`req_ids`).
+3. Choose key slides per criterion and write leads (`conclusion_headline`) first.
+4. Assign evidence locations (diagram/table/appendix). Without evidence, mark `[NEEDS INPUT]`.
+5. Create `slides.json` after this table is finalized.
 
-## 3. Pink 점검 — 뼈대만으로 논리가 서는가
+Do not discover logic while filling PowerPoint. More slides cannot repair a lead map without coherent logic.
 
-본문 없이 아래만 이어 읽는다.
+## 3. Pink check — does the skeleton establish the logic?
 
-목차 → 리드문 → REQ-ID → 평가 항목 → Win Theme → 증거 위치
+Read only:
 
-통과 조건:
+Outline → leads → REQ-IDs → evaluation criteria → Win Themes → evidence locations.
 
-- 고배점 항목마다 결론 리드문이 1개 이상 있다.
-- 리드문만 이어 읽어도 "왜 우리인가"가 끊기지 않는다.
-- 모든 Win Theme이 요구와 평가 항목 양쪽에 연결된다.
-- 증거 위치가 비어 있는 리드문은 `[NEEDS INPUT]`으로 표시돼 있다.
+Pass conditions:
 
-## 4. Red 점검 — 10초 안에 답을 찾는가
+- Each high-weight criterion has at least one conclusion lead.
+- Reading leads alone sustains the case for choosing us.
+- Every Win Theme links to both requirements and evaluation criteria.
+- Leads with empty evidence locations are marked `[NEEDS INPUT]`.
 
-평가 항목 하나를 고르고 평가자 입장에서 해당 장표를 연다.
+## 4. Red check — can an answer be found within 10 seconds?
 
-| 확인 | 실패 신호 | 심각도 |
+Choose a criterion and open its slide as an evaluator.
+
+| Check | Failure signal | Severity |
 |---|---|---|
-| 해당 항목의 장표를 목차·breadcrumb로 바로 찾는가 | 항목이 여러 절에 흩어짐 | Major |
-| 리드문이 결론인가 | 리드문이 주제 소개("~에 대해 설명") | Major |
-| 결론을 받치는 증거가 같은 장에 있는가 | 증거가 다른 절·별첨에만 있고 참조 없음 | Major |
-| 약속의 경계가 보이는가 | 조건·범위 없는 확약 | Critical(확약) / Major |
-| 필수 요구가 빠졌는가 | 조견표 미기입, REQ-ID 누락 | Critical |
+| Can the slide be found immediately through outline/breadcrumb? | Criterion scattered across sections | Major |
+| Is the lead a conclusion? | Topic introduction only (Korean example: "~에 대해 설명") | Major |
+| Is supporting evidence on the same slide? | Evidence only elsewhere/appendix without reference | Major |
+| Are commitment boundaries visible? | Commitment without conditions/scope | Critical (commitment) / Major |
+| Is a mandatory requirement missing? | Mandatory subcondition omitted, matrix row unfilled, or missing REQ-ID | Critical |
 
-Red 산출은 **항목별 충족 근거 위치 + 약점(Critical/Major)**이다. 수치 점수는 산출하지 않는다.
+Compare original RFP mandatory conditions with body/tables in the actual generated PPTX.
+Metadata, matrix `O`, or REQ-ID labels alone do not establish coverage. Check mandatory durations,
+acceptance conditions, and deliverables within each requirement individually. Record
+`requirement/subcondition | actual response location/excerpt | covered/missing | revision`.
+Also compare contract dates, exclusions, budget, and output specifications in business conditions outside requirement IDs.
+For a report requiring cause/action/recurrence prevention, a generic RCA promise (Korean example: `RCA 제출`)
+does not answer all three. A backup-role table does not replace contact/handoff arrangements: verify call paths,
+received time/open items/next actions handed over. Check response locations actually exist.
 
-## 5. 금지
+Current automated ID/layout/number checks do not judge semantic completeness or persuasiveness.
+Perform body comparison and rendered-image review separately; do not count unreviewed items as covered.
 
-- 평가점수·순위·수주확률 예측
-- 공개되지 않은 배점의 추정 배분
-- 경쟁사 비방, 근거 없는 경쟁사 약점 기술
-- 평가위원 성향·소속에 대한 추정
+Red output is **coverage evidence locations + weaknesses (Critical/Major) per criterion**, with no numerical scores.
 
-## 6. 선택적 서사 패턴
+## 5. Prohibitions
 
-도입부나 사업 이해 절에서 흐름이 필요하면 아래 순서를 쓸 수 있다. 필수 구조가 아니며,
-평가표 순서가 정해져 있으면 평가표 순서가 우선한다.
+- Predicting evaluation scores/rankings/win probabilities.
+- Estimating unpublished score allocations.
+- Disparaging competitors or asserting unsupported competitor weaknesses.
+- Inferring evaluator affiliations/dispositions.
 
-고객 상황 → 문제·제약 → 제안 결론 → 구현 방법 → 증거 → 고객 효과
+## 6. Optional narrative pattern
+
+For an introduction or business-understanding section, the sequence below is optional.
+If evaluation order is specified, it takes precedence.
+
+Customer situation → problem/constraints → proposed conclusion → implementation → evidence → buyer benefit.

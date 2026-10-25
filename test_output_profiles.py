@@ -1,9 +1,4 @@
-"""회귀 테스트 — 산출물 종류별 시각 규격(F08).
-
-읽는 조건이 다르면 규격이 달라야 한다. 동시에 생성기와 검사기가 같은 정의를 읽어야
-"생성기는 통과, 검사기는 차단" 같은 어긋남이 생기지 않는다(실제로 표 행 14/15,
-밀도 450/600으로 갈려 있었다).
-"""
+"""Regression tests for output-specific visual specifications (F08). Reading conditions require different criteria, while generator and checker must share definitions to avoid divergent outcomes (previously table rows 14/15 and density 450/600)."""
 from __future__ import annotations
 
 import json
@@ -32,10 +27,7 @@ except ImportError:  # pragma: no cover
 
 
 def run(*args: object, **kw) -> Result:
-    """스킬 스크립트 실행 — 기본은 같은 프로세스(test_support 참조).
-
-    env를 주면 자식 프로세스로 승격된다(인코딩 계약 검사).
-    """
+    """Run skill scripts in-process by default (see test_support); env promotes execution to a child process for encoding-contract checks."""
     return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
@@ -66,11 +58,7 @@ class ProfileSpecTests(unittest.TestCase):
             self.assertLess(ex["sizes"][key], pres["sizes"][key], key)
 
     def test_min_font_is_derived_not_hardcoded(self):
-        """검사 하한이 생성기의 크기에서 나와야 프로파일을 바꿔도 어긋나지 않는다.
-
-        본문과 소형 텍스트(표·도형 주석)의 하한은 서로 다르다 — 하나로 합치면 표 하한이
-        본문에도 적용돼 본문을 표 크기까지 줄인 장표가 통과한다.
-        """
+        """Derive validation minima from generator sizes so profile changes stay aligned. Body and small-text (tables/shape annotations) minima differ; merging them lets body text reduced to table size pass."""
         for name, spec in dp.PROFILES.items():
             with self.subTest(profile=name):
                 self.assertEqual(dp.min_body_font(name), spec["sizes"]["body"] - 1)
@@ -102,14 +90,14 @@ class BuilderProfileTests(unittest.TestCase):
         return out
 
     def _sizes(self, path: Path) -> set[float]:
-        """모든 텍스트 크기(메타 도형 포함)."""
+        """All text sizes, including metadata shapes."""
         prs = Presentation(str(path))
         return {r.font.size.pt for s in prs.slides for sh in s.shapes
                 if sh.has_text_frame for p in sh.text_frame.paragraphs
                 for r in p.runs if r.font.size is not None}
 
     def _body_min(self, path: Path) -> float:
-        """검사기가 실제로 보는 본문 최소 폰트(캡션·헤더·푸터 제외)."""
+        """Actual checked minimum body font, excluding captions, headers, and footers."""
         import deck_check
         prs = Presentation(str(path))
         found = [deck_check.min_font_pt(s)[0] for s in prs.slides]
@@ -119,7 +107,7 @@ class BuilderProfileTests(unittest.TestCase):
         detail = self._sizes(self._build())
         pres = self._sizes(self._build("--profile", "presentation"))
         self.assertGreater(max(pres), max(detail))
-        # 본문은 프로파일 하한 이상, 그리고 상세본보다 확실히 크다
+        # Body text meets the profile minimum and is clearly larger than detailed-profile text.
         self.assertGreaterEqual(self._body_min(self._build("--profile", "presentation")),
                                 dp.min_body_font("presentation"))
         self.assertGreater(self._body_min(self._build("--profile", "presentation")),
@@ -165,7 +153,7 @@ class CheckerProfileTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def _build(self, profile: str | None = None) -> Path:
-        # 같은 입력·같은 인자면 결과가 같다 — 한 번만 만들고 복사해 쓴다.
+        # Identical input and arguments are deterministic; generate once and copy.
         out = self.dir / f"{profile or 'default'}.pptx"
         proc = build_deck_cached(BD, FIX, out, *(["--profile", profile] if profile else []))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -202,7 +190,7 @@ class CheckerProfileTests(unittest.TestCase):
 
 
 class SharedConstantTests(unittest.TestCase):
-    """생성기와 검사기가 같은 정의를 읽는지 — 드리프트 재발 방지."""
+    """Verify generator and checker share definitions, preventing specification drift."""
 
     def test_builder_and_checker_share_the_spec(self):
         sys.path.insert(0, str(DOC / "scripts"))
@@ -223,7 +211,7 @@ if __name__ == "__main__":
 
 @unittest.skipUnless(HAS_PPTX, "python-pptx 없음")
 class CheckerSubstanceTests(unittest.TestCase):
-    """검사가 실제로 동작하는지 — '조용히 아무것도 안 하는 검사' 재발 방지."""
+    """Ensure checks actually execute rather than silently doing nothing."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -240,7 +228,7 @@ class CheckerSubstanceTests(unittest.TestCase):
         return out
 
     def test_density_counts_table_cells(self):
-        """표는 GraphicFrame이라 셀 텍스트가 밀도에서 통째로 빠져 있었다."""
+        """GraphicFrame table-cell text was previously omitted entirely from density counts."""
         import deck_check
         rows = [{"id": f"R{i}", "text": "가상화 노드 증설과 이관 대상 산정" * 2, "support": "O 수용",
                  "response_loc": f"Ⅲ-{i} p.{i}", "note": "제조사 확약 첨부"} for i in range(1, 7)]
@@ -261,7 +249,7 @@ class CheckerSubstanceTests(unittest.TestCase):
         self.assertIn("자 >", proc.stdout, "빽빽한 표 장표에 밀도 경고가 뜨지 않는다")
 
     def test_duplicate_shape_names_do_not_shift_the_density_pairing(self):
-        """간트 마일스톤이 둘 이상이면 도형 이름이 겹친다 — 짝이 밀리면 안 된다."""
+        """Multiple Gantt milestones have duplicate shape names; preserve correct pairing."""
         import deck_check
         deck = self._build({"meta": {"title": "t", "bidder": "b"}, "slides": [
             {"type": "gantt", "title": "일정", "lead": "단계별 일정입니다.", "req_ids": ["R1"],
@@ -273,7 +261,7 @@ class CheckerSubstanceTests(unittest.TestCase):
         pairs = [(sh.name, deck_check.shape_text(sh)) for sh in deck_check.iter_shapes(slide.shapes)]
         names = [n for n, _ in pairs]
         self.assertLess(len(set(names)), len(names), "이 테스트는 이름 중복 상황을 재현해야 한다")
-        # 한 번 순회한 pairs가 정답이다. dict/list를 따로 만들어 zip하면 짝이 밀린다.
+        # One-pass pairs are correct; separately zipping dictionaries/lists shifts pairs.
         zipped = sum(len(t) for n, t in zip(dict.fromkeys(names), [t for _, t in pairs]))
         correct = sum(len(t) for _, t in pairs)
         self.assertNotEqual(zipped, correct, "중복 이름에서 zip 방식은 실제로 어긋난다")
@@ -281,7 +269,7 @@ class CheckerSubstanceTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout)
 
     def test_legend_is_checked_not_exempt(self):
-        """구성도 범례는 작성자가 쓴 내용이다 — 폰트 하한 검사에서 빠지면 안 된다."""
+        """Diagram legends are author-written content and cannot bypass font minima."""
         import deck_check
         self.assertNotIn("BODY_LEGEND", deck_check.META_SHAPES)
         deck = self._build({"meta": {"title": "t", "bidder": "b"}, "slides": [
@@ -291,8 +279,8 @@ class CheckerSubstanceTests(unittest.TestCase):
         prs = Presentation(str(deck))
         for slide in prs.slides:
             body_pt, table_pt = deck_check.min_font_pt(slide)
-            # 범례는 소형 텍스트로 분류되므로 표 하한으로 잰다. 어느 쪽이든 검사 대상이며,
-            # 하한 미만이면 차단된다(면제가 아니다).
+            # Legends are small text checked against table minima; they remain subject to inspection,
+            # and values below the minimum block rather than receive an exemption.
             self.assertTrue(body_pt is not None or table_pt is not None)
             if body_pt is not None:
                 self.assertGreaterEqual(body_pt, dp.min_body_font(dp.DEFAULT_PROFILE))
@@ -301,7 +289,7 @@ class CheckerSubstanceTests(unittest.TestCase):
         self.assertEqual(run(DC, deck).returncode, 0)
 
     def test_derived_floor_matches_what_the_builder_emits(self):
-        """하한 공식을 되풀이하지 않고, 실제 생성물의 최소 본문 크기와 비교한다."""
+        """Compare against actual minimum generated body size rather than duplicating the threshold formula."""
         import deck_check
         for name in dp.PROFILES:
             with self.subTest(profile=name):
@@ -321,7 +309,7 @@ class CheckerSubstanceTests(unittest.TestCase):
 
 @unittest.skipUnless(HAS_PPTX, "python-pptx 없음")
 class StampFailClosedTests(unittest.TestCase):
-    """규격 표시가 없거나 모르는 값이면 가장 느슨한 기준으로 조용히 통과시키지 않는다."""
+    """Missing or unknown specification stamps must not silently select the most permissive criteria."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

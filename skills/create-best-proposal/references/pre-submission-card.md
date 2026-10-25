@@ -1,28 +1,28 @@
-# 제출 직전 5항목 카드 (SI-C3)
+# Five-item pre-submission card (SI-C3)
 
-게이트 READY 직전·직후에 사람(또는 에이전트)이 **한 화면**으로 확인한다.
-하나라도 미확인이면 외부 제출 금지.
+A human (or agent) checks this **single-screen** card immediately before/after gate READY.
+If any item is unconfirmed, external submission is prohibited.
 
-| # | 항목 | 확인 질문 | 증거 예 |
+| # | Item | Check question | Example evidence |
 |---:|---|---|---|
-| 1 | **필수 충족** | 모든 mandatory 요구가 approved+evidence_refs 또는 N/A(사유·검토자)인가? | 조견표 최종본, audit requirements |
-| 2 | **약속·가격** | 인력·일정·SLA·금액이 요약/본문/별첨에서 일치하고 재계산되었는가? | checks.arithmetic=true, 대조표 |
-| 3 | **패키지 청결** | 메타·노트·숨김·이전 고객명·가격 누출이 기술 패키지에 없는가? | package.checks 전부 pass/n-a |
-| 4 | **형식·마감** | 파일명·용량·포맷·페이지 의미·마감(타임존)이 RFP와 일치하는가? | submission.deadline, 리허설 로그 |
-| 5 | **접수 계획** | 업로드/인쇄 리허설을 했고 접수번호·화면·메일 증적 계획이 있는가? | rehearsal_evidence, receipt_plan |
+| 1 | **Mandatory coverage** | Is every mandatory requirement approved+evidence_refs or N/A (reason/reviewer)? | Final matrix, audit requirements |
+| 2 | **Commitments/prices** | Are personnel/schedule/SLA/amounts consistent across summary/body/appendices and recalculated? | checks.arithmetic=true, comparison table |
+| 3 | **Package cleanliness** | Is the technical package free of metadata/notes/hidden content/prior customer names/price leaks? | All package.checks pass/n-a |
+| 4 | **Format/deadline** | Do filename/size/format/page semantics/deadline (timezone) match the RFP? | submission.deadline, rehearsal log |
+| 5 | **Receipt plan** | Was upload/print rehearsed, with a receipt-number/screen/email evidence plan? | rehearsal_evidence, receipt_plan |
 
-## 기록 템플릿
+## Record template
 
+```text
+Pre-submission card — Opportunity: ________  Date/time: ________  Checker: ________
+1 Mandatory coverage: [ ]  Notes:
+2 Commitments/prices: [ ]  Notes:
+3 Package cleanliness: [ ]  Notes:
+4 Format/deadline: [ ]  Notes:
+5 Receipt plan: [ ]  Notes:
+Unified gate: READY / CONDITIONAL-GO / BLOCKED / DECISION_MEMO_ONLY
+External submission authorized: YES / NO
 ```
-제출 직전 카드 — 사업명: ________  일시: ________  확인자: ________
-1 필수 충족: [ ]  메모:
-2 약속·가격: [ ]  메모:
-3 패키지 청결: [ ]  메모:
-4 형식·마감: [ ]  메모:
-5 접수 계획: [ ]  메모:
-통합 게이트: READY / CONDITIONAL-GO / BLOCKED / DECISION_MEMO_ONLY
-외부 제출 허가: YES / NO
-```
 
-CONDITIONAL-GO는 카드 5항목이 모두 채워져도 **외부 제출 허가가 아니다**.
-조건 owner 전원이 accepted하고 발주처 제출 전 내부 승인권자가 별도 서명해야 한다.
+CONDITIONAL-GO **does not authorize external submission**, even if all five items are complete.
+Every condition owner must accept, and an internal authorized approver must sign separately before buyer submission.

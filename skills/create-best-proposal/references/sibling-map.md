@@ -1,53 +1,53 @@
-# 형제 스킬 reference 맵
+# Sibling skill reference map
 
-본 스킬은 오케스트레이션·통합 도구에 집중한다. 전문 뱅크는 형제 스킬에 있다.
-경로 기준: `skills/create-best-proposal/` 에서의 상대 경로.
+This skill focuses on orchestration/integration tools. Specialist banks live in sibling skills.
+Paths are relative to `skills/create-best-proposal/`.
 
-## create-proposal-document (콘텐츠)
+## create-proposal-document (content)
 
-| 주제 | 파일 |
+| Topic | File |
 |---|---|
-| 참여·제출·가격·XLSX | `../create-proposal-document/references/bid-and-submission.md` |
-| 접수·요구 추출 | `../create-proposal-document/references/intake-and-requirements.md` |
-| 유형별 목차·리드문 | `../create-proposal-document/references/proposal-structure.md` |
-| 문체·과장어 | `../create-proposal-document/references/writing-style.md` |
-| 문구 패턴 | `../create-proposal-document/references/phrase-library.md` |
-| 사업관리·점검·테스트 뼈대 | `../create-proposal-document/references/content-patterns.md` |
-| 근거·주장 | `../create-proposal-document/references/evidence-and-claims.md` |
-| 시각 토큰 | `../create-proposal-document/references/visual-style.md` |
-| 8대 검수 | `../create-proposal-document/references/review-checklist.md` |
-| 기계 검수 | `../create-proposal-document/scripts/quality_gate.py` |
+| Bid/submission/pricing/XLSX | `../create-proposal-document/references/bid-and-submission.md` |
+| Intake/requirement extraction | `../create-proposal-document/references/intake-and-requirements.md` |
+| Type-specific outlines/leads | `../create-proposal-document/references/proposal-structure.md` |
+| Style/overclaims | `../create-proposal-document/references/writing-style.md` |
+| Phrase patterns | `../create-proposal-document/references/phrase-library.md` |
+| Project management/inspection/test skeletons | `../create-proposal-document/references/content-patterns.md` |
+| Evidence/claims | `../create-proposal-document/references/evidence-and-claims.md` |
+| Visual tokens | `../create-proposal-document/references/visual-style.md` |
+| 8 review areas | `../create-proposal-document/references/review-checklist.md` |
+| Mechanical review | `../create-proposal-document/scripts/quality_gate.py` |
 
-## create-winning-proposal (거버넌스)
+## create-winning-proposal (governance)
 
-| 주제 | 파일 |
+| Topic | File |
 |---|---|
-| audit JSON 스키마·반낙관 | `../create-winning-proposal/references/audit-schema.md` |
-| 요구·근거 원장 | `../create-winning-proposal/references/requirements-and-evidence.md` |
-| 리뷰 상태·산출 | `../create-winning-proposal/references/review-and-output.md` |
-| 구조 아키타입 | `../create-winning-proposal/references/structure-and-design.md` |
-| 영문 문구 | `../create-winning-proposal/references/writing-and-phrases.md` |
-| 보안·자동화 절제 | `../create-winning-proposal/references/automation-and-security.md` |
-| 라이선스 | `../create-winning-proposal/references/source-patterns.md` |
-| 익명 패턴 | `../create-winning-proposal/references/anonymized-proposal-patterns.md` |
-| 한국 공공 규범 근거·상수 금지 값 | `../create-winning-proposal/references/korean-public-proposal-regulatory-basis.md` |
-| 결정론 게이트 | `../create-winning-proposal/scripts/proposal_gate.py` |
+| Audit JSON schema/anti-optimism | `../create-winning-proposal/references/audit-schema.md` |
+| Requirement/evidence ledgers | `../create-winning-proposal/references/requirements-and-evidence.md` |
+| Review states/outputs | `../create-winning-proposal/references/review-and-output.md` |
+| Structural archetypes | `../create-winning-proposal/references/structure-and-design.md` |
+| English phrases | `../create-winning-proposal/references/writing-and-phrases.md` |
+| Security/restraint in automation | `../create-winning-proposal/references/automation-and-security.md` |
+| Licensing | `../create-winning-proposal/references/source-patterns.md` |
+| Anonymous patterns | `../create-winning-proposal/references/anonymized-proposal-patterns.md` |
+| Korean public procurement sources/values never to hardcode | `../create-winning-proposal/references/korean-public-proposal-regulatory-basis.md` |
+| Deterministic gate | `../create-winning-proposal/scripts/proposal_gate.py` |
 
-## 저장소 루트
+## Repository root
 
-| 주제 | 파일 |
+| Topic | File |
 |---|---|
-| 완성도 2축 점수 | `scripts/score_completeness.py` |
-| 설치기 | `../../install_skill.py` |
+| Two-axis completeness score | `scripts/score_completeness.py` |
+| Installer | `../../install_skill.py` |
 
-## 단독 설치 시
+## Standalone installation
 
-형제 파일이 없으면:
-1. 본 스킬의 작성 지침과 meta→audit 변환만 사용한다. 단독으로 통합 게이트는 실행할 수 없다.
-2. audit는 `build_audit_from_meta.py` + 형제 설치를 사용자에게 고지
-3. 게이트 스크립트 경로 환경변수 (코드와 일치):
-   - `PROPOSAL_GATE_PATH` — `proposal_gate.py` 절대 경로
-   - `QUALITY_GATE_PATH` — `quality_gate.py` 절대 경로
-   - `CHECK_NUMBERS_PATH` — `check_numbers.py` 절대 경로
-   - PPTX 제출 시 `deck_check.py`도 필요하므로 콘텐츠 형제를 함께 설치한다.
-4. 권장: `python install_skill.py --dest <dir> --name create-best-proposal --with-deps`
+When sibling files are absent:
+1. Use only this skill's writing guidance and meta→audit conversion; the unified gate cannot run standalone.
+2. Explain that audit uses `build_audit_from_meta.py` and sibling installation is required.
+3. Gate-script environment variables (matching code):
+   - `PROPOSAL_GATE_PATH` — absolute path to `proposal_gate.py`.
+   - `QUALITY_GATE_PATH` — absolute path to `quality_gate.py`.
+   - `CHECK_NUMBERS_PATH` — absolute path to `check_numbers.py`.
+   - PPTX submission also needs `deck_check.py`; install the content sibling together.
+4. Recommended: `python install_skill.py --dest <dir> --name create-best-proposal --with-deps`.

@@ -1,77 +1,81 @@
-# 접수(Intake)와 요구사항 관리
+# Intake and requirements management
 
-제안 작업의 실패 대부분은 쓰기 단계가 아니라 접수 단계에서 결정된다.
-아래 순서로 진행하고, 산출물은 ①제안 개요 카드 ②요구사항 대장 ③조견표 뼈대 3가지다.
+Most proposal failures are determined during intake, before drafting.
+Follow this sequence and produce three artifacts: ①proposal overview card ②requirements register ③compliance-matrix skeleton.
 
-## 1. 제안 개요 카드 (사용자에게 확인할 항목)
+## 1. Proposal overview card (items to confirm with the user)
 
-| 항목 | 질문 | 비고 |
+| Item | Question | Notes |
 |---|---|---|
-| 발주처/사업명 | 정확한 공식 명칭? | RFP 표기 그대로. 임의 축약 금지 |
-| 제안 유형 | 구축(A) / 유지보수·기술지원(B) / 기술답변서(C)? | SKILL.md 판별표 |
-| 마감·제출형식 | 마감일시, PPTX/PDF/인쇄부수, 페이지 제한? | 페이지 제한 초과는 감점·실격 |
-| 평가 방식 | 기술:가격 배점, 평가표 유무, 발표(PT) 여부? | 평가표 항목 = 목차 우선순위 |
-| 수행 구도 | 단독/컨소시엄, 제조사(벤더) 역할 분담? | 역할·책임(R&R) 페이지에 반영 |
-| 경쟁 상황 | 경쟁사, 현 운영사(수성/공성)? | 차별점 강도 결정 |
-| 예산·기간 | 사업예산, 수행기간, 유지보수 연수? | 일정·투입공수 산정 근거 |
-| 재사용 자료 | 참조할 기존 제안서·실적·인력 프로필? | 고객명 잔존 검사 필수 |
+| Buyer/project | Exact official names? | Use RFP spelling; no arbitrary abbreviations |
+| Proposal type | Build (A) / maintenance and technical support (B) / technical response (C)? | Classification table in SKILL.md |
+| Deadline/submission format | Date/time, PPTX/PDF/printed copies, page limit? | Exceeding the page limit causes deductions/disqualification |
+| Evaluation | Technical:price weights, evaluation table, presentation (PT)? | Evaluation items determine outline priorities |
+| Delivery arrangement | Sole bidder/consortium, manufacturer (vendor) roles? | Reflect in roles and responsibilities (R&R) |
+| Competition | Competitors, incumbent (defending/challenging)? | Determines differentiation strength |
+| Budget/period | Budget, delivery period, maintenance years? | Basis for schedule and effort estimates |
+| Reusable material | Existing proposals, track records, staff profiles? | Residual customer-name check required |
 
-무인 실행 등으로 답을 받을 수 없으면: 유형은 판별표로 추정, 분량은 장표형 60~120p
-(유지보수형은 40~90p), 제출형식은 PPTX+PDF로 가정하고 **가정 목록을 산출물 서두에 명시**한다.
+When answers are unavailable, including unattended execution: infer type from the classification table; assume a slide deck of 60~120p
+(40~90p for maintenance) and PPTX+PDF delivery, and **state the assumptions at the beginning of the artifact**.
 
-## 2. 요구사항 대장 (전수 추출)
+## 2. Requirements register (exhaustive extraction)
 
-RFP의 모든 요구를 한 줄씩 ID를 붙여 표로 만든다. "제안 요청 내용", "평가 항목",
-"과업 내용", 별첨 요구사항 명세를 모두 스캔한다. 본문에 숨은 요구
-("~하여야 함", "~제시할 것", "~포함되어야 함" 문장)도 빠짐없이 잡는다.
+Give every RFP requirement an ID and one table row. Scan all proposal requests, evaluation items,
+scope of work, and attached specifications. Capture requirements hidden in body text as well.
+Korean source-pattern examples: "~하여야 함", "~제시할 것", "~포함되어야 함".
 
-| ID | 구분 | 요구사항(원문 요약) | 필수/선택 | 대응 페이지 | 상태 |
+Korean example requirement inputs and display statuses are retained below:
+
+| ID | Category | Requirement (source summary) | Mandatory/optional | Response page | Status |
 |---|---|---|---|---|---|
 | REQ-001 | 기술 | 분산파일시스템 기반 블록/파일/오브젝트 제공 | 필수 | Ⅲ-2 | 작성완료 |
 | REQ-002 | 관리 | 월 1회 정기점검 및 확인서 제출 | 필수 | Ⅲ-1 | 작성중 |
 
-- ID 체계는 RFP에 번호가 있으면 그 번호를 그대로 쓴다(발주처 질의서 번호 체계 우선).
-  없으면 REQ-nnn을 부여한다.
-- "상태"는 게이트와 같은 어휘를 쓴다: `pending`(작성전) → `drafted`(작성중) → `needs-review`(작성완료·검수대기)
-  → `approved`(검수완료) / `rejected` / `not-applicable`(사유·검토자 필수). 제출 전 전 행이 `approved`여야
-  하며, 표에는 한글 병기(`approved(검수완료)`)를 허용한다. 위 예시의 '작성완료·작성중'은 `needs-review`·`drafted`다.
+- Preserve RFP requirement numbers when present (the buyer's questionnaire numbering takes priority).
+  Otherwise assign REQ-nnn.
+- Use the gate vocabulary for status: `pending` (not drafted) → `drafted` (in progress) → `needs-review` (draft complete, awaiting review)
+  → `approved` (review complete) / `rejected` / `not-applicable` (reason and reviewer required). Every row must be `approved` before submission.
+  Korean display annotations such as `approved(검수완료)` are allowed. In the example above, '작성완료·작성중' correspond to `needs-review` and `drafted`.
 
-RFP가 없는 공동사업·사전제안·발견 단계에서는 요구사항을 억지로 확정하지 않는다. 대신
-`항목 ID | 유형(사실/가설/질문/결정/약속) | 내용 | 근거 | 책임자 | 상태` 대장을 쓰고,
-가설과 질문은 합의된 결정·약속과 분리한다. 외부 제안으로 전환할 때 승인된 결정과 약속만
-요구사항 대장으로 승격한다.
+For joint initiatives, proactive proposals, or discovery without an RFP, do not force requirements into a final form.
+Instead use a register with `Item ID | Type (fact/hypothesis/question/decision/commitment) | Content | Evidence | Owner | Status`.
+Separate hypotheses and questions from agreed decisions and commitments. Promote only approved decisions and commitments
+to the requirements register when converting to an external proposal.
 
-## 3. 조견표 (제안요건 대응표)
+## 3. Compliance matrix (proposal requirements response)
 
-공공·금융 제안서는 **본문 맨 앞에 조견표를 배치**하는 것이 관례다
-(분석한 금융·그룹사 제안 샘플 다수가 목차 직후에 조견표 3~5페이지를 배치).
+Public-sector and financial proposals conventionally **place the compliance matrix at the beginning of the body**.
+(Many analyzed financial/group-company samples place 3~5 pages immediately after the contents.)
 
-| 제안요건 | 수용여부 | 제안내용 | 제안서 페이지 | 비고 |
+Korean response example:
+
+| Requirement | Acceptance | Proposal response | Proposal page | Notes |
 |---|---|---|---|---|
 | 리눅스 시스템에 대한 장애대응 및 예방활동 | O | 장애 대응·예방 활동 방안 제안 | Ⅱ-2 (P.28~34) | |
 
-작성 규칙:
-- 수용여부 코드는 전 스킬 공통 6종만 쓴다: `O`(준수) / `부분`(부분준수) / `조건부`(조건부준수) /
-  `X`(미지원) / `N/A`(해당없음) / `확인필요`. 괄호 안 한글은 표시용 동의어이며 bulk_matrix.py가 코드로
-  정규화한다. 부분·조건부·X·N/A는 사유와 대안을 "비고"에 반드시 쓴다.
-  전부 O로 채우고 본문이 못 받치는 것이 최악 — 평가위원은 페이지를 따라가서 확인한다.
-- 페이지 번호는 최종 조판 후 갱신한다(마지막 품질 게이트 항목).
-- 유형 C(기술답변서)는 조견표가 곧 문서 구조다: RFP 항목 번호 순서로 페이지를 배열하고
-  각 장표 모서리에 해당 번호를 표기한다(예: "(완료) 26. 플랫폼에서 수집·제공하는 Log의 범위").
+Authoring rules:
+- Use only the six common acceptance codes: `O` (compliant) / `부분` (partially compliant) / `조건부` (conditionally compliant) /
+  `X` (unsupported) / `N/A` (not applicable) / `확인필요`. Korean parenthetical terms are display synonyms that bulk_matrix.py
+  normalizes to codes. For partial, conditional, X, and N/A responses, the Notes must contain reasons and alternatives.
+  Filling everything with O while the body cannot support it is the worst outcome: evaluators follow page references to verify.
+- Update page numbers after final layout (a final quality-gate item).
+- For type C (technical responses), the matrix is the document structure: arrange pages in RFP item order
+  and show the corresponding number in each slide corner (Korean example: "(완료) 26. 플랫폼에서 수집·제공하는 Log의 범위").
 
-### 대량 표 RFP와 지정 위치
+### Large tabular RFPs and prescribed placement
 
-요구가 100행 이상이거나 한 기능군 안에서 증거·담당·수용상태가 달라지면 묶어서 O로
-처리하지 않는다. `원문 세부 ID | 원문 위치 | 요구문 | 모듈 | 필수 여부 | 응답 | 증거 ID |
-예외/전제 | 본문 페이지 | 상태`로 분리한다. 본문에는 요구군 요약 조건표를 두고 세부 전수
-원장은 연속 별첨으로 분할한다. 표가 페이지를 넘으면 헤더와 "계속" 표기를 반복한다.
-발주처가 조건표 위치를 지정하면 앞 배치 관례보다 그 위치가 우선한다. 최종 조판 후
-누락·중복·페이지 역참조가 각각 0건인지 검사한다.
+Do not combine requirements into one O when there are 100 or more rows, or when evidence, owner, or acceptance differs within a functional group.
+Split into `Source detail ID | Source location | Requirement | Module | Mandatory? | Response | Evidence ID |
+Exceptions/assumptions | Body page | Status`. Put group-level summary conditions in the body and split the exhaustive detailed
+register into consecutive appendices. Repeat headers and the Korean continuation label "계속" across pages.
+A buyer-prescribed matrix location overrides the convention of placing it first. After final layout,
+check that omissions, duplicates, and broken page back-references each total 0.
 
-## 4. 재사용 자료 반입 검사
+## 4. Reused-material intake checks
 
-기존 제안서에서 페이지를 가져올 때는 반입 전 3가지를 치환·검증한다:
-1. **고객명·시스템명** — 이전 고객사 명칭 잔존은 즉시 탈락 사유
-2. **제품 버전·EOL·로드맵** — 소스 제안서 작성 시점 기준이므로 반드시 최신화
-   (OS·플랫폼 버전, 지원 종료일은 웹에서 재확인)
-3. **인력·실적·재무 수치** — 기준일 갱신, 퇴사 인력 제외
+Before importing pages from an existing proposal, replace and verify:
+1. **Customer/system names** — a previous customer's name remaining is immediate grounds for rejection.
+2. **Product versions, EOL, roadmap** — refresh material dated to the source proposal
+   (recheck OS/platform versions and support end dates on the web).
+3. **Staffing, track record, financial figures** — refresh reference dates and exclude departed staff.

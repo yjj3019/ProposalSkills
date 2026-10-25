@@ -277,7 +277,7 @@ class ProposalGateTests(unittest.TestCase):
         self.assertTrue(any("visual review is not approved" in f for f in failures))
 
 
-    # --- #6 종합 개선: 규제/제조사 확약 게이트 (후방호환) ---
+    # --- #6 integrated improvement: regulatory/vendor confirmation gates (backward compatible) ---
     def test_baseline_without_optional_fields_still_ready(self):
         self.assertEqual(evaluate(ready_data()), [])
 
@@ -317,7 +317,7 @@ class ProposalGateTests(unittest.TestCase):
         d["vendor_confirmations"] = [{"id": "V1", "kind": "warranty", "required": True, "present": True}]
         self.assertTrue(any("unsupported kind" in f for f in validate_schema(d)))
 
-    # --- P0 반낙관 하드닝: 3종 가드 (자기선언 낙관 통과 차단) ---
+    # --- P0 anti-optimism hardening: three guards against unsupported self-declarations ---
     def test_approved_without_evidence_refs_blocks(self):
         d = ready_data()
         d["requirements"] = [{"id": "R1", "text": "표준 이미지", "mandatory": True, "state": "approved"}]
@@ -374,12 +374,12 @@ class ProposalGateTests(unittest.TestCase):
         self.assertTrue(any("met must be a boolean" in f for f in validate_schema(d)))
 
     def test_missing_curable_defaults_incurable(self):
-        # curable 생략은 fail-closed: conditional-bid로도 우회 불가.
+        # Missing curable fails closed; conditional-bid cannot bypass this.
         d = ready_data()
         d["bid_decision"] = "conditional-bid"
         d["bid_conditions"] = [{"id": "B1", "owner": "Legal",
                                 "deadline": "2099-08-20T17:00:00+09:00", "accepted": True}]
-        d["eligibility"] = [{"id": "E1", "mandatory": True, "met": False}]  # curable 미지정
+        d["eligibility"] = [{"id": "E1", "mandatory": True, "met": False}]  # curable omitted.
         self.assertTrue(any("incurable; bid not permitted" in f for f in evaluate(d)))
 
     def test_evidence_refs_empty_string_blocks(self):
@@ -389,7 +389,7 @@ class ProposalGateTests(unittest.TestCase):
         self.assertIn("requirement R1 approved without evidence_refs", evaluate(d))
 
     def test_antigravity_optimistic_audit_is_blocked(self):
-        """Antigravity false-pass 재현: approved(무증빙)+만료마감+자격원장부재→반드시 차단."""
+        """Reproduce Antigravity false passes: approved without evidence + expired deadline + absent eligibility ledger must block."""
         d = ready_data()
         d["requirements"] = [
             {"id": "RFP-REQ-0%d" % i, "text": "요구 %d" % i, "mandatory": True,
@@ -402,7 +402,7 @@ class ProposalGateTests(unittest.TestCase):
         self.assertTrue(any("deadline has passed" in f for f in failures))
         self.assertIn("submission requires eligibility ledger", failures)
 
-    # --- C1: --explain 출력(조치표·결정메모·다운그레이드) ---
+    # --- C1: --explain output (action table, decision memo, downgrade) ---
     def test_explain_ready(self):
         md = explain_markdown(ready_data(), [], [])
         self.assertIn("READY", md)
@@ -413,7 +413,7 @@ class ProposalGateTests(unittest.TestCase):
         md = explain_markdown(d, [], evaluate(d))
         self.assertIn("BLOCKED", md)
         self.assertIn("조치", md)
-        self.assertIn("evidence_refs", md)  # 조치 힌트 포함
+        self.assertIn("evidence_refs", md)  # Include corrective-action hints.
 
     def test_explain_nobid_is_decision_memo(self):
         d = ready_data()
@@ -444,7 +444,7 @@ class ProposalGateTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("READY", buf.getvalue())
 
-    # --- C5: 금융 submission-ready 골든 ---
+    # --- C5: financial submission-ready golden case ---
     def test_golden_financial_submission_ready(self):
         d = ready_data()
         d["flags"] = {"financial": True}
@@ -457,7 +457,7 @@ class ProposalGateTests(unittest.TestCase):
         d["vendor_confirmations"] = [{"id": "V1", "kind": "supply", "required": True, "present": True}]
         self.assertEqual(evaluate(d), [])
 
-    # --- C11: 골든 3종(READY / BLOCKED / 만료) CI 고정 ---
+    # --- C11: fix three golden cases (READY / BLOCKED / expired) in CI ---
     def test_golden_ready(self):
         self.assertEqual(evaluate(ready_data()), [])
 

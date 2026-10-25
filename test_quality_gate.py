@@ -11,7 +11,7 @@ from quality_gate import read_names, run, blocking  # noqa: E402
 
 
 def pptx(path: Path, texts: dict[int, str], extra: str = "") -> None:
-    """공용 픽스처로 정상 패키지를 만든다(필수 파트 누락 파일을 양성 대조군으로 쓰지 않는다)."""
+    """Build valid packages with shared fixtures; never use missing-required-part files as positive controls."""
     fixtures.pptx(path, raw={f"ppt/slides/slide{number}.xml": f"<p><t>{text}</t>{extra}</p>"
                              for number, text in texts.items()})
 
@@ -65,17 +65,17 @@ class QualityGateTests(unittest.TestCase):
             pptx(path, {1: "일반"}, '<a:schemeClr val="accent6"/>')
             items = run(path, [], {"1F3864"}, "ko")
             self.assertTrue(any("NOT INSPECTED" in f for f in items))
-            self.assertEqual(blocking(items), [])  # 테마 경고만 있으면 차단 0건
+            self.assertEqual(blocking(items), [])  # Theme warnings alone produce zero blockers.
 
     def test_draft_marker_warns_in_draft_blocks_in_submission(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "deck.pptx"
             pptx(path, {1: "투입인력: 입력요망"})
             draft = run(path, [], set(), "ko", "draft")
-            self.assertEqual(blocking(draft), [])  # 초안: 비차단 경고
+            self.assertEqual(blocking(draft), [])  # Draft: nonblocking warning.
             self.assertTrue(any("검토필요" in f for f in draft))
             sub = run(path, [], set(), "ko", "submission")
-            self.assertTrue(blocking(sub))  # 제출: 차단
+            self.assertTrue(blocking(sub))  # Submission: blocker.
 
     def test_hard_placeholder_blocks_in_both_stages(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -84,9 +84,9 @@ class QualityGateTests(unittest.TestCase):
             self.assertTrue(blocking(run(path, [], set(), "ko", "draft")))
             self.assertTrue(blocking(run(path, [], set(), "ko", "submission")))
 
-    # --- C4 네거티브 골든: 시뮬 B10(과장어)·C10(플레이스홀더) 승격 회귀 ---
+    # --- C4 negative goldens: simulation B10 exaggeration/C10 placeholder promotion regressions ---
     def test_golden_overclaim_deck_is_blocked(self):
-        """B10형: 과장어 주입 덱은 근거 유무와 무관하게 차단되어야 한다."""
+        """B10: decks with injected exaggerated language must block regardless of evidence."""
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "b10.pptx"
             pptx(path, {1: "본 솔루션은 업계 1위이며 무중단 100% 완벽 대응",
@@ -97,7 +97,7 @@ class QualityGateTests(unittest.TestCase):
             self.assertTrue(any("world-class" in f or "best-in-class" in f for f in en))
 
     def test_golden_placeholder_deck_is_blocked(self):
-        """C10형: 플레이스홀더 잔존 덱은 제출 단계에서 차단되어야 한다."""
+        """C10: decks with unresolved placeholders must block at submission."""
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "c10.pptx"
             pptx(path, {1: "구성도 placeholder", 2: "담당자 ○○○ 기재"})

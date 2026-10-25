@@ -23,6 +23,21 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_DIR = SCRIPT_DIR.parent
 SKILLS_ROOT = SKILL_DIR.parent
+CHECK_TIMEOUT_SECONDS = 240
+
+
+def _run_check(cmd: list[str]) -> tuple[int, str]:
+    """Bound child checks; missing evidence is an execution error, never a pass."""
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
+            timeout=CHECK_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return 2, f"{Path(cmd[1]).name}: check timed out after {CHECK_TIMEOUT_SECONDS}s"
+    except OSError as exc:
+        return 2, f"{Path(cmd[1]).name}: check could not start ({type(exc).__name__})"
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
 def _find_proposal_gate() -> Path | None:
@@ -84,10 +99,7 @@ def run_deck_check(doc: Path) -> tuple[int, str]:
     checker = SKILLS_ROOT / "create-proposal-document" / "scripts" / "deck_check.py"
     if not checker.is_file():
         return 2, "deck_check.py not found (install create-proposal-document)"
-    proc = subprocess.run([sys.executable, str(checker), str(doc), "--stage", "submission"],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace",
-                          env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
-    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+    return _run_check([sys.executable, str(checker), str(doc), "--stage", "submission"])
 
 
 def sha256_file(path: Path) -> str:
@@ -98,8 +110,16 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _inputs_changed(inputs: dict[Path, str]) -> bool:
+    # shortcut: endpoint hashes miss edits restored between reads; use immutable inputs when needed.
+    try:
+        return any(sha256_file(path) != digest for path, digest in inputs.items())
+    except OSError:
+        return True
+
+
 def _norm_digest(value: object) -> str:
-    """비교용 정규화 — 'sha256:' 접두사 제거 + 소문자. 64 hex가 아니면 빈 문자열."""
+    """Normalize hashes: strip 'sha256:' and lowercase; return an empty string unless 64 hex characters remain."""
     if not isinstance(value, str):
         return ""
     v = value.strip().lower().removeprefix("sha256:")
@@ -107,11 +127,7 @@ def _norm_digest(value: object) -> str:
 
 
 def bind_document(data: dict, doc: Path) -> list[str]:
-    """전달된 실제 파일과 audit의 검사 대상 해시를 대조한다.
-
-    audit은 사람이 한 검토의 기록이다. 그 기록이 '어느 바이트'에 적용되는지
-    확인하지 않으면, 검토 이후 가격·기간이 바뀐 파일에 과거 판정을 재사용하게 된다.
-    """
+    """Compare the supplied actual file with the audit inspection hash. An audit records human review; without binding it to exact bytes, old decisions could be reused after prices or durations change."""
     actual = sha256_file(doc)
     problems: list[str] = []
     for field in ("render", "package"):
@@ -142,28 +158,16 @@ def classify(decision: str, failures: list[str]) -> tuple[str, int]:
 
 
 def run_check_numbers(doc: Path, audit_path: Path) -> tuple[int, str]:
-    """원장 수치가 실제 문서 본문에 있는지 대조한다.
-
-    게이트는 원장 안의 합계·비율을 계산하지만, 그 값이 장표에 적힌 값과 같은지는 문서를
-    열어야 안다. 이 대조를 사람 손에 맡기면 원장과 장표가 갈린 채로 제출된다.
-    """
+    """Compare ledger values with the actual document body. The gate recalculates ledger sums and ratios, but must open the document to check slide values. Human-only comparison allows mismatched ledgers and slides to be submitted."""
     cn = _find_check_numbers()
     if cn is None:
         return 2, "check_numbers.py not found (install create-proposal-document " \
                   "or set CHECK_NUMBERS_PATH; use install_skill.py --with-deps)"
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-    proc = subprocess.run([sys.executable, str(cn), str(doc), "--audit", str(audit_path)],
-                          capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", env=env)
-    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+    return _run_check([sys.executable, str(cn), str(doc), "--audit", str(audit_path)])
 
 
 def verify_bundle(data: dict, root: Path) -> list[str]:
-    """제출 묶음의 각 첨부가 실제로 그 자리에 그 내용으로 있는지 확인한다.
-
-    audit의 attachments[]는 사람이 적은 기록이다. 파일이 그 사이에 바뀌었거나 아예 없는데
-    'present: true'로 남아 있으면, 대표 파일 하나만 해시로 묶어 둔 것으로는 잡히지 않는다.
-    """
+    """Verify every submission attachment exists at its recorded location with its recorded contents. The audit attachments[] is a human record; hashing only the main file cannot detect changed or missing attachments still marked 'present: true'."""
     problems: list[str] = []
     root = root.resolve()
     for item in data.get("attachments", []):
@@ -176,6 +180,8 @@ def verify_bundle(data: dict, root: Path) -> list[str]:
             problems.append(f"bundle: 첨부 파일명이 문자열이 아니다 — {name}")
             continue
         try:
+            if "\x00" in filename:
+                raise ValueError("embedded null in attachment path")
             path = (root / filename).resolve()
         except (OSError, RuntimeError, ValueError):
             problems.append(f"bundle: 첨부 경로를 해석할 수 없다 — {filename!r}")
@@ -210,11 +216,7 @@ def run_quality_gate(doc: Path, stage: str, lang: str, names: Path | None,
         cmd += ["--names", str(names)]
     if palette:
         cmd += ["--palette", palette]
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
-    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                          errors="replace", env=env)
-    out = (proc.stdout or "") + (proc.stderr or "")
-    return proc.returncode, out
+    return _run_check(cmd)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -225,15 +227,14 @@ def main(argv: list[str] | None = None) -> int:
                     help="PPTX/DOCX to inspect and hash-bind (required when audit.mode=submission)")
     ap.add_argument("--stage", choices=["draft", "submission"], default="submission")
     ap.add_argument("--audit-only", action="store_true",
-                    help="문서 없이 audit만 점검한다. 통과해도 SUBMISSION-READY가 아니라 AUDIT-VALID다")
+                    help="Inspect only the audit without a document; a pass yields AUDIT-VALID rather than SUBMISSION-READY")
     ap.add_argument("--lang", choices=["ko", "en", "both"], default="ko")
     ap.add_argument("--names", type=Path, help="Banned residual names file")
     ap.add_argument("--palette", help="Allowed hex palette comma-list")
     ap.add_argument("--bundle", type=Path, metavar="DIR",
-                    help="제출 묶음이 있는 폴더. attachments[]의 file/name과 sha256을 실제 파일과 대조한다")
+                    help="Submission-bundle directory; compare attachments[] file/name and sha256 with actual files")
     ap.add_argument("--skip-numbers", action="store_true",
-                    help="원장↔문서 수치 대조를 건너뛴다(대조 도구가 없는 환경 전용 — "
-                         "제출 판정에는 쓰지 않는다)")
+                    help="Skip ledger/document numerical comparison (only for environments without the comparison tool; do not use for submission decisions)")
     ap.add_argument("--explain", action=argparse.BooleanOptionalAction, default=True,
                     help="Print remediation markdown (default: on; --no-explain = labels only)")
     args = ap.parse_args(argv)
@@ -253,13 +254,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        data = json.loads(args.audit.read_text(encoding="utf-8-sig"))
+        audit_bytes = args.audit.read_bytes()
+        data = json.loads(audit_bytes.decode("utf-8-sig"))
     except (OSError, ValueError) as exc:
         print(f"INVALID: {exc}")
         return 2
     if not isinstance(data, dict):
         print("INVALID: audit root must be an object")
         return 2
+    inputs = {args.audit: hashlib.sha256(audit_bytes).hexdigest()}
 
     try:
         mod = _load_gate_module(gate_path)
@@ -268,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         schema_failures = mod.validate_schema(data)
-    except Exception as exc:  # 스키마 검사가 터지면 트레이스백이 아니라 사용 오류로 반환
+    except Exception as exc:  # Return schema failures as usage errors rather than tracebacks.
         print(f"INVALID: schema check failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
     if schema_failures:
@@ -281,8 +284,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     audit_mode = str(data.get("mode", ""))
-    # 단계 강제: submission audit을 draft 기준으로 검사하면 [NEEDS INPUT]이 경고로
-    # 내려가 SUBMISSION-READY가 나온다. 목적과 검사 강도를 어긋나게 두지 않는다.
+    # Enforce stages: checking a submission audit under draft rules downgrades [NEEDS INPUT]
+    # to warnings and falsely yields SUBMISSION-READY. Keep purpose and check strength aligned.
     if audit_mode == "submission" and args.stage != "submission":
         print(f"INVALID: audit.mode=submission인데 --stage {args.stage} — "
               "제출 audit은 --stage submission으로만 검사한다", file=sys.stderr)
@@ -293,6 +296,11 @@ def main(argv: list[str] | None = None) -> int:
         if not args.doc.is_file():
             print(f"INVALID: 문서 없음: {args.doc}", file=sys.stderr)
             return 2
+        try:
+            inputs[args.doc] = sha256_file(args.doc)
+        except OSError:
+            print("INVALID: 문서를 읽을 수 없다", file=sys.stderr)
+            return 2
         code, qout = run_quality_gate(args.doc, args.stage, args.lang, args.names, args.palette)
         print("=== quality_gate ===")
         print(qout.rstrip() or "(no output)")
@@ -300,9 +308,16 @@ def main(argv: list[str] | None = None) -> int:
             print("INVALID: quality_gate usage/dependency failure")
             return 2
         if code != 0:
+            if _inputs_changed(inputs):
+                print("INVALID: 검사 중 audit 또는 문서가 변경되었거나 읽을 수 없다. 다시 검사한다")
+                return 2
             print("BLOCKED: document quality_gate failed")
             return 1
-        doc_failures = bind_document(data, args.doc)
+        try:
+            doc_failures = bind_document(data, args.doc)
+        except OSError:
+            print("INVALID: 검사 중 문서를 읽을 수 없다", file=sys.stderr)
+            return 2
         if audit_mode == "submission" and args.doc.suffix.lower() == ".pptx":
             code, out = run_deck_check(args.doc)
             print("=== deck_check ===")
@@ -312,8 +327,8 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             if code != 0:
                 doc_failures.append("실제 PPTX가 레이아웃 검사를 통과하지 못했다")
-        # 원장 수치 ↔ 문서 대조. 원장이 있는데 대조하지 않으면 '검산 완료'가 다시
-        # 자기선언으로 돌아간다 — 그래서 문서를 받은 경로에서는 기본으로 돌린다.
+        # Compare numerical ledger values with the document; without comparison, arithmetic completion
+        # becomes a self-declaration again, so run this by default when a document is supplied.
         numbers = data.get("numbers")
         if isinstance(numbers, list) and numbers and not args.skip_numbers:
             code, nout = run_check_numbers(args.doc, args.audit)
@@ -339,20 +354,27 @@ def main(argv: list[str] | None = None) -> int:
             isinstance(a, dict) and (a.get("required", True) is not False or a.get("present") is True)
             for a in data.get("attachments", [])):
         doc_failures.append("제출에는 첨부 실물 검사가 필요하다 — --bundle <제출폴더>로 다시 실행한다")
+    try:
+        failures = mod.evaluate(data)
+    except Exception as exc:  # GateEnvironmentError and similar environment errors, not gate decisions.
+        print(f"INVALID: gate error: {exc}", file=sys.stderr)
+        return 2
     if args.bundle:
         if not args.bundle.is_dir():
             print(f"INVALID: 묶음 폴더 없음: {args.bundle}", file=sys.stderr)
             return 2
-        bundle_problems = verify_bundle(data, args.bundle)
+        try:
+            bundle_problems = verify_bundle(data, args.bundle)
+        except OSError:
+            print("INVALID: 첨부 파일을 읽을 수 없다", file=sys.stderr)
+            return 2
         print("=== bundle ===")
         print("\n".join(f"- {p}" for p in bundle_problems)
               or f"첨부 해시가 모두 일치한다 ({args.bundle})")
         doc_failures.extend(bundle_problems)
-
-    try:
-        failures = mod.evaluate(data)
-    except Exception as exc:  # GateEnvironmentError 등 — 게이트 판정이 아닌 환경 오류
-        print(f"INVALID: gate error: {exc}", file=sys.stderr)
+    # Bind the verdict to the bytes loaded/checked, not just to an earlier hash observation.
+    if _inputs_changed(inputs):
+        print("INVALID: 검사 중 audit 또는 문서가 변경되었거나 읽을 수 없다. 다시 검사한다")
         return 2
     decision = data.get("bid_decision", "")
     if decision in {"no-bid", "intake-incomplete"}:
@@ -366,19 +388,19 @@ def main(argv: list[str] | None = None) -> int:
                 enriched.append(f)
         failures = enriched
 
-    # 문서 대조 실패는 게이트 차단 사유로 합류시킨다(라벨·종료코드가 함께 움직인다).
+    # Merge document comparison failures into gate blockers so labels and exit codes agree.
     failures = list(failures) + doc_failures
 
-    # 라벨은 proposal_gate.readiness 하나에서 나온다 — CLI·explain·점수 보고서가
-    # 같은 판정을 쓰도록 단일화(예전엔 여기서 별도 계산해 설명문과 어긋났다).
+    # Derive labels only from proposal_gate.readiness so CLI, explanations, and scores
+    # share one decision; separate calculations previously contradicted explanations.
     if hasattr(mod, "readiness"):
         display, exit_code = mod.readiness(data, failures)
-    else:  # 구버전 proposal_gate 호환
+    else:  # Compatibility with older proposal_gate versions.
         label, exit_code = classify(str(decision), failures)
         display = "SUBMISSION-READY" if label == "READY" and audit_mode == "submission" else \
             (f"{audit_mode.upper() or 'DRAFT'}-READY" if label == "READY" else label)
     if display == "SUBMISSION-READY" and not args.doc:
-        # --audit-only 경로: 실제 파일을 보지 않았으므로 제출 준비로 표시하지 않는다.
+        # --audit-only does not inspect actual files and must not claim submission readiness.
         display = "AUDIT-VALID"
         print("NOTE: 문서 미검사(--audit-only) — audit 자체만 유효하다. "
               "제출 판정은 --doc <최종파일>로 다시 받는다.")
@@ -387,11 +409,11 @@ def main(argv: list[str] | None = None) -> int:
               "제출 게이트는 mode=submission audit으로 다시 실행한다.")
     print(f"=== proposal_gate → {display} ===")
     if explain and hasattr(mod, "explain_markdown"):
-        # 최종 판정(display)을 설명에도 그대로 넘긴다. 설명이 audit으로 상태를 다시
-        # 계산하면 STATUS: AUDIT-VALID 옆에 "제출 가능"이 찍히는 모순이 생긴다.
+        # Pass the final display decision unchanged into explanations. Recalculation from the audit
+        # could print submission-ready prose beside STATUS: AUDIT-VALID.
         try:
             print(mod.explain_markdown(data, [], failures, display))
-        except TypeError:  # 구버전 proposal_gate 호환
+        except TypeError:  # Compatibility with older proposal_gate versions.
             print(mod.explain_markdown(data, [], failures))
     elif failures:
         for f in failures:

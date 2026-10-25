@@ -1,158 +1,166 @@
-# 내용 패턴 뱅크 (content-patterns)
+# Content pattern bank (content-patterns)
 
-수주 제안서 다수에서 반복 검증된 **본문 콘텐츠의 뼈대 패턴**이다. 구조(목차)가 아니라
-"그 페이지 안에 무엇을 채우는가"를 다룬다. 모든 패턴은 익명화·일반화되어 있으며,
-실제 수치·항목은 사업별 사실로 채운다(phrase-library와 같은 원칙: 빈 슬롯 날조 금지).
+These are **body-content skeletons** repeatedly validated across winning proposals. They describe what belongs
+inside a page, rather than the outline. Every pattern is anonymized/generalized; fill figures/items with project-specific facts
+(same rule as phrase-library: never fabricate empty slots).
 
-## 1. 사업관리 7대 영역 (유형 A·B 공통 — 사업관리 장)
+## 1. Seven project-management areas (types A/B — management chapter)
 
-관례적으로 7개 영역 + 3단계 프로세스로 제시한다:
+Conventionally present 7 areas + a 3-stage process:
 
-| # | 영역 | 주요 관리 항목 |
+| # | Area | Main management items |
 |---|---|---|
-| 1 | 진도(진척)관리 | 진척사항 점검·보고, 일정 준수 목표관리 |
-| 2 | 위험관리 | 사업 여건 변동 대응, 현장 여건 상이 대응 |
-| 3 | 품질관리 | 품질 확보 방안, 공정관리와 연계 |
-| 4 | 의사소통관리 | 조직 간 의사소통 체계, 분쟁 조정 체계 |
-| 5 | 자원관리 | 기술인력 투입 최적화, 자원 위험요소 대응 |
-| 6 | 보안관리 | 인적·서류 보안 대책 |
-| 7 | 문서(산출물)관리 | 수행 단계별 산출물 관리 |
+| 1 | Progress | Check/report progress, manage schedule adherence targets |
+| 2 | Risk | Respond to changing project conditions and differing site conditions |
+| 3 | Quality | Quality assurance measures linked to process control |
+| 4 | Communication | Inter-organizational communication and dispute mediation |
+| 5 | Resources | Optimize technical staffing, respond to resource risks |
+| 6 | Security | Personnel and document security measures |
+| 7 | Documents/deliverables | Manage deliverables by delivery stage |
 
-3단계: **착수**(현장분석·협의체계·일정/수행계획 수립) → **수행/통제**(모니터링·통제·진척
-관리·요구 변경 대응) → **종료**(안정 운용 지원·비상 대응 훈련·완료보고서).
+Three stages: **Initiation** (site analysis, coordination system, schedule/delivery plan) →
+**Execution/control** (monitoring, control, progress, requirement changes) →
+**Closure** (stable-operation support, emergency drills, completion report).
 
-## 2. 예방점검 항목표 (유형 B — 장애 예방 장)
+## 2. Preventive inspection checklist (type B — incident prevention)
 
-2계층으로 제시한다. 점검표는 반드시 `점검 항목 | 점검 방법 | 점검 내용 | 점검 기준(임계치)` 4열.
+Use two layers. The checklist must have 4 columns: `Inspection item | Method | Content | Criterion (threshold)`.
 
-- **OS 레벨**: 호스트 정보/OS 릴리스/커널, CPU(사용률 임계 예: Idle 40% 이상),
-  메모리(예: 80% 미만), 디스크(파티션별 80% 미만), 프로세스, 파일시스템 상태,
-  시스템 로그, 네트워크(NIC·본딩 이중화 상태·시간 동기화), Uptime(예: 180일 미만 권장).
-  점검 방법 열에는 실제 명령어를 적는 것이 신뢰를 만든다.
-- **플랫폼(클러스터) 레벨**: 버전, 노드 Active 상태, 핵심 인프라 컴포넌트 상태,
-  스토리지 여유(임계치), **인증서 만료 잔여기간(예: 3개월 미만 경고)**, 이벤트 로그,
-  백업 수행 여부(날짜·경로 기재).
+- **OS layer**: host information/OS release/kernel; CPU (example: Idle at least 40%),
+  memory (example: below 80%), disk (below 80% per partition), processes, filesystem state,
+  system logs, network (NIC/bond redundancy/time synchronization), Uptime (example: under 180 days recommended).
+  Actual commands in the method column establish credibility.
+- **Platform/cluster layer**: version, node Active status, key infrastructure component status,
+  spare storage (threshold), **remaining certificate validity (example: warning below 3 months)**,
+  event logs, backup execution (date/path).
 
-병행 요소: 정기 점검(주기 명시: 월/분기) vs 수시(특별) 점검 구분 표 +
-**점검 산출물 양식 예시**(호스트별 항목 정상/비정상 매트릭스 + "종합의견" 란 —
-발견 사항과 권고를 적는 칸이 있어야 점검이 형식이 아님을 보여준다).
+Accompanying elements: a table distinguishing regular inspection (state monthly/quarterly frequency) from ad hoc/special inspection,
+plus an **example inspection deliverable form** (host-level normal/abnormal matrix + the Korean field "종합의견").
+A field for findings and recommendations demonstrates that inspection is substantive.
 
-## 3. 테스트 방안 매트릭스 (유형 A — 지원 부문)
+## 3. Test approach matrix (type A — support chapter)
 
-`구분(영역) | 대항목 | 소항목 | 설명` 4열 표. 영역별 대항목 관례:
+Four columns: `Category (area) | Major item | Subitem | Description`. Conventional areas:
 
-- 네트워크 가용성(NIC 이중화 절체), 서비스 가용성(노드 장애 후 서비스 확인),
-  구성 변경(배포 자동화·설정 갱신), 기능(핵심 기능별), 장애 복구(구성요소별 복구),
-  증설(온라인 노드/스토리지 확장), 벤치마킹(도구 명시).
-- 성능·부하 시험은 지표를 명시: Throughput, 초당 트랜잭션(TPS), 초당 요청 수,
-  시스템 자원 사용 변화율. 절차: 시나리오 작성 → 부하 발생·모니터링 → 병목 분석 → 개선.
-- **전환(오픈) 절차는 4단계 8세부**로 제시: 인수시험(준비→실시→결과반영) →
-  시범운영(시스템 운영→가동점검) → 가동준비(사전가동→본적용) → 안정화(사후운영).
-  각 세부 단계에 체크리스트 항목을 붙인다.
+- Network availability (NIC redundancy failover), service availability (verify service after node failure),
+  configuration changes (deployment automation/settings updates), functions (each core capability),
+  disaster recovery (component recovery), expansion (online node/storage expansion), benchmarking (name tools).
+- State performance/load metrics: Throughput, transactions per second (TPS), requests per second,
+  change in system-resource utilization. Procedure: scenario → load generation/monitoring → bottleneck analysis → improvement.
+- Present **cutover/go-live as 4 stages and 8 detailed steps**:
+  acceptance testing (prepare → execute → incorporate results) → pilot operation (operate → check readiness) →
+  go-live preparation (pre-run → production application) → stabilization (post-go-live operation).
+  Attach checklist items to every detailed step.
 
-## 4. 마이그레이션 방법론 (전환·이관 사업)
+## 4. Migration methodology (cutover/migration projects)
 
-5단계 프로세스: **환경분석**(AS-IS 현황·TO-BE 구성) → **진단·계획**(영향도 평가·
-위험요소 진단·단계별 계획) → **변환·이관**(도구 명시) → **검증·튜닝**(통합 기능/성능
-테스트·성능 리포트) → **교육·기술이전**(운영/개발 가이드·이슈 사례집·결과보고서).
+Five stages: **Environment analysis** (AS-IS, TO-BE) → **Diagnosis/planning** (impact, risks, staged plan) →
+**Conversion/migration** (name tools) → **Verification/tuning** (integrated functional/performance tests, performance report) →
+**Training/knowledge transfer** (operations/development guides, issue casebook, results report).
 
-분석은 4관점으로: SW(스택·컴파일 의존성), HW(아키텍처·주변장치 호환), Service(비즈니스
-연관도·이행 중 안정성), Data(무결성·바이너리 호환). 이관 후 **안정화 기간(freezing)** 을
-일정에 명시한다. 비호환 항목은 처리 방법(수정/대체/제외)을 표로 정리한다.
+Analyze four perspectives: SW (stack/compiler dependencies), HW (architecture/peripheral compatibility),
+Service (business relationships/stability during migration), Data (integrity/binary compatibility).
+Show the post-migration **stabilization period (freezing)** in the schedule.
+Tabulate how incompatible items will be handled (modify/replace/exclude).
 
-### 단계별 이관(위험 최소화) 페이지의 뼈대 — 이관이 배점 핵심일 때
+### Phased migration (risk reduction) page — when migration is a high-weight criterion
 
-- **Wave 설계**: 파일럿(소수·저위험) → 일반 → 핵심(고위험) 순. 배분 기준 4요소를
-  표로 명시: 업무 중요도, 연계 복잡도, 데이터 규모, 허용 중단시간.
-  Wave별 대상 수량은 현행 분석 결과로 채운다(임의 배분 금지, 가정이면 가정 표기).
-- **Go/No-Go 게이트**: Wave 사이마다 판정 게이트. 판정 항목(기능 검증 통과율,
-  성능 기준선 대비 결과, 미결 결함 수준, 운영 준비도)과 판정 주체를 명시한다.
-- **병행운영·롤백 계획**: 병행 기간, 롤백 제한시간, 롤백 판정 기준, 원복 절차를
-  구성요소로 반드시 포함. "롤백 계획 없음"은 위험관리 미비로 감점된다.
-- **성능 기준선(Baseline)**: 이관 전 측정 → 이관 후 동일 조건 비교. 측정 항목과
-  조건을 표로.
-- **플랫폼 전환(U2L 등) 기술 체크 항목**: CPU 아키텍처 전환(엔디안·바이너리 호환),
-  컴파일 의존성, 문자셋 변환, 데이터 무결성 검증(건수·합계·체크섬 전수 대조).
+- **Wave design**: pilot (few, low-risk) → general → critical (high-risk). Tabulate four allocation criteria:
+  business criticality, integration complexity, data scale, permitted downtime.
+  Fill Wave quantities from current-state analysis; no arbitrary allocation, and label assumptions.
+- **Go/No-Go gates**: a decision gate between Waves. State criteria (functional-test pass rate,
+  performance versus baseline, open defect severity, operational readiness) and decision authority.
+- **Parallel operation/rollback**: mandatory parallel period, rollback time limit, rollback criteria, restoration procedure.
+  Absence of rollback planning causes risk-management deductions.
+- **Performance baseline**: measure before migration → compare afterward under identical conditions.
+  Tabulate metrics and conditions.
+- **Platform conversion (U2L etc.) checks**: CPU architecture change (endianness/binary compatibility),
+  compiler dependencies, charset conversion, data integrity (exhaustive record-count/total/checksum comparison).
 
-### 일정 산정 원칙
+### Schedule estimation
 
-표준 기간 데이터는 조직의 수행 실적에서만 나온다 — 이 스킬은 임의 기준치를 제공하지
-않는다. 일정 장은 ① 조직 실적 기반 산정(출처 명시) 또는 ② RFP 지정 기간의 역산으로
-구성하고, 무인 실행 등으로 근거가 없으면 **전 구간을 "가정" 표기**한다. Phase 구성
-관례는 착수·분석설계 → 이관 Wave(N회) → 안정화·종료이며, Wave 겹침과 안정화 기간을
-간트에 드러낸다.
+Standard-duration data comes only from organizational delivery records; this skill supplies no arbitrary benchmarks.
+Build schedules from ①organizational track records with sources or ②working backward from the RFP period.
+Without evidence, including unattended execution, **label the entire schedule as assumed**.
+Conventional phases: initiation/analysis-design → migration Waves (N) → stabilization/closure.
+Show overlapping Waves and stabilization in the Gantt chart.
 
-## 5. 기술이전·교육 (전 유형)
+## 5. Knowledge transfer and training (all types)
 
-- 기술이전은 **5경로 병행**이 관례: ①전문 교육과정 ②단계별 검토회의 ③구축 공동참여
-  ④안정화 기간 공동운영 ⑤유지보수 기간 현장교육. 절차는 계획수립(범위·대상자·일정) →
-  실시(분석/설계→구축/테스트→운영 순 이전) → 평가(목표수준 달성 판정, 미달 시 반복).
-- 교육과정표 형식: `과정명 | 교육 내용 | 대상자 | 장소 | 일수 | 유상/무상 | 제공 회수`.
-  제안사 무상 교육(운영 실무·이슈 공유 중심)과 제조사 정규과정(유상, 과정명·일수 명시)을
-  구분해 제시하고, 무상 제공분은 인원·조건을 명확히 한다.
-  제조사 정규과정의 실명·일수·비용은 **해당 제조사 공식 교육 카탈로그를 웹에서 확인**해
-  채운다(리서치 단계 규칙과 동일 — 과정명을 기억으로 쓰지 않는다).
-- 대규모 조직 확산은 **Agent 모델**: 부서별 핵심 인력 선발 → 집중 교육·파일럿 →
-  Agent 주도의 부서 확산 교육 + 단일 소통 창구화.
+- Conventionally use **5 parallel channels**: ①specialist courses ②stage review meetings ③joint build participation
+  ④joint operations during stabilization ⑤on-site training during maintenance.
+  Procedure: plan (scope, attendees, schedule) → execute (analysis/design → build/test → operations) →
+  evaluate (target-level attainment; repeat if unmet).
+- Course table: `Course | Content | Audience | Location | Days | Paid/free | Number of sessions`.
+  Separate proposer-provided free training (practical operations/issue sharing) from manufacturer formal courses
+  (paid; name/days). Specify headcount and conditions for free provision.
+  Verify actual manufacturer course names/days/costs **on the official online training catalog**;
+  follow research rules and do not name courses from memory.
+- For organization-wide rollout, use the **Agent model**: select departmental key staff →
+  intensive training/pilot → Agent-led departmental rollout training + a single communication channel.
 
-## 6. 차별화·추가 제안 카드 (수주 결정 요소 — 기타/추가제안 장)
+## 6. Differentiation/additional-offer cards (winning factors — additional proposals)
 
-가격 외 차별화로 실제 쓰인 카드 유형(사업과 무관한 것을 넣지 말고 2~4개 선별):
+Actual non-price differentiation categories (select 2~4 relevant to the project):
 
-무상 사전 컨설팅(반일~1일, 과제 도출 세션), 심화 기술협의 워크숍(도출 과제의 실행
-계획화), 시나리오 기반 데모/검증 환경 제공(단순 기능 시연이 아닌 요구사항 기반 파일럿),
-정기 기술 세미나(기술 동향·도입 사례), 경영층 대상 브리핑 세션, 선진 사례 벤치마킹 지원,
-운영 매뉴얼·장애 복구 매뉴얼 제공.
+Free preliminary consulting (half-day~1 day, problem-definition session), advanced technical workshops
+(turn identified problems into execution plans), scenario-based demo/validation environments
+(requirement-based pilots rather than feature demonstrations), regular technical seminars
+(trends/adoption cases), executive briefings, leading-case benchmarking support,
+operations manuals and incident-recovery manuals.
 
-각 카드에는 형식(기간·인원·조건)과 제공 주체를 명시해 "공약"이 아니라 "약속"으로 만든다.
+Each card must identify format (duration/headcount/conditions) and provider, turning a slogan into a commitment.
 
-## 7. 아웃소싱·운영 위탁 (B 변형) 골격
+## 7. Outsourcing/managed operations (type B variant)
 
-- **서비스 경계**: 포함/제외 업무를 2열 표로 명시(제외를 숨기지 않는다 — Exit 분쟁 예방).
-- **책임분담(RACI)**: `업무 | 발주처 | 수행사 | 제3자(벤더 등)` 표에 R(실행)/A(승인)/
-  C(협의)/I(통보)를 기입. "공동"이라는 모호 표기는 금지 — 반드시 A는 1곳.
-- **전환(인수) 계획**: 현 운영사→수행사 인수는 단계로: 문서·자산 인수 → 병행 운영
-  (shadowing) → 단독 운영 전환 → 안정화. 기간·완료 기준·현 운영사 협조 전제를 명시.
-- **Exit 계획**: 계약 종료 시 이관 의무를 선제 기술 — 산출물·데이터·계정 반환 목록,
-  후임자 인수인계 기간·범위, 지적재산 귀속. Exit를 쓰지 않는 제안은 감점 요인이며,
-  성실한 Exit 조항이 오히려 신뢰 차별화가 된다.
+- **Service boundaries**: a 2-column included/excluded table; do not hide exclusions (prevents Exit disputes).
+- **RACI**: `Task | Buyer | Contractor | Third party (vendor etc.)`, with R (execute)/A (approve)/C (consult)/I (inform).
+  No vague shared assignment: exactly one A.
+- **Transition/takeover**: incumbent→contractor stages: documents/assets → shadowing →
+  independent operations → stabilization. State duration, completion criteria, incumbent-cooperation assumptions.
+- **Exit**: proactively specify handover duties at contract end: deliverable/data/account return list,
+  successor handover period/scope, intellectual-property ownership. Missing Exit planning causes deductions;
+  credible Exit terms can themselves differentiate trustworthiness.
 
-### 보안제품 유지보수 자산 대장 (다제품 MSS·통합관리 사업)
+### Security-product maintenance asset register (multi-product MSS/integrated management)
 
-여러 보안 솔루션을 한 계약으로 유지보수·통합관리하는 사업은 제품을 나열만 하지 말고
-자산 대장으로 관리한다: `제품 | 수량(SET) | 위치 | 라이선스 기간 | 점검 주기 | 제조사 |
-확약 여부`. 라이선스 만료·제조사 확약(기술지원·공급 확약서)·점검 주기를 한 표에서
-추적해야 갱신 누락·계약 전 확약 미비를 막는다. 실제 제품명·수량·기간은 RFP·현행 자산에서
-채우고, 미확정은 `[NEEDS INPUT]`으로 둔다.
+For multiple security solutions in one maintenance/management contract, use an asset register rather than a product list:
+`Product | Quantity (SET) | Location | License period | Inspection frequency | Manufacturer | Commitment secured?`.
+Track license expiry, manufacturer commitments (support/supply letters), and inspection frequency together
+to prevent missed renewals and insufficient pre-contract commitments.
+Fill actual product names/quantities/periods from the RFP/current assets; leave unknowns `[NEEDS INPUT]`.
 
-**이원 SLA(상시 + 정기)**: "24x365 상시 지원"과 "월 N회 방문 정기점검"이 함께 요구되면
-모순이 아니라 이원 체계로 분리해 표기한다 — 상시(원격·비상 대응, 응답/복구 목표) + 정기
-(현장 방문 점검일·산출물·보고 기한). 두 트랙의 채널·대상·주기를 구분하지 않으면 감점된다.
+**Two-track SLA (continuous + regular)**: when both Korean requirements "24x365 상시 지원" and
+"월 N회 방문 정기점검" apply, separate them rather than treating them as contradictory:
+continuous (remote/emergency, response/recovery targets) + regular (site visit date, deliverable, reporting deadline).
+Failure to distinguish channels, targets, and frequencies of both tracks causes deductions.
 
-### 상주 인력 파견 하위 패턴
+### Resident staffing subpattern
 
-- **개인 역량과 증빙**: 회사 실적과 개인 직접 수행실적을 분리하고 경력·자격·유사 업무를
-  증빙 ID와 연결한다. 실명·연락처는 승인된 제출본에만 넣는다.
-- **근무 경계**: 근무시간·장소, 상주/순회 범위, 야간·휴일 대응, 지시·승인 주체를 명시한다.
-- **연속성**: 휴가·병가·퇴사 시 통보, 동등 이상 대체 기준, 발주처 승인, 계정 회수와
-  인수인계 완료 기준을 둔다. 백업 인력은 실제 확보·승인 전 약속하지 않는다.
-- **1인 의존 위험**: 업무·계정·지식의 단일 장애점을 식별하고 문서화·교차검토·대체 투입
-  방안을 제시한다. 목표 시간·인원은 승인된 근거가 없으면 `[NEEDS INPUT]`으로 둔다.
-- **준수**: 개인정보·비밀유지·최소권한·이해상충과 적용되는 노동·파견 조건을 권한자가
-  검토하고, AI가 법적 적합성을 확정하지 않는다.
+- **Individual capability/evidence**: separate company records from personal direct delivery records;
+  connect experience, qualifications, similar work to evidence IDs. Actual names/contact details only in approved submission copies.
+- **Work boundaries**: hours/location, resident/visiting scope, night/holiday response, instruction/approval authority.
+- **Continuity**: notice for leave/sickness/departure, equivalent-or-better replacement criteria, buyer approval,
+  account revocation, handover completion. Do not promise backup staff before actually securing and approving them.
+- **Single-person dependency**: identify task/account/knowledge single points of failure; propose documentation,
+  cross-review, replacement. Without approved evidence, target times/headcounts remain `[NEEDS INPUT]`.
+- **Compliance**: authorized people review privacy, confidentiality, least privilege, conflicts of interest,
+  applicable labor/dispatch conditions. AI does not determine legal conformance.
 
-## 8. 품질보증 2트랙 (유형 A — 사업관리 장)
+## 8. Two-track quality assurance (type A — management chapter)
 
-`형태 | 단계 | 검토 항목 | 주기 | 검사 기준 | 참가 대상` 6열 표로 제시:
+Six-column table: `Type | Stage | Review items | Frequency | Inspection criteria | Participants`.
 
-- **산출물 검토**: 팀 검토(수시, 정확성·표준 준수) → 업무요건 충족 검토(산출물 완료 시)
-  → 관리자 승인(단계 종료 시).
-- **품질보증 평가**: 각 단계 종료 시 감사 성격의 게이트 — 다음 단계 진행 가능 여부와
-  사업 요건 충족 여부를 판정. 발주처 PM 참여를 명시해 투명성을 보여준다.
+- **Deliverable review**: team review (as needed, accuracy/standards) → business-requirements review
+  (on completion) → manager approval (stage end).
+- **Quality assurance evaluation**: audit-style gate at each stage end to decide progression and project-requirement fulfillment.
+  Explicit buyer PM participation demonstrates transparency.
 
-### 금융 구축 보안 완료증거
+### Security completion evidence for financial-sector builds
 
-금융 RFP의 전문평가·인프라/소스 취약점·시큐어코딩·SBOM·클라우드 안전성 요구는
-`통제 | RFP/규정 위치 | 수행주체 | 수행시점 | 도구/기관 | 완료증거 | 조치 완료 |
-잔여위험 승인` 표로 연결한다. "진단 수행"이 아니라 발견 결함의 개선·재시험·승인까지를
-완료로 본다. 기관·도구·일정이 승인되지 않았으면 약속하지 않고 blocking input으로 둔다.
+Map financial RFP specialist evaluation, infrastructure/source vulnerabilities, secure coding, SBOM,
+and cloud-safety requirements into:
+`Control | RFP/regulatory location | Actor | Timing | Tool/organization | Completion evidence |
+Remediation complete | Residual-risk approval`.
+Completion includes remediation, retesting, approval of discovered defects, rather than merely running an assessment.
+Unapproved organizations/tools/schedules must remain blocking inputs, never promises.

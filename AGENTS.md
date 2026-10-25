@@ -1,114 +1,131 @@
-# AGENTS.md — 이 저장소를 다루는 AI를 위한 지침
+# AGENTS.md — Instructions for AI agents working in this repository
 
-이 저장소는 **한국어 IT/공공 제안서 작성 스킬 3종**을 담고 있습니다. 사용자가 이 저장소를
-가리키며 "설치해줘"라고 하면 아래 한 줄을 실행하십시오. 어떤 디렉터리에 넣을지 사용자에게
-되묻지 마십시오 — 스크립트가 이 컴퓨터에 설치된 AI CLI를 찾아 각각의 스킬 디렉터리에 넣습니다.
+This repository contains **3 skills for Korean IT/public-sector proposals**. When a user
+points to this repository and asks to install it (Korean example: "설치해줘"), run the line below.
+Do not ask which directory to use: the script detects installed AI CLIs and installs into their skill directories.
 
 ```bash
 python install_skill.py --auto
 ```
 
-Python이 없으면 `python3`로 시도하고, 그래도 없으면 사용자에게 Python 3.10 이상을 설치해
-달라고 요청하십시오. 외부 패키지는 설치에 필요 없습니다.
+Use this command in a local environment with file and command execution tools. If Python is unavailable,
+check `python3`; if there is no execution environment, report installation as not performed and continue
+writing/reviewing the supplied material. Local installation does not install into a ChatGPT web account.
+No external packages are required for installation.
 
-## 스킬 라우팅 (모델 공통)
+## Documentation and display language
 
-| 역할 | 스킬 | 호출 |
+Write shared instructions, operational documentation, and code explanations in English.
+Generated proposals follow the user and RFP language requirements.
+Keep Korean README prose natural Korean; separate English guidance into language-specific files such as
+`README.en.md`. Clearly label Korean examples and preserve their original content. Preserve product names,
+commands, paths, configuration keys, code field names, status values, Korean test inputs, and raw validation evidence verbatim.
+
+## Skill routing (all models)
+
+| Role | Skill | Invocation |
 |---|---|---|
-| **진입점 (flagship)** | `create-best-proposal` | 암시·명시 모두. 「제안서 작성」은 항상 여기로 |
-| **내부 레이어 (sibling)** | `create-proposal-document`, `create-winning-proposal` | **명시 호출만** (`$스킬명` / 사용자가 레이어만 지정). 암시 선택 금지 |
+| **Entry point (flagship)** | `create-best-proposal` | Implicit or explicit. Proposal-writing requests always start here |
+| **Internal layers (siblings)** | `create-proposal-document`, `create-winning-proposal` | **Explicit invocation only** (`$skill-name`; original Korean placeholder: `$스킬명` / user requests only that layer). Never select implicitly |
 
-형제 스킬은 플래그십이 로드하는 콘텐츠·거버넌스 레이어입니다. 사용자가 형제를 이름으로
-부르지 않으면 직접 열지 마십시오. Claude는 `disable-model-invocation: true`, Codex/ChatGPT는
-`agents/openai.yaml`의 `policy.allow_implicit_invocation: false`로 형제의 암시 호출을 막습니다.
-플래그십에는 이 제한을 두지 않습니다.
+Sibling skills provide the content and governance layers loaded by the flagship. Do not open them directly
+unless the user names them. Claude prevents implicit sibling invocation with `disable-model-invocation: true`;
+Codex/ChatGPT use `policy.allow_implicit_invocation: false` in `agents/openai.yaml`.
+Do not apply this restriction to the flagship.
 
-## 설치 위치
+## Installation locations
 
-`--auto`는 홈 디렉터리에서 각 도구의 표시를 찾아 해당 스킬 경로에 설치합니다.
+`--auto` detects each tool's marker in the home directory and installs into its skill path.
 
-| 감지 대상 | 설치 경로 |
+| Detected marker | Installation path |
 |---|---|
-| `~/.claude/` 존재 | `~/.claude/skills/` |
-| `~/.codex/` 존재 | `~/.agents/skills/` (**Codex 권장**, AGENTS.md 공용 규약) |
-| `~/.grok/` 존재 | `~/.grok/skills/` |
-| `~/.agents/` 존재 | `~/.agents/skills/` |
-| 아무것도 없음 | `~/.agents/skills/` |
+| `~/.claude/` exists | `~/.claude/skills/` |
+| `~/.codex/` exists | `~/.agents/skills/` (**recommended for Codex**, shared AGENTS.md convention) |
+| `~/.grok/` exists | `~/.grok/skills/` |
+| `~/.agents/` exists | `~/.agents/skills/` |
+| None | `~/.agents/skills/` |
 
-환경변수 `AI_SKILLS_DIR`이 있으면 그 경로도 대상에 포함됩니다. `CODEX_HOME`이 있으면
-`$CODEX_HOME/skills`에도 설치하되 **레거시 호환 경고**를 냅니다 — Codex는 여전히 그 경로를
-deprecated compat로 읽지만, 권장 설치 위치는 `~/.agents/skills`입니다. 기본 `--dest`로
-`CODEX_HOME`을 쓰지 마십시오. 설치 전에 대상만 확인하려면
-`python install_skill.py --list-targets`. 특정 경로에 넣으려면
-`python install_skill.py --dest <경로> --all`.
+If `AI_SKILLS_DIR` is set, include that path too. If `CODEX_HOME` is set, also install into
+`$CODEX_HOME/skills` with a **legacy compatibility warning**: Codex still reads that deprecated compatibility
+path, but `~/.agents/skills` is recommended. Do not use `CODEX_HOME` as the default `--dest`.
+To inspect targets before installation, run `python install_skill.py --list-targets`.
+For a specific path, use the original command example `python install_skill.py --dest <경로> --all`.
 
-세 스킬을 **모두** 설치하는 것이 기본값입니다. 플래그십(`create-best-proposal`)만 설치하면
-통합 게이트가 형제 게이트를 찾지 못해 제출 판정 경로가 끊깁니다.
+Install **all three** skills by default. Installing only the flagship (`create-best-proposal`) leaves
+the unified gate unable to locate sibling gates and breaks the submission-decision path.
 
-이미 설치돼 있으면 건너뜁니다(`Skip (exists)`). 최신 스킬 파일을 갱신하려면 `--force`를 붙입니다. 별도로 추가한 사용자 파일은 보존합니다.
+Existing installations are skipped (`Skip (exists)`). Add `--force` to update skill files.
+Separately added user files are preserved.
 
-## 설치 후 확인
+## Post-installation checks
 
-스크립트가 스킬별로 `SKILL.md`·`scripts/`·`references/`·라우팅 메타(openai.yaml /
-`disable-model-invocation`)를 검증하고 결과를 출력합니다.
-`Installed with problems`가 보이면 그 줄의 누락 파일을 사용자에게 알리십시오.
+The script validates each skill's `SKILL.md`, `scripts/`, `references/`, and routing metadata
+(openai.yaml / `disable-model-invocation`) and prints results.
+If `Installed with problems` appears, report the missing files listed on that line.
 
-동작 확인이 필요하면:
+If a functional check is needed, use this command (Korean path placeholders preserved):
 
 ```bash
 python <설치경로>/create-best-proposal/scripts/unified_gate.py \
        <설치경로>/create-best-proposal/fixtures/audit_ready_financial.json --audit-only --no-explain
 ```
 
-`STATUS: AUDIT-VALID`가 나오면 정상입니다.
+`STATUS: AUDIT-VALID` indicates success.
 
-## 설치 후 사용법
+## Usage after installation
 
-사용자가 제안서 작업을 요청하면 **`create-best-proposal`만** 진입점으로 사용하십시오.
-나머지 둘은 내부 레이어이며, 사용자가 명시하거나 플래그십 워크플로가 가리킬 때만 엽니다.
+Use **only `create-best-proposal`** as the entry point for proposal requests.
+Open the other two internal layers only when the user explicitly requests them or the flagship workflow directs you there.
 
-## 플러그인 및 실행 도구가 없는 환경
+## Plugins and environments without execution tools
 
-`plugin.json`은 공통 Agent Plugins 형식이고 `.codex-plugin/plugin.json`과
-`.claude-plugin/plugin.json`은 호환 매니페스트다. 세 스킬을 함께 배포하며
-`python package_plugin.py -o <ZIP경로>`로 묶는다. 두 마켓플레이스 카탈로그는 저장소 루트를 가리킨다.
+For marketplace registration, installation, updates, or releases, first read the
+[management guide](references/marketplace-management.md). Distinguish catalog IDs from plugin IDs,
+and local direct installation from marketplace installation. Generate distribution ZIPs with
+`package_plugin.py`; never ignore manifest/catalog linkage failures.
 
-로컬 직접 설치는 Codex의 `$create-best-proposal`, Claude Code/Grok Build의
-`/create-best-proposal`로 호출한다. Claude/Grok 플러그인 호출은
-`/proposal-skills:create-best-proposal`이다. 웹 계정에는 해당 서비스에서 별도로 등록해야 한다.
-프로젝트에 폴더를 올리는 것만으로 스킬이 등록되지는 않는다.
+Distinguish ordinary ChatGPT/Claude chats from local Codex/Claude Code execution.
+Do not infer file, Python, or rendering tools from the host name; check the current session.
+Follow [host-portability.md](skills/create-best-proposal/references/host-portability.md) for shared execution
+and natural-language starting requests. Supported ChatGPT `@` skill selection, Codex `$` invocation, and
+Claude Code `/` invocation are host entry methods; uploading files does not automatically install/register a skill.
 
-파일·실행 도구가 없으면 제공된 텍스트로 작성·검토를 수행하고 파일 생성과 검사는
-미수행으로 남긴다. 실행 환경이 있으면 공통 스크립트를 사용한다. 실행하지 않은 검사를
-통과로 처리하거나 `SUBMISSION-READY`를 선언하지 않는다. 자세한 설치·호출은 README를 따른다.
+`plugin.json` uses the shared Agent Plugins format; `.codex-plugin/plugin.json` and
+`.claude-plugin/plugin.json` are compatibility manifests. Distribute all three skills together using
+`python package_plugin.py -o <ZIP경로>` (original Korean path placeholder). Both marketplace catalogs point to the repository root.
 
-## 공개 저장소 — 커밋하면 안 되는 것
+Invoke direct local installations with Codex `$create-best-proposal` or Claude Code/Grok Build
+`/create-best-proposal`. Claude/Grok plugin invocation is `/proposal-skills:create-best-proposal`.
+Web accounts require separate registration through that service. Uploading a folder to a project does not register a skill.
 
-이 저장소는 **공개돼 있습니다.** 제안서 작업은 성격상 민감한 정보를 다루므로, 작업 중에 본
-내용을 그대로 커밋하면 영구히 공개됩니다. 다음은 예제·픽스처·문서·커밋 메시지 어디에도
-넣지 마십시오.
+Without file/execution tools, write/review the supplied text and leave file generation and checks as not performed.
+With execution tools, use the shared scripts. Never report an unexecuted check as passed or declare
+`SUBMISSION-READY`. See the README for installation and invocation details.
 
-- **고객사·발주처·경쟁사의 실제 이름**, 사업명, 프로젝트 번호, 계약 정보
-- **실제 금액·견적·단가**, 실적 수치, 인력 성명·연락처·소속
-- 실제 RFP나 제안서의 **원문 발췌**, 페이지 이미지, 파일명
-- 작업자의 **로컬 절대 경로**(윈도우 사용자 폴더, 유닉스 홈 디렉터리), 이메일, 사내 워크스페이스 링크
-- 자격증명(API 키·토큰·비밀번호)
+## Public repository — never commit these
 
-픽스처가 필요하면 가상 발주처(`○○공사`)와 가상 수치로 만듭니다. 실제 문서를 참고해 얻은
-것은 **구조적 일반화**(예: "요구가 100건을 넘으면 조견표가 9장이 된다")까지만 옮기고,
-그 문서를 특정할 수 있는 것은 옮기지 않습니다.
+This repository is **public**. Proposal work involves sensitive information; committing material seen during
+that work makes it permanently public. Never put the following in examples, fixtures, documentation, or commit messages:
 
-`test_repo_hygiene.py`가 로컬 경로·이메일·자격증명 형태·픽스처 발주처를 기계 검사합니다.
-다만 "이 이름이 실제 고객사인가"는 기계가 판별할 수 없으므로, 그 판단은 이 규칙과 사람의
-검토에 달려 있습니다.
+- **Real customer, buyer, or competitor names**, business names, project numbers, or contract information.
+- **Actual amounts, quotations, or unit prices**, performance figures, or personnel names/contact details/affiliations.
+- **Original excerpts** from real RFPs/proposals, page images, or filenames.
+- Workers' **local absolute paths** (Windows user folders or Unix home directories), email addresses, or internal workspace links.
+- Credentials (API keys, tokens, passwords).
 
-## 이 저장소를 수정할 때
+Use fictitious buyers (Korean example: `○○공사`) and synthetic figures for fixtures.
+Transfer only **structural generalizations** from real documents (Korean example:
+"요구가 100건을 넘으면 조견표가 9장이 된다"); do not transfer anything that identifies the source document.
 
-- 변경 후 `python -m unittest discover -s . -p "test_*.py" -q`가 통과해야 합니다.
-- 게이트 동작을 바꾸면 `test_gate_integrity.py`에 재현 테스트를 추가하십시오.
-- 위 «공개 저장소» 규칙을 지키십시오. 실제 제안 자료를 참고했다면 구조적 일반화만 남깁니다.
-- 게이트 계약(제출 판정 규칙)은 `README.md`와
-  `skills/create-winning-proposal/references/audit-schema.md`에 문서화돼 있습니다. 코드와
-  문서를 함께 갱신하십시오.
-- 스킬 라우팅 메타(암시/명시)를 바꿀 때는 `test_skill_schema.py`와 형제/플래그십 대칭을
-  유지하십시오. 게이트·픽스처·워크플로를 약화하지 마십시오.
+`test_repo_hygiene.py` mechanically checks local paths, email addresses, credential patterns, and fixture buyers.
+It cannot decide whether a name belongs to a real customer; that judgment relies on these rules and human review.
+
+## When modifying this repository
+
+- After changes, `python -m unittest discover -s . -p "test_*.py" -q` must pass.
+- If gate behavior changes, add a reproduction test to `test_gate_integrity.py`.
+- Follow the public-repository rules above. Retain only structural generalizations from real proposal material.
+- The gate contract (submission-decision rules) is documented in `README.md` and
+  `skills/create-winning-proposal/references/audit-schema.md`. Update code and documentation together.
+- When changing routing metadata (implicit/explicit), maintain `test_skill_schema.py` and sibling/flagship symmetry.
+  Never weaken gates, fixtures, or workflows.

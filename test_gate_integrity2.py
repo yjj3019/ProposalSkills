@@ -1,8 +1,4 @@
-"""회귀 테스트 — 2026-09 재점검(R01~R08)에서 재현된 결함의 재발 방지.
-
-이전 묶음(test_gate_integrity.py)이 --no-explain만 검사해 설명문 모순(R07)을 놓쳤다.
-여기서는 설명 경로까지 함께 본다. 정상 대조군을 같이 둬서 과민 차단도 잡는다.
-"""
+"""Regression tests for defects reproduced in the 2026-09 recheck (R01~R08). test_gate_integrity.py checked only --no-explain and missed R07 explanation contradictions; exercise explanations and positive controls to detect excessive blocking."""
 from __future__ import annotations
 
 import copy
@@ -42,10 +38,7 @@ except ImportError:  # pragma: no cover
 
 
 def run(*args: object, **kw) -> Result:
-    """스킬 스크립트 실행 — 기본은 같은 프로세스(test_support 참조).
-
-    env를 주면 자식 프로세스로 승격된다(인코딩 계약 검사).
-    """
+    """Run skill scripts in-process by default (see test_support); env promotes execution to a child process for encoding-contract checks."""
     return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
@@ -54,13 +47,13 @@ def ready_audit() -> dict:
 
 
 class SubmissionBypassTests(unittest.TestCase):
-    """R01 — 입력값 하나로 검증 의무를 취소할 수 없다."""
+    """R01: a single input value cannot cancel verification obligations."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
         self.addCleanup(self.tmp.cleanup)
-        # 양성 대조군은 audit 원장과 같은 금액을 담는다 — 통합 게이트가 수치를 대조한다.
+        # Positive controls contain audit-ledger amounts because the unified gate compares them.
         self.doc = fixtures.submission_pptx(self.dir / "final.pptx",
             "정상 본문 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
         self.digest = "sha256:" + hashlib.sha256(self.doc.read_bytes()).hexdigest()
@@ -109,7 +102,7 @@ class SubmissionBypassTests(unittest.TestCase):
 
 
 class PackageValidityTests(unittest.TestCase):
-    """R02 — 열리지 않는 패키지를 제출 가능으로 판정하지 않는다."""
+    """R02: unopenable packages cannot be declared submission-ready."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -129,7 +122,7 @@ class PackageValidityTests(unittest.TestCase):
         p = fixtures.pptx(self.dir / "noslide.pptx")
         with zipfile.ZipFile(p, "a") as z:
             pass
-        # 슬라이드 파트를 제거한 사본을 만든다
+        # Create a copy with slide parts removed.
         stripped = self.dir / "stripped.pptx"
         with zipfile.ZipFile(p) as src, zipfile.ZipFile(stripped, "w") as dst:
             for item in src.infolist():
@@ -164,15 +157,15 @@ class PackageValidityTests(unittest.TestCase):
 
     @unittest.skipUnless(HAS_PPTX, "python-pptx 없음")
     def test_fixture_packages_open_in_a_real_loader(self):
-        """픽스처가 '게이트는 통과하는데 PowerPoint는 못 여는' 파일이 아닌지 확인한다."""
+        """Ensure fixtures cannot pass the gate while remaining unopenable in PowerPoint."""
         p = fixtures.pptx(self.dir / "fixture.pptx", raw={
             "ppt/slides/slide1.xml": "<a:p><a:r><a:t>본문</a:t></a:r></a:p>"})
         from pptx.opc.serialized import PackageReader
-        PackageReader(str(p))  # [Content_Types].xml·_rels 없으면 여기서 실패한다
+        PackageReader(str(p))  # Missing [Content_Types].xml or _rels fails here.
 
 
 class ExplainConsistencyTests(unittest.TestCase):
-    """R07 — 라벨·본문·종료 코드가 한 판정에서 나온다(설명 경로 포함)."""
+    """R07: labels, body text, and exit codes share one decision, including explanations."""
 
     def test_audit_only_explain_never_says_submittable(self):
         proc = run(UG, FIXTURES / "audit_ready_financial.json", "--audit-only")
@@ -198,7 +191,7 @@ class ExplainConsistencyTests(unittest.TestCase):
 
 
 class SupportAliasTests(unittest.TestCase):
-    """R06 — 미수용 별칭과 예외·응답 위치가 도구 사이에서 유지된다."""
+    """R06: preserve unsupported aliases, exceptions, and response locations across tools."""
 
     def test_every_unsupported_alias_is_treated_alike(self):
         for alias in ("X", "X 미수용", "미수용", "미지원", "✗", "부적합"):
@@ -233,7 +226,7 @@ class SupportAliasTests(unittest.TestCase):
 
 
 class EnumTypeTests(unittest.TestCase):
-    """R08 — 잘못된 타입은 크래시가 아니라 구조화된 오류다."""
+    """R08: invalid types produce structured errors rather than crashes."""
 
     def test_no_type_error_for_any_enum_field(self):
         for value in ({}, [], 3, None, True):
@@ -263,7 +256,7 @@ class EnumTypeTests(unittest.TestCase):
 
 @unittest.skipUnless(HAS_PPTX, "python-pptx 없음")
 class DeckBuilderSafetyTests(unittest.TestCase):
-    """R03·R05 — 템플릿 잔존 콘텐츠와 조용한 행 유실을 막는다."""
+    """R03/R05: prevent residual template content and silent row loss."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -352,7 +345,7 @@ class DeckBuilderSafetyTests(unittest.TestCase):
 
 @unittest.skipUnless(HAS_PPTX, "python-pptx 없음")
 class LayoutBoundsTests(unittest.TestCase):
-    """R04 — 화면 밖·잘린 콘텐츠를 잡는다(정상 장표는 막지 않는다)."""
+    """R04: detect off-slide and clipped content without blocking valid slides."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -380,7 +373,7 @@ class LayoutBoundsTests(unittest.TestCase):
         self.assertIn("화면 밖", proc.stdout)
 
     def test_inside_body_passes(self):
-        # 외부에서 만든 덱은 규격 표시가 없으므로 어떤 기준으로 잴지 명시해야 한다.
+        # External decks lack specification stamps; explicitly state the validation criteria.
         proc = run(DC, self._deck(0.5), "--profile", "detailed-submission")
         self.assertEqual(proc.returncode, 0, proc.stdout)
 

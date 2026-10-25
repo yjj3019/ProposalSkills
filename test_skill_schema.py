@@ -107,11 +107,7 @@ class VerifySchemaIntegrationTests(unittest.TestCase):
 
 
 class ReferenceWiringTests(unittest.TestCase):
-    """새 reference를 만들고 연결하지 않거나, 경로를 바꾸고 문서를 두는 회귀를 막는다.
-
-    규약: 마크다운 링크는 문서 파일 기준 상대 경로, 백틱 경로는 스킬 루트 기준 상대 경로다
-    (sibling-map.md «경로 기준»). 백틱은 두 기준 중 하나로 해석되면 통과시킨다.
-    """
+    """Prevent unlinked references or stale documentation after path changes. Markdown links are relative to document files; backtick paths are relative to skill roots (sibling-map.md path-base rules). Accept backticks resolved by either base."""
 
     LINK = re.compile(r"\]\(([^)\s#]+)(?:#[^)]*)?\)")
     TICK = re.compile(r"`((?:\.\./[\w-]+/)?(?:references|scripts|fixtures|assets)/[\w./-]+"
@@ -149,7 +145,7 @@ class ReferenceWiringTests(unittest.TestCase):
         self.assertEqual(orphans, [], "어느 문서에서도 가리키지 않는 reference")
 
     def test_flagship_links_its_own_new_references(self):
-        """플래그십 references는 SKILL.md 또는 master-playbook에서 직접 도달해야 한다."""
+        """Flagship references must be directly reachable from SKILL.md or master-playbook."""
         flagship = SKILLS / install_skill.FLAGSHIP
         entry = (flagship / "SKILL.md").read_text(encoding="utf-8") + \
             (flagship / "references" / "master-playbook.md").read_text(encoding="utf-8")
@@ -170,6 +166,16 @@ class MultiHostDistributionTests(unittest.TestCase):
         self.assertEqual(manifests[0]["$schema"],
                          "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json")
         self.assertEqual(manifests[1]["skills"], "./skills/")
+        interface = manifests[0]["extensions"]["com.openai"]["interface"]
+        self.assertEqual(interface, manifests[1]["interface"])
+        for key in ("displayName", "shortDescription", "developerName", "category", "websiteURL"):
+            self.assertIsInstance(interface[key], str)
+            self.assertTrue(interface[key].strip())
+        self.assertEqual(interface["websiteURL"], manifests[0]["repository"])
+        self.assertIn("Instructions", interface["capabilities"])
+        self.assertIsInstance(interface["defaultPrompt"], list)
+        self.assertTrue(all(isinstance(p, str) and p.strip() for p in interface["defaultPrompt"]))
+        self.assertTrue(any("create-best-proposal" in p for p in interface["defaultPrompt"]))
 
     def test_marketplaces_point_at_the_complete_plugin(self):
         import json
@@ -224,6 +230,130 @@ class MultiHostDistributionTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 package_plugin.build_archive(dest, root=Path(tmp))
             self.assertFalse(dest.exists())
+
+
+class MarketplacePackagingTests(unittest.TestCase):
+    """Broken marketplace metadata must fail before producing a distributable ZIP."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        import package_plugin
+
+        self.packager = package_plugin
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "source"
+        self.destination = Path(self.tmp.name) / "plugin.zip"
+        for relative in (*package_plugin.PACKAGE_FILES,
+                         *(f"skills/{name}/SKILL.md" for name in install_skill.available_skills())):
+            target = self.root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(REPO / relative, target)
+
+    def _change_and_reject(self, relative, transform, message):
+        import json
+
+        path = self.root / relative
+        original = path.read_text(encoding="utf-8")
+        data = json.loads(original)
+        transform(data)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        try:
+            with self.assertRaisesRegex(ValueError, message):
+                self.packager.build_archive(self.destination, root=self.root)
+            self.assertFalse(self.destination.exists())
+        finally:
+            path.write_text(original, encoding="utf-8")
+
+    def test_host_identity_drift_prevents_packaging(self):
+        for relative in (".codex-plugin/plugin.json", ".claude-plugin/plugin.json"):
+            for key in ("name", "version", "description", "author"):
+                with self.subTest(relative=relative, key=key):
+                    self._change_and_reject(relative,
+                        lambda data: data.update({key: {"name": "different"} if key == "author" else "different"}),
+                        "identity mismatch")
+
+    def test_marketplace_sources_must_point_to_the_packaged_plugin(self):
+        for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+            for source in ("../outside", "./skills/"):
+                with self.subTest(relative=relative, source=source):
+                    def change(data):
+                        data["plugins"][0]["source"] = (
+                            {"source": "local", "path": source} if relative.startswith(".agents") else source)
+                    self._change_and_reject(relative, change, "source must resolve")
+
+    def test_missing_duplicate_and_malformed_catalog_entries_are_rejected(self):
+        for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+            for kind in ("missing", "duplicate", "not-a-list"):
+                with self.subTest(relative=relative, kind=kind):
+                    def change(data):
+                        entries = data["plugins"]
+                        data["plugins"] = [] if kind == "missing" else (
+                            entries * 2 if kind == "duplicate" else {})
+                    self._change_and_reject(relative, change, "exactly one|must be a list")
+
+    def test_marketplace_identity_cannot_drift_between_hosts(self):
+        self._change_and_reject(".agents/plugins/marketplace.json",
+                                lambda data: data.update(name="other-marketplace"), "names differ")
+
+    def test_invalid_json_or_non_object_manifest_does_not_create_archive(self):
+        path = self.root / ".claude-plugin/marketplace.json"
+        for raw in ("{", "[]"):
+            with self.subTest(raw=raw):
+                path.write_text(raw, encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    self.packager.build_archive(self.destination, root=self.root)
+                self.assertFalse(self.destination.exists())
+
+
+class PortableExecutionTests(unittest.TestCase):
+    """The distributed scripts run without a host CLI or repository working directory."""
+
+    def _assert_cli_from_unrelated_directory(self, skills: Path, cwd: Path):
+        import subprocess
+        import sys
+
+        flagship = skills / "create-best-proposal"
+        gate = flagship / "scripts" / "unified_gate.py"
+        audit = flagship / "fixtures" / "audit_ready_financial.json"
+        # Isolated Python excludes ambient PYTHONPATH/user-site setup. No shell or vendor CLI.
+        command = [sys.executable, "-I", str(gate), str(audit), "--no-explain"]
+        for options, expected, status in ((["--audit-only"], 0, "AUDIT-VALID"),
+                                          ([], 1, "BLOCKED")):
+            with self.subTest(options=options):
+                result = subprocess.run(command + options, cwd=cwd, capture_output=True,
+                                        text=True, encoding="utf-8", errors="replace", timeout=30)
+                self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                self.assertIn(f"STATUS: {status}", result.stdout)
+                self.assertNotIn("STATUS: SUBMISSION-READY", result.stdout)
+
+    def test_installed_skills_run_from_unicode_paths_and_unrelated_cwd(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            installed = base / "공통 스킬"
+            for name in install_skill.available_skills():
+                install_skill.install(installed, name)
+            work = base / "unrelated work"
+            work.mkdir()
+            self._assert_cli_from_unrelated_directory(installed, work)
+
+    def test_plugin_archive_runs_after_extraction_without_source_checkout(self):
+        import tempfile
+        import zipfile
+        import package_plugin
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            archive = package_plugin.build_archive(base / "plugin.zip")
+            extracted = base / "해제한 플러그인"
+            with zipfile.ZipFile(archive) as z:
+                z.extractall(extracted)
+            work = base / "unrelated work"
+            work.mkdir()
+            self._assert_cli_from_unrelated_directory(extracted / "skills", work)
 
 
 if __name__ == "__main__":

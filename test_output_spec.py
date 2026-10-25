@@ -1,8 +1,4 @@
-"""회귀 테스트 — 발주처 지정 출력 규격(meta.output_spec).
-
-공고 값이 내부 프로파일보다 우선하고, 생성기와 검사기가 같은 해석을 쓰며, 모르는 값은
-조용히 기본값으로 떨어지지 않아야 한다(fail-closed).
-"""
+"""Regression tests for buyer-specified output rules (meta.output_spec). Notice values override internal profiles, generator/checker share interpretation, and unknown values must fail closed rather than silently default."""
 from __future__ import annotations
 
 import json
@@ -74,7 +70,7 @@ class ResolveTests(unittest.TestCase):
     def test_font_floor_lifts_small_text_for_generator_and_checker(self):
         spec = dp.resolve_output_spec({"source": SOURCE, "font_min_pt": 10}, "detailed-submission")
         style = dp.effective_style("detailed-submission", spec)
-        # 생성기는 표·범례를 table-1로 그린다 → 하한 이상이 되도록 table은 하한+1
+        # Tables/legends render at table-1, so table must be minimum+1 to meet the floor.
         self.assertGreaterEqual(style["sizes"]["table"] - 1, 10)
         self.assertGreaterEqual(style["sizes"]["body"] - 1, 10)
         self.assertEqual(dp.get("detailed-submission")["sizes"]["table"], 10, "원본 프로파일은 불변")
@@ -127,7 +123,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_spec_page_limit_applies_without_cli_flag(self):
         out, proc = self._build("pages", {"source": SOURCE, "page_limit": 5})
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)  # non-strict: 위반만 보고
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)  # Non-strict mode reports violations only.
         self.assertIn("페이지 제한", proc.stdout)
         check = run_script(DC, out, "--stage", "draft")
         self.assertEqual(check.returncode, 1, check.stdout)

@@ -1,7 +1,4 @@
-"""e2e 골든 — 미니 RFP → slides.json → build_deck → deck_check → quality_gate → meta → audit → unified_gate.
-
-fixtures/e2e-mini-rfp 가 스킬 파이프라인 전 구간을 재현한다. LibreOffice가 없으면 렌더 단계만 건너뛴다.
-"""
+"""End-to-end golden: mini RFP → slides.json → build_deck → deck_check → quality_gate → meta → audit → unified_gate. fixtures/e2e-mini-rfp covers the entire skill pipeline; skip only rendering if LibreOffice is absent."""
 from __future__ import annotations
 
 import json
@@ -26,10 +23,7 @@ import deck_check  # noqa: E402
 
 
 def run(*args: object, **kw) -> Result:
-    """스킬 스크립트 실행 — 기본은 같은 프로세스(test_support 참조).
-
-    env를 주면 자식 프로세스로 승격된다(인코딩 계약 검사).
-    """
+    """Run skill scripts in-process by default (see test_support); supplying env promotes execution to a child process for encoding-contract checks."""
     return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
@@ -140,7 +134,7 @@ class DeckPipelineTests(unittest.TestCase):
 
     def test_emit_render_without_soffice_is_not_verified(self):
         rj = self.out / "render_none.json"
-        env = {"PATH": str(self.out)}  # soffice 못 찾게 PATH 비움
+        env = {"PATH": str(self.out)}  # Empty PATH to prevent locating soffice.
         import os
         env.update({k: v for k, v in os.environ.items() if k not in {"PATH"}})
         proc = run(DOC / "scripts/deck_check.py", self.pptx, "--emit-render", rj, env=env)
@@ -153,7 +147,7 @@ class DeckPipelineTests(unittest.TestCase):
     def test_quality_gate_draft_warns_submission_blocks(self):
         qg = DOC / "scripts/quality_gate.py"
         draft = run(qg, self.pptx, "--stage", "draft")
-        self.assertEqual(draft.returncode, 0, draft.stdout)  # [NEEDS INPUT]·○○는 초안 경고
+        self.assertEqual(draft.returncode, 0, draft.stdout)  # [NEEDS INPUT]·○○ are draft warnings.
         self.assertIn("[검토필요]", draft.stdout)
         sub = run(qg, self.pptx, "--stage", "submission")
         self.assertEqual(sub.returncode, 1)
@@ -165,7 +159,7 @@ class DeckPipelineTests(unittest.TestCase):
         proc = run(BEST / "scripts/build_audit_from_meta.py", FIX / "meta.json", "-o", audit)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(audit.read_text(encoding="utf-8"))
-        self.assertFalse(data["artifact_required"])  # draft 기본값
+        self.assertFalse(data["artifact_required"])  # draft default.
         gate = run(BEST / "scripts/unified_gate.py", audit, "--no-explain")
         self.assertEqual(gate.returncode, 1)
         for needle in ("requirement R6 is not approved", "blocking input I1 is open",
@@ -192,7 +186,7 @@ class DeckPipelineTests(unittest.TestCase):
         self.assertEqual(gate.returncode, 0, gate.stdout)
         self.assertIn("STATUS: DRAFT-READY", gate.stdout)
         self.assertNotIn("SUBMISSION-READY", gate.stdout)
-        # 같은 audit을 submission으로 올리면 렌더·패키지·클리어 요구로 막혀야 한다
+        # Promoting the same audit to submission must block on rendering, package, and clearance requirements.
         meta["mode"] = "submission"
         mp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
         run(BEST / "scripts/build_audit_from_meta.py", mp, "-o", audit)

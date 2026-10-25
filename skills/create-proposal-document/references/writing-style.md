@@ -1,28 +1,27 @@
-# 문장 작성 규칙 (writing-style)
+# Writing rules (writing-style)
 
-수주 제안서 16건에서 공통으로 관찰된 문체 규칙이다. 목적은 "평가위원이 빨리 읽고
-정확히 채점하게 하는 것"이며, 멋진 문장이 아니라 검증 가능한 문장을 쓴다.
+These rules were commonly observed in 16 winning proposals. Their purpose is to let evaluators read quickly
+and score accurately: write verifiable sentences rather than decorative prose.
 
-## 1. 기본 문체
+## 1. Basic style
 
-- **종결형**: 장표(PPTX) 본문은 명사형 종결("~ 제공", "~ 구성")이 기본.
-  리드문과 문서형(DOCX) 본문은 "~합니다" 경어체 완결 문장.
-  한 문서 안에서 혼용하지 않는다(리드문=경어체, 불릿=명사형은 허용되는 유일한 조합).
-- **문장 길이**: 리드문 1문장 60자 이내 권장. 불릿 1줄 40자 이내(2줄 초과 시 분할).
-- **주어**: "당사는" 남발 금지. 행위 주체가 바뀔 때만 명시(당사/발주처/벤더/컨소시엄사).
-- **능동태**: "~될 수 있습니다" 대신 "~합니다/제공합니다". 책임 주체를 흐리지 않는다.
+- **Endings**: Korean PPTX body text defaults to noun endings (Korean examples: "~ 제공", "~ 구성").
+  Lead statements and DOCX body text use complete polite sentences ending in "~합니다".
+  Do not mix styles within a document (polite leads + noun-form bullets is the only permitted combination).
+- **Length**: aim for at most 60 characters per lead sentence. At most 40 characters per bullet line (split when exceeding 2 lines).
+- **Subject**: avoid repeatedly using the Korean example "당사는". Name the actor only when it changes (proposer/buyer/vendor/consortium partner).
+- **Active voice**: replace the Korean example "~될 수 있습니다" with "~합니다/제공합니다". Keep responsibility clear.
 
-## 2. 과장어 금지 목록 (하드 룰)
+## 2. Banned exaggerations (hard rule)
 
-다음 표현은 **객관적 근거와 적용 범위를 같은 페이지에 명시할 수 없으면 사용 금지**:
+The following **Korean examples are prohibited unless objective evidence and scope appear on the same page**:
 
 > 최고, 완벽, 혁신적, 획기적, 100%, 무중단, 완전 자동화, 위험 제로, 유일한, 업계 1위
 
-예외: 발주처 원문(RFP·평가표)을 인용할 때는 출처를 밝히고 그대로 쓸 수 있다.
-단, 인용을 제안사의 사실 주장으로 되풀이하지 않는다.
+Exception: buyer source wording (RFP/evaluation table) may be quoted verbatim with attribution.
+Do not repeat such quotations as the proposer's factual claims.
 
-**영문 제안 금지어 사전** (영문 산출 시 동일 규율을 적용한다. 한국어 목록과 1:1이
-아니라 영문 관용 과장어까지 포함):
+**English banned-word dictionary** (apply the same discipline to English output; includes idiomatic English exaggerations rather than a 1:1 translation):
 
 > best, best-in-class, world-class, industry-leading, leading, unique, only,
 > perfect, flawless, innovative, revolutionary, cutting-edge, state-of-the-art,
@@ -30,27 +29,30 @@
 > complete/total coverage, seamless, effortless, guaranteed, bulletproof,
 > future-proof, unlimited, instant, significant savings
 
-대체 원칙(한국어와 동일): 정확한 역량 + 경계 + 근거 + 기대 효과로 바꾼다.
-예: "industry-leading performance" → "measured N TPS under [조건], verified by [출처]";
+Replacement principle (same as Korean): precise capability + boundary + evidence + expected benefit.
+Preserved mixed-language examples:
+"industry-leading performance" → "measured N TPS under [조건], verified by [출처]";
 "zero downtime" → "target [가용률/RTO] with [이중화 구성], validated by [시험]";
 "guaranteed 40% savings" → "estimated up to 40% against [기준선], subject to [전제]".
-발주처 원문 인용은 출처를 밝히면 예외이나, 제안사 사실 주장으로 되풀이하지 않는다.
+Attributed quotations from buyer sources are exceptions, but must not be repeated as proposer factual claims.
 
-대체 패턴 (실제 수주 제안서 관례):
+Korean replacement examples (practice in winning proposals):
 
-| 금지 표현 | 대체 표현 + 근거 형식 |
+| Banned expression | Replacement wording + evidence format |
 |---|---|
-| 업계 최고의 기술력 | "{제조사} 최상위 파트너 인증, 공인 기술자격 N명 보유" (자격증 표 병기) |
-| 무중단 서비스 | "관리 노드 3중화 + 로드밸런서 이중화로 단일 장애점(SPOF) 제거" (구성도 병기) |
-| 100% 장애 예방 | "월 1회 예방점검 N개 항목 수행으로 장애 사전 감지" (점검 항목표 병기) |
-| 혁신적인 솔루션 | "검증된"/"안정적인" + 레퍼런스 표(발주처·기간·규모) |
+| 업계 최고의 기술력 | "{제조사} 최상위 파트너 인증, 공인 기술자격 N명 보유" (include certification table) |
+| 무중단 서비스 | "관리 노드 3중화 + 로드밸런서 이중화로 단일 장애점(SPOF) 제거" (include architecture) |
+| 100% 장애 예방 | "월 1회 예방점검 N개 항목 수행으로 장애 사전 감지" (include inspection item table) |
+| 혁신적인 솔루션 | "검증된"/"안정적인" + reference table (buyer, period, scale) |
 | 완전 자동화 | "설치·배포 자동화(범위: OS 프로비저닝~패치), 승인 절차는 수동 유지" |
 
-## 2-1. 모호 확약 (AMBIGUOUS_COMMITMENT)
+## 2-1. Ambiguous commitments (AMBIGUOUS_COMMITMENT)
 
-과장어가 약속을 부풀린다면, 모호 확약은 약속을 흐린다. 제안사 행위에 "지원 가능",
-"검토 예정", "협의 가능", "제공할 수 있음", "적극 검토", "노력하겠습니다"를 쓰면서
-**누가 / 무엇을 / 언제 / 어느 조건에서 / 어느 범위까지**가 없으면 평가자는 약속이 없다고 읽는다.
+Exaggerations inflate promises; ambiguous commitments obscure them. Korean examples include "지원 가능",
+"검토 예정", "협의 가능", "제공할 수 있음", "적극 검토", "노력하겠습니다" for proposer actions.
+Without **who / what / when / under which conditions / to what extent**, evaluators read no commitment.
+
+Korean examples:
 
 | BAD | BETTER |
 |---|---|
@@ -58,45 +60,44 @@
 | 성능 저하 시 튜닝 지원 예정입니다. | 월간 성능 보고에서 기준 초과 항목을 식별하고, 다음 정기점검에서 튜닝 결과를 보고합니다. |
 | 개선 방안을 적극 검토하겠습니다. | 개선 요청은 변경관리 절차로 접수해 영향도 분석 결과를 10영업일 이내 회신합니다. |
 
-단어 자체를 금지하지 않는다. 다음은 정상 문장이다.
+The words themselves are not banned. These are valid cases:
 
-- 실행 조건을 누가 정하는지 밝힌 문장: "발주처가 승인하는 경우 추가 교육 제공이 가능합니다."
-- 제품·시스템의 기능 설명: "클러스터는 노드 추가로 수평 확장이 가능합니다."
-- 발주처·평가위원이 주어인 문장: "발주처는 결과 보고서를 검토할 수 있습니다."
-- 시간·횟수·수량이 붙은 문장
+- The sentence identifies who sets the execution condition. Korean example: "발주처가 승인하는 경우 추가 교육 제공이 가능합니다."
+- Product/system capability description. Korean example: "클러스터는 노드 추가로 수평 확장이 가능합니다."
+- Buyer/evaluator as subject. Korean example: "발주처는 결과 보고서를 검토할 수 있습니다."
+- Sentences specifying time, frequency, or quantity.
 
-RFI 응답에서는 확약 대신 추정 범위·대안·확인 질문으로 답한다(확약 자체가 게이트에서 차단된다).
-수치를 붙일 근거가 없으면 흐린 표현으로 덮지 말고 `[NEEDS INPUT: owner — 항목]`을 남긴다.
+In RFI responses, use estimated ranges, alternatives, and clarification questions instead of commitments (commitments themselves are blocked by the gate).
+If no evidence supports a figure, leave `[NEEDS INPUT: owner — 항목]` rather than covering the gap with vague wording.
 
-`quality_gate.py`는 서비스 행위와 흐린 서술어의 결합을 `[모호확약]` **비차단 경고**로 보고한다.
-문장 단위 휴리스틱이므로 오탐·미탐이 있다. 제출 판정에는 반영하지 않으며, 사람이 문맥을 보고
-고친다.
+`quality_gate.py` reports service actions paired with vague predicates as a **nonblocking warning** labeled `[모호확약]`.
+This sentence-level heuristic can produce false positives and negatives. It does not affect submission decisions; a human reviews and corrects context.
 
-## 3. 수치 표기 규칙
+## 3. Numeric notation
 
-- 단위 필수: 수량·용량·기간·금액에 단위를 붙인다 (대, 식, TB, M/M, 개월, 백만원).
-- 천 단위 콤마, 소수점은 필요한 자리까지만. 범위는 물결(~) 통일.
-- 산식 있는 수치(기대효과·절감액)는 **산식과 전제를 각주로** 명시.
-- 날짜: YYYY.MM.DD 또는 YYYY년 M월. 문서 내 한 가지로 통일.
-- 기준일 표기: 변동 가능한 수치(인원·실적·재무)에는 "(2026.6월 기준)" 형식 병기.
+- Units required for counts, capacity, duration, and money (Korean unit examples: 대, 식, TB, M/M, 개월, 백만원).
+- Use thousands separators and only necessary decimal places. Use tilde (~) consistently for ranges.
+- For calculated figures (benefits/savings), **footnote the formula and assumptions**.
+- Dates: YYYY.MM.DD or the Korean format YYYY년 M월; use one format throughout.
+- Reference dates: annotate changeable figures (staff, track record, finance), for example the Korean "(2026.6월 기준)".
 
-## 4. 용어 일관성
+## 4. Terminology consistency
 
-- 첫 등장 시 "완전한 명칭(약어)" 표기, 이후 약어. 예: "서비스 수준 협약(SLA)".
-- 약어표를 별첨에 두는 것이 관례(분석 샘플 공통).
-- 제품명은 제조사 공식 표기를 따른다. 임의 한글 음차·비공식 축약 금지.
-- 발주처 표기 통일: RFP의 자기 지칭("당행", "당사", "우리 공사")을 확인해 그대로 사용.
-- 동일 개념 이칭 금지: "장애 대응"과 "장애 처리"를 섞지 않는다. 용어집을 먼저 정하고 쓴다.
+- On first mention use the full name (abbreviation), then the abbreviation. Korean example: "서비스 수준 협약(SLA)".
+- An appendix glossary of abbreviations is conventional (common across analyzed samples).
+- Follow official manufacturer product names. No arbitrary Korean transliterations or unofficial abbreviations.
+- Use the buyer's RFP self-reference consistently (Korean examples: "당행", "당사", "우리 공사").
+- Do not mix names for one concept (Korean examples: "장애 대응" and "장애 처리"). Establish a glossary first.
 
-## 5. 단락·불릿 구조
+## 5. Paragraph and bullet structure
 
-- 불릿 깊이 최대 2단. 3단 이상 필요하면 표로 전환한다.
-- 병렬 불릿은 형태 통일(모두 명사형 또는 모두 동사형).
-- "등", "및 기타"로 얼버무리지 않는다 — 범위가 열려 보이면 계약 리스크.
-  나열이 길면 "총 N개 항목, 전체 목록은 별첨 X" 형식으로 닫는다.
+- Maximum bullet depth: 2. Convert to a table if 3 or more levels are needed.
+- Keep parallel bullets grammatically consistent (all noun forms or all verb forms).
+- Do not leave scope vague with Korean expressions "등", "및 기타": open-ended scope creates contractual risk.
+  Close long lists with the Korean example "총 N개 항목, 전체 목록은 별첨 X".
 
-## 6. 강조 방법
+## 6. Emphasis
 
-- 굵게(bold)는 페이지당 핵심 1~2곳. 밑줄·기울임 병용 금지.
-- 수작업 굵게로 위계를 만들지 않는다 — 제목 위계는 스타일(제목1/제목2)로만.
-- 색 강조는 지정 주조색 단일색(visual-style.md 참조). 적색은 리스크·감액 수치 전용.
+- Bold only 1~2 key points per page. Do not combine underline and italics.
+- Do not create hierarchy with manually applied bold: use heading styles (Heading 1/Heading 2).
+- Use the single prescribed primary color for emphasis (see visual-style.md). Red is reserved for risks and reductions.

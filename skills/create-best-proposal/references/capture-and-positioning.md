@@ -1,65 +1,64 @@
-# Capture & Positioning — RFP 이전 포지셔닝
+# Pre-RFP capture, positioning, and proposal strategy
 
-공고가 나오기 전이나 공고 직후, 무엇을 강조하고 무엇을 보완해야 하는지 정리하는 작성
-양식이다. 결과는 **Pink 입력 보강용**이다. `bid_decision`, audit JSON, 제출 게이트를
-대체하지 않으며 audit 스키마에 필드를 추가하지 않는다. 별도 메모(`capture.md`)로 둔다.
+Use this writing form before or immediately after publication to identify emphasis and gaps.
+Its output **strengthens Pink inputs**. It does not replace `bid_decision`, audit JSON, or submission gates,
+and adds no audit schema fields. Keep it as a separate memo (`capture.md`).
 
-## 1. 적용 조건
+## 1. When to use
 
-- RFI·사전규격 공개 단계
-- 사전영업·요구 협의 단계
-- 공동 제안·협력사·제조사 역할 분담 결정
-- 경쟁 구도가 결과를 좌우하는 사업
-- capability gap 또는 가격 포지션 판단이 필요한 경우
+- RFI/preliminary-specification publication.
+- Presales/requirements discussion.
+- Joint proposal/partner/manufacturer role allocation.
+- Opportunities where competitive positioning determines the outcome.
+- Capability-gap or price-position assessment.
 
-본 RFP만 받은 상태에서 바로 작성하는 경우에는 §2 중 `decision_drivers`와
-`capability_gaps`만 채워도 된다.
+For immediate drafting from only the final RFP, completing `decision_drivers` and `capability_gaps` in §2 suffices.
 
-## 2. 작성 양식
+## 2. Writing form
 
-모든 항목에 구분 태그를 붙인다.
+Tag every item:
 
-- `FACT` — 공고·공식 Q&A·발주처 공개자료·승인 사내자료로 확인됨(출처 기재)
-- `HYPOTHESIS` — 추론. 확인 방법과 확인 기한을 함께 적는다
-- `UNKNOWN` — 모름. 질의·영업 확인 대상으로 넘긴다
+- `FACT` — confirmed by notice, official Q&A, buyer public material, or approved internal material (cite source).
+- `HYPOTHESIS` — inference; include a verification method and deadline.
+- `UNKNOWN` — unknown; route to formal questions/sales confirmation.
 
-```
-opportunity_summary     사업 목적·범위·일정 (FACT 위주)
-decision_drivers[]      발주처가 중시하는 판단 기준 — 각 항목에 태그·출처
-positioning_axes[]      비교축별 우리 위치 — 강점/보완/불리
-capability_gaps[]       요구 대비 부족 역량 — 치유 방법(협력·인력·인증)·owner·기한
-pursuit_risks[]         참여 자체의 위험 — 일정·자격·인력·가격·계약 조건
+```text
+opportunity_summary     Purpose, scope, schedule (mostly FACT)
+decision_drivers[]      Buyer decision criteria; tag and source per item
+positioning_axes[]      Our position on each axis: strength/gap/disadvantage
+capability_gaps[]       Gaps against requirements; remedy (partner/staff/certification), owner, deadline
+pursuit_risks[]         Risks of pursuit: schedule/eligibility/staff/price/contract terms
 price_posture           known range / cost floor / commercial constraints / unknowns
 ```
 
-## 3. 비교축 (경쟁사 이름보다 축 중심)
+## 3. Comparison axes (axes before competitor names)
 
-전환 위험, 서비스 중단 영향, 운영 안정성, 기술지원 체계, 보안, 확장성, 호환성,
-공급사 종속(vendor dependency), 유사 실적, 투입 인력, 가격·TCO
+Transition risk, service-interruption impact, operational stability, technical support, security, scalability,
+compatibility, vendor dependency, comparable track record, assigned personnel, price/TCO.
 
-각 축에 대해 "발주처가 이 축을 중시한다는 근거"(`FACT`/`HYPOTHESIS`)와
-"우리가 이 축에서 증명할 수단"을 짝으로 적는다. 증명 수단이 없으면 강점으로 쓰지 않는다.
+Pair evidence that the buyer values an axis (`FACT`/`HYPOTHESIS`) with how we can prove our position.
+Without proof, do not call it a strength.
 
-## 4. Price Posture
+## 4. Price strategy
 
-Price-to-Win(낙찰가 추정)은 쓰지 않는다. 아래만 기록한다.
+Do not use Price-to-Win (estimated winning price). Record only:
 
-- known range: 공고에 공개된 사업 예산·기초금액 등 공식 값
-- cost floor: 사내 원가 기준 하한(외부 문서에 넣지 않음)
-- commercial constraints: 라이선스 단가 구조, 제조사 조건, 분할 납품
-- unknowns: 확인하지 못한 가격 변수
+- known range: official published budget/base amount.
+- cost floor: internal cost floor (never include in external documents).
+- commercial constraints: license unit-price structure, manufacturer terms, split deliveries.
+- unknowns: unverified price variables.
 
-## 5. 생성하지 않는 것
+## 5. Do not generate
 
-- 근거 없는 경쟁사 약점, 경쟁사 가격·전략 추정
-- 발주처 의사결정자 신원·성향
-- 비공개 예산, 예상 낙찰가격
-- 수주확률·승률
+- Unsupported competitor weaknesses or estimated competitor prices/strategies.
+- Identities or dispositions of buyer decision makers.
+- Nonpublic budgets or expected winning prices.
+- Win probabilities/rates.
 
-## 6. Pink로 넘기는 방법
+## 6. Handoff to Pink
 
-- `decision_drivers`의 `FACT` → 평가 항목별 `evaluator_question` 작성 근거
-  ([evaluator-journey.md](evaluator-journey.md))
-- 강점 축 + 증명 수단 → Win Theme 후보(각 theme은 `req_ids` 필수)
-- `capability_gaps` → bid 4단 판정의 조건부 조건 후보(owner·기한 필수)
-- `HYPOTHESIS`·`UNKNOWN` → 질의 목록. 제안서 본문 사실로 쓰지 않는다
+- `FACT` in `decision_drivers` → basis for each criterion's `evaluator_question`
+  ([evaluator-journey.md](evaluator-journey.md)).
+- Strength axis + proof → Win Theme candidate (each theme requires `req_ids`).
+- `capability_gaps` → candidate conditional conditions for the four-way bid decision (owner/deadline required).
+- `HYPOTHESIS`/`UNKNOWN` → questions; never proposal-body facts.

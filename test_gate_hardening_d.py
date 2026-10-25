@@ -1,8 +1,4 @@
-"""8차 하드닝(D01–D09) 회귀 — 이번 배치에서 막은 허위 통과·허위 차단을 고정한다.
-
-각 테스트는 "고치기 전에는 통과했다"를 재현한다. 검사 자체가 아니라 검사가 없던
-자리를 지키는 것이 목적이므로, 규칙을 되풀이하지 않고 결과(차단/통과)로 확인한다.
-"""
+"""Round 8 hardening regressions (D01–D09) for false passes and false blocks fixed in this batch. Reproduce previously passing inputs and assert outcomes, protecting missing-check boundaries rather than duplicating rules."""
 from __future__ import annotations
 
 import json
@@ -46,7 +42,7 @@ def run(*args, **kw) -> subprocess.CompletedProcess:
 
 
 class D01ConversionKeepsApprovalTests(unittest.TestCase):
-    """meta→audit 변환이 검사·승인 기록을 버리면, 승인까지 마친 정상 경로가 차단된다."""
+    """Dropping check/approval records during meta→audit conversion blocks valid approved workflows."""
 
     def test_render_flags_survive_conversion(self):
         meta = json.loads((FIX / "meta.json").read_text(encoding="utf-8"))
@@ -56,7 +52,7 @@ class D01ConversionKeepsApprovalTests(unittest.TestCase):
                           "artifact_hash": "sha256:" + "a" * 64, "tool": "deck_check",
                           "evidence": ["전 페이지 확인"]}
         audit = bam.build(meta, strict=False, warnings=[]) if hasattr(bam, "build") else None
-        if audit is None:  # 공개 API 이름이 다르면 CLI로 확인한다
+        if audit is None:  # Check via CLI if public API names differ.
             with tempfile.TemporaryDirectory() as d:
                 mp, ap = Path(d) / "m.json", Path(d) / "a.json"
                 mp.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
@@ -78,10 +74,10 @@ class D01ConversionKeepsApprovalTests(unittest.TestCase):
 
 
 class D02RenderRecordTests(unittest.TestCase):
-    """레이아웃 검사 기록은 '있으면 검사'가 아니라 필수다 — 지우면 요구가 사라졌다."""
+    """Layout inspection records are required, not merely checked when present; omission previously removed the requirement."""
 
     def _submission(self, **render):
-        from test_proposal_gate import ready_data  # 공유 픽스처
+        from test_proposal_gate import ready_data  # Shared fixture.
         data = ready_data()
         data["render"].update(render)
         return pg.evaluate(data)
@@ -98,7 +94,7 @@ class D02RenderRecordTests(unittest.TestCase):
 
 
 class D04ArithmeticTests(unittest.TestCase):
-    """원장 산술의 계산 불가·자기참조·금액 오차를 통과로 두지 않는다."""
+    """Do not pass uncomputable, self-referential, or currency-error ledger arithmetic."""
 
     def test_non_finite_value_is_rejected(self):
         failures = pg.check_numbers([{"id": "N1", "label": "a", "value": float("inf"), "unit": "KRW"}])
@@ -114,7 +110,7 @@ class D04ArithmeticTests(unittest.TestCase):
         self.assertTrue(any("lacks a finite 'amount'" in f for f in pg.check_numbers(no_amount)))
 
     def test_currency_uses_absolute_tolerance(self):
-        """1원 차이는 반올림이 아니라 오류다 — 상대 오차로는 큰 금액에서 조용히 통과했다."""
+        """A 1-won discrepancy is an error, not rounding; relative tolerance silently allowed it on large amounts."""
         entries = [{"id": "N1", "label": "합계", "value": 1_000_000_000, "unit": "KRW",
                     "components": ["N2", "N3"]},
                    {"id": "N2", "label": "a", "value": 600_000_000, "unit": "KRW"},
@@ -131,7 +127,7 @@ class D04ArithmeticTests(unittest.TestCase):
 
 
 class D03NumberMatchingTests(unittest.TestCase):
-    """같은 숫자라도 소수·단위·부호가 다르면 다른 값이다."""
+    """Identical digits with different decimals, units, or signs are different values."""
 
     def test_decimal_and_prefix_do_not_count_as_a_match(self):
         self.assertFalse(cn._found("기간 37.5개월", "37", "개월"))
@@ -155,7 +151,7 @@ class D03NumberMatchingTests(unittest.TestCase):
 
 
 class D05PackageStructureTests(unittest.TestCase):
-    """열리지 않는 패키지를 검사해 통과시키지 않는다."""
+    """Do not inspect and pass packages that cannot open."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -197,7 +193,7 @@ class D05PackageStructureTests(unittest.TestCase):
 
 @unittest.skipUnless(HAS_PPTX, "python-pptx 없음")
 class D06LayoutInspectionTests(unittest.TestCase):
-    """폰트 하한과 화면 밖 판정이 실제 장표를 정확히 재야 한다."""
+    """Font minima and off-slide decisions must measure actual slides accurately."""
 
     def test_body_and_small_text_have_separate_floors(self):
         import deck_profiles as dp
@@ -214,7 +210,7 @@ class D06LayoutInspectionTests(unittest.TestCase):
         box.name = "BODY_TEXT"
         para = box.text_frame.paragraphs[0]
         para.text = "문단 수준에서 크기를 준 본문"
-        para.font.size = Pt(6)          # run에는 크기가 없다
+        para.font.size = Pt(6)          # The run has no size.
         body_pt, _ = deck_check.min_font_pt(slide)
         self.assertEqual(body_pt, 6.0)
 
@@ -230,7 +226,7 @@ class D06LayoutInspectionTests(unittest.TestCase):
 
 
 class D07InstallerTests(unittest.TestCase):
-    """설치기가 사용자 자료를 지우지 않는다."""
+    """The installer must not delete user data."""
 
     def test_non_skill_directory_is_not_deleted(self):
         with tempfile.TemporaryDirectory() as d:
@@ -255,7 +251,7 @@ class D07InstallerTests(unittest.TestCase):
 
 
 class D08ExplainTests(unittest.TestCase):
-    """문서를 보지 않았으면 '해시 일치'라고 쓰지 않는다."""
+    """Do not claim hash agreement without inspecting the document."""
 
     def test_audit_only_explain_does_not_claim_a_hash_match(self):
         text = pg.explain_markdown({"mode": "submission"}, [], [], label="SUBMISSION-READY",
@@ -270,7 +266,7 @@ class D08ExplainTests(unittest.TestCase):
 
 
 class D09LedgerSubstanceTests(unittest.TestCase):
-    """ID만 있는 껍데기 원장과, 검사에서 통째로 빠지던 분류를 막는다."""
+    """Block ID-only ledgers and classifications previously omitted from checks."""
 
     def _submission(self, **over):
         data = {"mode": "submission", "requirements": [], "claims": []}
@@ -301,11 +297,7 @@ class D09LedgerSubstanceTests(unittest.TestCase):
 
 @unittest.skipUnless(HAS_PPTX, "python-pptx 없음")
 class NormalPathTests(unittest.TestCase):
-    """정상 경로가 실제로 끝까지 간다 — 강화가 정상 산출물을 막지 않는지 확인한다.
-
-    승인된 입력·원장 → PPTX 생성 → 배치·수치·패키지 검사 → 그 파일에 대한 승인 기록 →
-    meta→audit 변환 → 같은 파일에 대한 최종 판정.
-    """
+    """Verify the valid workflow reaches completion without hardening blocking valid output: approved input/ledger → PPTX generation → layout/numbers/package checks → approval bound to that file → meta→audit conversion → final decision on the same file."""
 
     def test_approved_inputs_reach_submission_ready_on_the_same_file(self):
         import hashlib
@@ -313,8 +305,8 @@ class NormalPathTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         out = Path(tmp.name)
         pptx = out / "final.pptx"
-        # 골든 픽스처는 일부러 미완성(○○·NEEDS INPUT)이다. 정상 경로 검증에는
-        # 그 자리를 채운 사본을 쓴다 — 채우지 않으면 품질 게이트에서 정당하게 막힌다.
+        # Golden fixtures intentionally contain incomplete ○○·NEEDS INPUT markers; for valid-flow tests,
+        # use a filled copy or the quality gate rightly blocks it.
         spec = json.loads((FIX / "slides.json").read_text(encoding="utf-8"))
 
         def resolve(node):
@@ -331,16 +323,16 @@ class NormalPathTests(unittest.TestCase):
         resolved.write_text(json.dumps(resolve(spec), ensure_ascii=False), encoding="utf-8")
         self.assertEqual(run(DOC / "scripts/build_deck.py", resolved,
                              "-o", pptx, "--strict").returncode, 0)
-        # 1) 배치 검사 — 실제 파일을 연다
+        # 1) Layout inspection opens the actual file.
         check = run(DOC / "scripts/deck_check.py", pptx, "--stage", "draft")
         self.assertEqual(check.returncode, 0, check.stdout)
-        # 2) 수치 대조 — 원장이 본문에 실제로 있는지
+        # 2) Numerical comparison confirms ledger values occur in the body.
         meta = json.loads((FIX / "meta.json").read_text(encoding="utf-8"))
         ledger = out / "numbers.json"
         ledger.write_text(json.dumps(meta["numbers"], ensure_ascii=False), encoding="utf-8")
         nums = run(DOC / "scripts/check_numbers.py", pptx, "--numbers", ledger)
         self.assertEqual(nums.returncode, 0, nums.stdout)
-        # 3) 승인 기록은 이 파일의 해시에 묶는다
+        # 3) Bind approval records to this file hash.
         digest = "sha256:" + hashlib.sha256(pptx.read_bytes()).hexdigest()
         meta.update(mode="submission", bid_decision="bid", bid_conditions=[], unresolved_tokens=[])
         meta["eligibility"][0]["met"] = True

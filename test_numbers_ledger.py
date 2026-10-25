@@ -1,8 +1,4 @@
-"""회귀 테스트 — 수치 원장(F06 잔여): 산술을 게이트가 직접 계산하고, 문서와 대조한다.
-
-`checks.arithmetic: true`는 사람이 기록하는 자기선언이라 본문에 100+200=900이 적혀
-있어도 통과했다. 원장에 값을 적으면 합계·비율은 게이트가, 문서 일치는 check_numbers가 본다.
-"""
+"""Numerical-ledger regressions (remaining F06): gate arithmetic is recalculated and compared with documents. checks.arithmetic: true was a human declaration that passed even with 100+200=900 in the body; ledger entries let the gate check sums/ratios and check_numbers inspect document agreement."""
 from __future__ import annotations
 
 import copy
@@ -45,7 +41,7 @@ def ledger() -> list[dict]:
 
 
 class ArithmeticTests(unittest.TestCase):
-    """합계·비율을 게이트가 실제로 계산한다."""
+    """The gate actually recalculates sums and ratios."""
 
     def test_correct_ledger_passes(self):
         self.assertEqual(pg.check_numbers(ledger()), [])
@@ -90,11 +86,11 @@ class ArithmeticTests(unittest.TestCase):
             {"id": "N2", "label": "a", "value": 33.33, "unit": "KRW"},
             {"id": "N3", "label": "b", "value": 66.66, "unit": "KRW"},
         ]
-        self.assertEqual(pg.check_numbers(entries), [])  # 0.01 차이는 기본 허용오차 안
+        self.assertEqual(pg.check_numbers(entries), [])  # A 0.01 difference is within the default tolerance.
 
 
 class GateBindingTests(unittest.TestCase):
-    """제출 모드에서 arithmetic 자기선언은 원장에 결속된다."""
+    """Bind arithmetic self-declarations to the ledger in submission mode."""
 
     def _audit(self) -> dict:
         return json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
@@ -115,7 +111,7 @@ class GateBindingTests(unittest.TestCase):
 
     def test_wrong_arithmetic_blocks_even_when_declared_true(self):
         data = self._audit()
-        data["numbers"][0]["value"] = 9900000000  # 합계 불일치
+        data["numbers"][0]["value"] = 9900000000  # Sum mismatch.
         self.assertIs(data["checks"]["arithmetic"], True)
         self.assertTrue(any("합계가 맞지 않는다" in f for f in pg.evaluate(data)))
 
@@ -135,7 +131,7 @@ class GateBindingTests(unittest.TestCase):
 
 
 class DocumentComparisonTests(unittest.TestCase):
-    """원장 값이 실제 문서에 있는지 대조한다(한글 표기 변형 포함)."""
+    """Compare ledger values with actual documents, including Korean notation variants."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -169,7 +165,7 @@ class DocumentComparisonTests(unittest.TestCase):
         self.assertIn("찾지 못했다", proc.stdout)
 
     def test_digit_boundary_is_respected(self):
-        """370억은 37억이 아니다 — 부분 문자열로 통과시키지 않는다."""
+        """370억 is not 37억; substring matches must not pass."""
         proc = self._check("총 사업비 370억원, 4000대")
         self.assertEqual(proc.returncode, 1)
 

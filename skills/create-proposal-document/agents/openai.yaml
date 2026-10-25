@@ -1,9 +1,9 @@
-# 타 에이전트 런타임용 메타데이터 (선택 파일)
-# Claude에서는 SKILL.md frontmatter가 우선한다.
-# 형제 레이어: 암시 호출 금지 — 플래그십(create-best-proposal)만 제안서 작성 진입점.
+# Optional metadata for compatible agent runtimes.
+# Claude prioritizes SKILL.md frontmatter.
+# Internal layer: explicit invocation only; use create-best-proposal for full proposals.
 interface:
-  display_name: "제안서 콘텐츠 레이어 (create-proposal-document)"
-  short_description: "IT 인프라·클라우드·유지보수 제안서(PPTX/DOCX) 구조·문장·근거·검수 레이어(명시 호출 전용)"
-  default_prompt: "Use $create-proposal-document only for the content/style/deck layer (or when create-best-proposal is unavailable). For full proposal writing prefer $create-best-proposal."
+  display_name: "Proposal Content"
+  short_description: "Proposal content, writing style, and editable slide decks"
+  default_prompt: "Use $create-proposal-document only for content, style, and deck work, or when create-best-proposal is unavailable. For full proposals prefer create-best-proposal and report unperformed checks."
 policy:
   allow_implicit_invocation: false

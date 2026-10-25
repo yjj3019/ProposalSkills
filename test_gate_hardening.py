@@ -1,8 +1,4 @@
-"""회귀 테스트 — 2026-09 게이트 신뢰성 감사에서 발견된 허위 통과(P0)·fail-open(P1) 재발 방지.
-
-각 테스트는 감사 당시 실제로 '통과'했던 입력을 재현하고, 이제 차단·오류로 판정되는지 확인한다.
-python-pptx/python-docx/openpyxl 없이 zipfile로 OOXML을 직접 조립한다(CI 의존성 최소화).
-"""
+"""Regression tests for P0 false passes and P1 fail-open defects found in the 2026-09 gate reliability audit. Reproduce previously passing inputs and verify they now block or error. Build OOXML directly with zipfile, avoiding python-pptx/python-docx/openpyxl CI dependencies."""
 from __future__ import annotations
 
 import hashlib
@@ -35,7 +31,7 @@ UG = REPO / "skills/create-best-proposal/scripts/unified_gate.py"
 FIXTURES = REPO / "skills/create-best-proposal/fixtures"
 
 def pptx(path: Path, parts: dict[str, str]) -> None:
-    """parts: {zip 내부 경로: 문단 텍스트}. 텍스트는 run 분할 상태로 기록한다."""
+    """parts: {internal ZIP path: paragraph text}; write text as split runs."""
     fixtures.pptx(path, parts)
 
 
@@ -58,8 +54,8 @@ class QualityGateScanScopeTests(unittest.TestCase):
     def test_split_runs_and_nbsp_are_detected(self):
         p = self.dir / "d.pptx"
         fixtures.pptx(p, raw={
-            # 실제 슬라이드는 루트가 하나다 — 문단만 나열한 조각은 XML 문서가 아니며
-            # 실제 로더도 열지 못한다(픽스처가 실제 파일과 달라지면 안 된다).
+            # Real slides have one root; paragraph fragments are not XML documents and cannot
+            # be opened by actual loaders. Fixtures must behave like real files.
             "ppt/slides/slide1.xml":
                 "<p:sld>"
                 "<a:p><a:r><a:t>업계 최</a:t></a:r><a:r><a:t>고 수준</a:t></a:r></a:p>"
@@ -208,7 +204,7 @@ class UnifiedGateModeTests(unittest.TestCase):
             self.assertIn("NOTE: audit.mode='draft'", proc.stdout)
 
     def _audit_bound_to(self, doc: Path, tmp: str) -> Path:
-        """audit의 render/package 해시를 실제 파일 해시로 맞춘 사본을 만든다."""
+        """Create an audit copy whose render/package hashes match the actual file."""
         data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
         data["attachments"] = []
         digest = "sha256:" + hashlib.sha256(doc.read_bytes()).hexdigest()
@@ -227,16 +223,16 @@ class UnifiedGateModeTests(unittest.TestCase):
             self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
             self.assertIn("STATUS: SUBMISSION-READY", ok.stdout)
 
-            # 1) 문서 없이 제출 판정을 받으려 하면 차단된다.
+            # 1) Attempts to obtain submission readiness without a document are blocked.
             none = self._run(audit, "--no-explain")
             self.assertEqual(none.returncode, 1)
             self.assertIn("--doc", none.stdout)
-            # 2) --audit-only는 통과하되 SUBMISSION-READY로 표시하지 않는다.
+            # 2) --audit-only passes without claiming SUBMISSION-READY.
             only = self._run(audit, "--audit-only", "--no-explain")
             self.assertEqual(only.returncode, 0, only.stdout)
             self.assertIn("STATUS: AUDIT-VALID", only.stdout)
             self.assertNotIn("STATUS: SUBMISSION-READY", only.stdout)
-            # 3) 검토 이후 내용이 바뀐 파일은 과거 판정을 재사용하지 못한다.
+            # 3) Files changed after review cannot reuse previous decisions.
             changed = Path(tmp) / "changed.pptx"
             fixtures.submission_pptx(changed, "가격이 바뀐 문서")
             drift = self._run(audit, "--doc", str(changed), "--no-explain")
@@ -330,7 +326,7 @@ class InstallSkillTests(unittest.TestCase):
     def test_partial_install_is_replaced_and_force_overwrites(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "create-winning-proposal").mkdir()  # SKILL.md 없는 불완전 디렉터리
+            (root / "create-winning-proposal").mkdir()  # Incomplete directory without SKILL.md.
             target = install_skill.install(root, "create-winning-proposal")
             self.assertTrue((target / "SKILL.md").is_file())
             with self.assertRaises(SystemExit):

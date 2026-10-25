@@ -1,216 +1,248 @@
-# 장표 생산 (deck-production) — slides.json → PPTX → 검사
+# Deck production (deck-production) — slides.json → PPTX → checks
 
-visual-style.md의 규격을 **매번 손으로 재현하지 않는다.** 장표 계획을 `slides.json`으로 쓰고
-`build_deck.py`로 생성한 뒤 `deck_check.py`로 레이아웃·렌더를 검사한다. 모델이 하는 일은
-**내용(리드문·표 데이터·도식 요소)을 채우는 것**이고, 좌표·색·폰트·위계는 스크립트가 고정한다.
+**Do not manually recreate** visual-style.md specifications on every run. Write the plan in `slides.json`,
+generate with `build_deck.py`, and check layout/render with `deck_check.py`.
+The model **fills content (leads, table data, diagram elements)**; scripts fix coordinates, colors, fonts, hierarchy.
 
 ```bash
-python scripts/build_deck.py slides.json -o 제안서.pptx --strict          # 생성
+python scripts/build_deck.py slides.json -o 제안서.pptx --strict          # Generate
 python scripts/deck_check.py 제안서.pptx --max-pages 40 --exclude-cover-toc \
        --require-req-ids --stage draft --render --png-dir out/png \
-       --emit-render render.json                                            # 린트+렌더+증적
-python scripts/quality_gate.py 제안서.pptx --stage draft                    # 텍스트 검수
+       --emit-render render.json                                            # Lint + render + evidence
+python scripts/quality_gate.py 제안서.pptx --stage draft                    # Text review
 ```
 
-`render.json`을 meta의 `render` 블록에 넣으면 audit의 render 필드가 채워진다(deck_check가 렌더
-성공 + 차단 0일 때만 `verified:true`). **`visual_review_approved`는 항상 `false`로 기록된다** —
-`out/png` 썸네일을 전 장 확인한 사람이 `true`와 `visual_reviewer`(실명)를 직접 넣어야 제출
-모드가 통과한다. 렌더가 됐다는 사실과 사람이 보고 승인했다는 사실은 다르다.
+Insert `render.json` into meta's `render` block to populate audit render fields
+(deck_check emits `verified:true` only after successful rendering and 0 blockers).
+**`visual_review_approved` is always recorded as `false`**.
+A human who inspects every `out/png` thumbnail must directly set `true` and `visual_reviewer` (real name)
+for submission mode to pass. Rendering and human visual approval are separate facts.
 
-## 1. slides.json 스키마
+## 1. slides.json schema
+
+The following schema preserves Korean example values and comments as source examples.
 
 ```jsonc
 {
   "meta": {
     "title": "…제안서", "subtitle": "…", "doc_name": "헤더 표기 문서명",
     "buyer": "발주처(RFP 표기 그대로)", "bidder": "제안사", "date": "YYYY-MM-DD",
-    "page_limit": 40,                 // 있으면 초과 시 --strict 실패 (output_spec.page_limit와 다르면 생성 거부)
-    "output_spec": {"source": "…"},   // 발주처 지정 출력 규격 — §1-2
-    "require_req_ids": true,          // 본문 장표 REQ-ID 누락 경고(기본 true; 유형 C는 status_tag로 대체 가능)
-    "palette": {"primary": "1F3864"}, // 선택. 브랜드 토큰 있으면 여기에. 없으면 visual-style 폴백
+    "page_limit": 40,                 // If set, excess fails --strict; mismatch with output_spec.page_limit refuses generation
+    "output_spec": {"source": "…"},   // Buyer-prescribed output specification — §1-2
+    "require_req_ids": true,          // Warn on missing body REQ-IDs (default true; type C may use status_tag)
+    "palette": {"primary": "1F3864"}, // Optional brand tokens; otherwise visual-style fallback
     "font": "맑은 고딕"
   },
-  "slides": [ /* 아래 유형 */ ]
+  "slides": [ /* Types below */ ]
 }
 ```
 
-모든 본문 장표 공통 필드: `breadcrumb`(헤더 목차 경로), `title`(명사형), `lead`(결론 1~3줄, ≤60자
-권장), `caption`(그림 N./표 N. + 기준일), `source`(출처), `req_ids`(대응 요구 ID 배열), `notes`(발표자
-노트), `status_tag`(유형 C: `(완료) 26. …`).
+Common body-slide fields: `breadcrumb` (header outline path), `title` (noun form), `lead`
+(conclusion, 1~3 lines, ≤60 characters recommended), `caption` (Korean example 그림 N./표 N. + reference date),
+`source`, `req_ids` (array), `notes` (presenter notes), `status_tag`
+(type C Korean example: `(완료) 26. …`).
 
-| type | 용도 | 고유 필드 |
+Footer REQ-IDs retain font size and share width with captions according to list length.
+Newlines inside IDs or a list exceeding the single-line area violate the rule and fail `--strict`.
+Split the slide/matrix response scope instead. Captions displaced by wider ID lists also fail `--strict`.
+Width is approximate: inspect caption wrapping warnings and actual rendered footer spacing.
+Gantt milestone labels use short background badges. For long labels, in-bar wording, or custom palettes,
+check renders for obscured schedule information and insufficient contrast.
+
+| type | Use | Specific fields |
 |---|---|---|
-| `cover` | 표지 | (meta 사용) `title`,`subtitle` 재정의 가능 |
-| `toc` | 목차 | `items[]` — 2열 자동 배치 |
-| `section` | 간지 | `no`(Ⅰ…), `title`, `items[]` |
-| `matrix` | 조견표 | `rows[{id,text,support,response_loc,note}]`, `rows_per_slide`(기본 12, **양의 정수만**) — 자동 분할·헤더 반복·"(계속 n/N)". 입력 행 수와 출력 행 수를 대조해 유실을 차단한다 |
-| `table` | 표 1개 | `columns[]`, `rows[[…]]`(각 행 셀 수=열 수), `col_widths[]`(열 수와 같은 길이의 유한 양수), `right_cols[]`(0부터 시작하는 열 번호) |
-| `process` | 단계 프로세스 | `steps[{title,desc[]}]` — ≤6단계 셰브론, 초과 시 박스 |
-| `zones` | 구성도 | `zones[{title,items[{title,desc[]}]}]`, `legend[]` — 계층 위→아래, 영역 라벨+카드 |
-| `gantt` | 추진일정 | `months`, `month_labels[]`, `tasks[{name,start,end,phase,label,milestones[{at,label}]}]` |
-| `staff` | 인력 프로필 | `people[{name,role,grade,years,certs[],mm}]` |
-| `cards` | 차별점·기대효과·3단 논리 | `items[{title,value,desc[],evidence}]` — 2~4열 |
-| `bullets` | 텍스트 나열(최소화) | `items[]` — 항상 경고, 450자 초과 시 분할 경고 |
-| `closing` | 마무리 | `title`, `lead` |
+| `cover` | Cover | Uses meta; `title`, `subtitle` can override |
+| `toc` | Contents | `items[]` — automatic two-column layout |
+| `section` | Divider | `no` (Ⅰ…), `title`, `items[]` |
+| `matrix` | Compliance matrix | `rows[{id,text,support,response_loc,note}]`, `rows_per_slide` (default 12, **positive integer only**); auto-split, repeated headers, Korean label "(계속 n/N)"; reconcile input/output row counts to prevent loss |
+| `table` | One table | `columns[]`, `rows[[…]]` (cells per row = columns), `col_widths[]` (finite positive values, length = column count), `right_cols[]` (zero-based indices) |
+| `process` | Staged process | `steps[{title,desc[]}]` — chevrons for ≤6 stages, boxes beyond |
+| `zones` | Architecture | `zones[{title,items[{title,desc[]}]}]`, `legend[]` — top-down hierarchy, zone labels/cards |
+| `gantt` | Schedule | `months`, `month_labels[]`, `tasks[{name,start,end,phase,label,milestones[{at,label}]}]` |
+| `staff` | Staff profiles | `people[{name,role,grade,years,certs[],mm}]` |
+| `cards` | Differentiators/benefits/three-part logic | `items[{title,value,desc[],evidence}]` — 2~4 columns |
+| `bullets` | Text lists (minimize) | `items[]` — always warns; splitting warning beyond 450 characters |
+| `closing` | Closing | `title`, `lead` |
 
-수용여부(`support`) 표기는 공통 코드 `O/부분/조건부/X/N/A/확인필요`에 텍스트를 병기한다
-(`"O 수용"`, `"△ 조건부"`) — 색만으로 구분하지 않는 규칙의 구현이다.
+Pair `support` common codes `O/부분/조건부/X/N/A/확인필요` with text (Korean examples:
+`"O 수용"`, `"△ 조건부"`), implementing the prohibition on color-only statuses.
 
-## 1-1. 산출물 종류(output_profile)
+## 1-1. Artifact type (output_profile)
 
-같은 내용이라도 읽는 조건이 다르면 규격이 달라야 한다. `meta.output_profile` 또는
-`--profile`로 고르며, 폰트·밀도·표 행 수·조견표 분할이 한꺼번에 바뀐다.
+Different reading conditions require different specifications even for identical content.
+Select `meta.output_profile` or `--profile` to jointly change fonts, density, table rows, matrix splitting.
 
-| 프로파일 | 읽는 조건 | 제목/본문/표 | 리드문 | 밀도 | 표 행 | 조견표 |
+| Profile | Reading conditions | Title/body/table | Lead | Density | Table rows | Matrix rows |
 |---|---|---|---|---|---|---|
-| `detailed-submission`(기본) | 인쇄·PDF 채점 | 22/11/10pt | ≤60자 | 600자 | 14행 | 12행 |
-| `presentation` | 회의실 스크린 | 30/18/14pt | ≤40자 | 250자 | 8행 | 6행 |
-| `executive-summary` | 화면·인쇄 겸용 요약 | 26/14/12pt | ≤50자 | 400자 | 10행 | 9행 |
+| `detailed-submission` (default) | Print/PDF scoring | 22/11/10pt | ≤60 characters | 600 characters | 14 | 12 |
+| `presentation` | Meeting-room screen | 30/18/14pt | ≤40 characters | 250 characters | 8 | 6 |
+| `executive-summary` | Screen/print summary | 26/14/12pt | ≤50 characters | 400 characters | 10 | 9 |
 
-규격 정의는 `scripts/deck_profiles.py` 한 곳뿐이고 생성기·검사기가 같이 읽는다. 생성된 PPTX의
-core properties에 `proposal-deck:<프로파일>` 표시가 남아 `deck_check.py`가 인자 없이도 같은
-기준을 적용한다(`--profile`로 덮어쓰면 표시와 다를 때 경고한다). 최소 폰트 하한은 상수가 아니라
-프로파일의 가장 작은 본문 크기에서 유도한다.
+Specifications live only in `scripts/deck_profiles.py`, shared by generator/checker.
+Generated PPTX core properties retain `proposal-deck:<프로파일>`, allowing `deck_check.py` to apply the same
+criteria without arguments (`--profile` override warns on mismatch).
+Minimum font sizes derive from the profile's smallest body size rather than a constant.
 
-표시가 없거나 모르는 값이면 초안에서는 경고, 제출 단계에서는 차단이다. 외부 도구로 만든 덱을
-검사할 때는 `--profile`로 어떤 기준으로 잴지 명시한다 — 표시가 없다고 가장 느슨한 기본값으로
-재고 통과시키면, 발표본을 상세본 기준(9pt·600자)으로 검사하는 일이 그대로 벌어진다.
+Missing/unknown markers warn in draft and block submission. For externally generated decks, explicitly supply
+`--profile`; silently passing under the loosest default would check presentations against detailed criteria (9pt/600 characters).
 
-밀도(장표당 글자 수)는 표 셀 텍스트까지 센다. 조견표처럼 가장 빽빽한 장표가 예전에는 0자로
-집계돼 밀도 경고가 사실상 동작하지 않았다.
+Density counts table-cell text. Previously, dense matrix slides counted as 0 characters, effectively disabling density warnings.
 
-발표본은 상세 근거를 담는 곳이 아니다. 같은 `slides.json`으로 발표본을 만들면 리드문 길이·밀도
-경고가 뜨는데, 이는 내용을 줄이라는 신호다 — 근거는 상세본과 별첨에 두고 발표본은 결론과
-도식 위주로 남긴다. 발주처가 양식·폰트를 지정하면 그 규격이 프로파일보다 우선한다.
+For RFPs fixing page count/minimum fonts, first shorten duplicate titles, leads, table labels.
+Cards retain distinctions between risk, method, planned evidence, effect. SLA tables retain severity, measurement clock,
+intake criteria, response/recovery deadlines, holiday conditions.
+Keep amounts, quantities, unit prices, periods, VAT, discounts, totals in the body.
+Korean notation examples: distinguish zero discount with `;할인0`, not only `/0` after a formula.
+Replacing `부가세` with vague `세액` can weaken required meaning even with unchanged numbers.
+Do not hide warnings by changing thresholds/profiles/stage/fonts or moving information into captions/notes/later slides.
+After shortening, reconcile actual PPTX requirements, figures, formulas; inspect spacing/compressed labels in renders.
+Zero density warnings never replace readability review.
 
-## 1-2. 발주처 지정 출력 규격(output_spec)
+Presentations do not hold detailed evidence. Generating a presentation from the same `slides.json` produces
+lead-length/density warnings signaling the need to condense: retain evidence in the detailed deck/appendix,
+and focus the presentation on conclusions/diagrams. Buyer templates/fonts override profiles.
 
-**공고 지정 규격 > 내부 프로파일.** 프로파일은 공고가 규격을 정하지 않았을 때의 기본값이다.
-공고에 분량·글자 크기·파일 크기·화면 비율이 있으면 `meta.output_spec`에 원문 값을 옮긴다.
-숫자 기본값은 없다 — 공고에 없는 키는 쓰지 않는다.
+## 1-2. Buyer-prescribed output specification (output_spec)
+
+**Notice specifications > internal profiles.** Profiles are defaults only when the notice is silent.
+Transfer prescribed length, font size, file size, aspect ratio into `meta.output_spec`.
+No numeric defaults: omit keys absent from the notice.
+
+Korean source-location example preserved:
 
 ```jsonc
 "output_spec": {
-  "source": "제안요청서 제출 규격 조항 위치",  // 필수. 어느 문서·쪽·조항인지
-  "canvas": "16:9",                            // 선택. 16:9만 생성 가능
-  "page_limit": 40,                            // 선택. 생성기·검사기 모두 적용
-  "font_min_pt": 10,                           // 선택. 검사 인자로 낮출 수 없다
-  "file_size_limit_mb": 20                     // 선택. PPTX 파일 기준
+  "source": "제안요청서 제출 규격 조항 위치",  // Required: document, page, clause
+  "canvas": "16:9",                            // Optional: only 16:9 can be generated
+  "page_limit": 40,                            // Optional: enforced by generator/checker
+  "font_min_pt": 10,                           // Optional: checker arguments cannot lower this
+  "file_size_limit_mb": 20                     // Optional: measured on the PPTX file
 }
 ```
 
-| 동작 | 내용 |
+| Behavior | Details |
 |---|---|
-| 해석 | `deck_profiles.resolve_output_spec` 한 곳. 생성기와 검사기가 같은 함수를 쓴다 |
-| 보존 | 생성 PPTX의 core properties `keywords`에 `proposal-output-spec:` 표시로 남는다. `deck_check.py`는 인자 없이 읽는다 |
-| 글자 하한 | 표·캡션·머리말·바닥글을 하한 이상으로 올린다. 프로파일 본문이 하한보다 작으면 생성을 거부한다 — 밀도 기준이 함께 바뀌어야 하므로 본문이 큰 프로파일을 고른다 |
-| 분량 | `--max-pages`와 함께 주면 더 엄격한 값 |
-| 캔버스 | `A4-portrait`·`A4-landscape`·`A3-portrait`·`A3-landscape`·`4:3`은 알지만 그리지 않는다. 생성기가 16:9 좌표 그리드 전용이므로 지정 양식 또는 DOCX 경로로 작성한다 |
-| 모르는 값 | 모르는 키·캔버스·음수 값은 생성 거부(exit 2). 표시가 깨졌으면 검사기가 제출 단계에서 차단, 초안에서 경고 |
+| Resolution | Only `deck_profiles.resolve_output_spec`; generator/checker share the function |
+| Preservation | PPTX core properties `keywords` retain `proposal-output-spec:`; checker reads without arguments |
+| Font floor | Raise tables/captions/headers/footers to the floor. Refuse generation if profile body is below it; choose a larger-body profile because density must change too |
+| Length | With `--max-pages`, use the stricter value |
+| Canvas | Recognizes but does not draw `A4-portrait`, `A4-landscape`, `A3-portrait`, `A3-landscape`, `4:3`; generator has a 16:9-only grid, so use prescribed forms or DOCX |
+| Unknown values | Unknown keys/canvases/negative values refuse generation (exit 2). Broken markers block submission and warn in draft |
 
-장표 규격이 아닌 제출 묶음 속성(`anonymous_copy`, `price_separation`, `file_format`, `copies`,
-`binding`)은 `output_spec`에서 거부한다. `attachments[]`와 submission bundle 검사에 기록한다.
+Submission-bundle properties (`anonymous_copy`, `price_separation`, `file_format`, `copies`, `binding`)
+are rejected inside `output_spec`; record them in `attachments[]` and submission-bundle checks.
 
-A3 가로, A4 세로, 16:9 어느 것도 한국 공공 표준이 아니다. 사업마다 공고가 정한다.
+Neither A3 landscape, A4 portrait, nor 16:9 is a Korean public-sector universal standard. Each notice determines its own.
 
-## 2. 도식은 네이티브 도형으로 그린다
+## 2. Draw diagrams with native shapes
 
-구성도·프로세스·간트는 이미지가 아니라 **편집 가능한 PPT 도형**으로 생성된다(zones/process/gantt).
-이유: 발주처가 원본 PPTX 제출을 요구하는 경우가 많고, 검수자가 텍스트를 검색·수정할 수 있어야 하며,
-quality_gate가 도식 안의 잔존 고객명·과장어까지 읽어야 한다. 외부 도구 그림(draw.io·mermaid PNG)은
-다음 경우에만 쓴다: 네트워크 토폴로지처럼 선 연결이 핵심인 도식. 이때도 캡션·범례·REQ-ID는
-장표 텍스트로 두고, 그림에는 alt text를 넣는다.
+Architecture/process/Gantt use **editable PPT shapes** (`zones/process/gantt`), not images.
+Buyers often require original PPTX, reviewers need searchable/editable text, and quality_gate must inspect diagram
+text for residual customer names/exaggerations. Use external images (draw.io/mermaid PNG) only when line connectivity
+is central, such as network topology. Keep captions/legends/REQ-IDs as slide text and supply image alt text.
 
-### 관계에 맞는 레이아웃 선택
+### Choose layout by relationship
 
-한 장의 리드문을 먼저 정하고, 리드문을 증명하는 관계에 따라 기존 type을 고른다.
-스타일을 먼저 고른 뒤 내용을 장식에 끼워 맞추지 않는다.
+First decide the lead, then select an existing type according to the relationship proving it.
+Do not select decoration first and force content into it.
 
-| 설명할 관계 | 기존 type | 검토 기준 |
+| Relationship | Existing type | Review criteria |
 |---|---|---|
-| 요구사항과 답변의 대응 | `matrix` | 입력 요구 수=출력 행 수, 페이지 참조 일치 |
-| 같은 기준으로 대안·SLA·역할 비교 | `table` | 행·열 기준과 단위 명시, 셀 유실 없음 |
-| 순서·이관·승인 흐름 | `process` | 실제 단계 수와 제목/리드문의 단계 수 일치 |
-| 계층·책임·기술 영역 | `zones` | 경계·책임·범례를 읽을 수 있는가 |
-| 기간·겹치는 작업·완료점 | `gantt` | 기준 기간과 선후행 관계가 사실과 일치하는가 |
-| 병렬 차별점·효과·KPI | `cards` | 같은 비교 기준, 각 수치의 단위·근거 |
-| 수행 조직·역량 | `staff` | 역할·참여 기간·근거가 일치하는가 |
+| Requirements to answers | `matrix` | Input requirements = output rows; page references agree |
+| Alternatives/SLA/roles on equal criteria | `table` | Explicit row/column criteria and units; no cell loss |
+| Sequence/migration/approval | `process` | Actual stage count matches title/lead |
+| Hierarchy/responsibility/technical zones | `zones` | Readable boundaries/responsibilities/legend |
+| Duration/overlap/completion | `gantt` | Period and dependencies agree with facts |
+| Parallel differentiators/benefits/KPIs | `cards` | Same comparison basis; each figure has units/evidence |
+| Delivery organization/capability | `staff` | Roles, participation periods, evidence agree |
 
-장식 없는 구조적 표도 시각 요소다. 상세 제출본에는 발표용의 3개 항목 제한을 강제하지 않는다.
-넘치는 내용은 분할하거나 상세본/별첨으로 이동하며 글자 크기 축소로 해결하지 않는다.
+Show recurring tasks such as quarterly inspections/semiannual training as events in execution months.
+If using continuous bars, state in the legend whether they mean actual work duration or contractual availability.
+If duration and frequency may be confused, use an existing `table` monthly execution matrix and reconcile detailed frequencies/schedules.
 
-### 스타일 선택과 대표 장표 확인
+A plain structured table is also a visual. Do not impose a presentation's three-item limit on detailed submissions.
+Split overflow or move it to detailed material/appendices; never solve it by shrinking fonts.
 
-RFP 양식 → 제공 템플릿 → 브랜드 토큰 → 중립 기본값 순서를 유지한다. 후보가 필요한 경우
-최대 2~3개의 `meta.palette`·폰트 조합으로 좁힌다. 공공 상세본은 밝은 배경·표 가독성,
-발표본은 큰 글자·핵심 관계, 요약본은 결론·판단 근거를 우선한다.
-독자·브랜드가 이미 정해졌으면 반복 질문하지 않는다. 새로운 브랜드나 표현 방향의 선택이
-실제로 필요한 경우에만 대표 내용 장표 1장을 렌더해 비교한다. 임의의 해외 폰트·네온·
-전체 이미지 장표를 기본으로 적용하지 않는다. 대표 장표 확인은 최종 전 장 검토를 대체하지 않는다.
+### Style selection and representative-slide inspection
 
-### 내용 검토와 발표자 노트
+Keep precedence: RFP form → provided template → brand tokens → neutral defaults.
+If candidates are needed, narrow to at most 2~3 `meta.palette`/font combinations.
+Detailed public submissions prioritize light backgrounds/readable tables; presentations large text/key relationships;
+summaries conclusions/decision evidence.
+Do not repeatedly ask about an established audience/brand. Render one representative content slide for comparison
+only when a new brand or visual direction genuinely needs selection. Do not default to arbitrary foreign fonts,
+neon, or full-image slides. Representative-slide inspection never replaces final all-page review.
 
-제목+리드문을 순서대로 읽으며 문제 → 제안 → 실행 → 검증의 흐름과 중복·논리 비약을 확인한다.
-각 장에서는 리드문과 도식의 결론, 선언한 항목 수와 실제 요소 수, 수치의 단위·기간·출처,
-같은 개념의 용어·상태, 목차·조견표·본문 페이지 참조를 대조한다. 자연어의 의미 일치는
-기계 통과로 추정하지 않는다. 발견한 결함만 페이지·대상·근거·영향·최소 수정안으로 기록하며,
-모델 자기 점수나 정해진 결함 개수로 제출 가능 여부를 결정하지 않는다.
+### Content review and presenter notes
 
-`notes`는 모든 type에 저장한다. 장표의 목적, 화면에 없는 보충 근거, 다음 장으로 이어지는
-설명을 적는다. 확인되지 않은 약속·숫자는 노트에도 넣지 않는다. 조견표가 여러 장으로
-분할되면 동일 노트가 각 장에 복제되므로 실제 출력 페이지에 맞게 조정한다. 발표 시간은
-사용자가 준 값으로만 배분하고, 리허설로 발화 시간과 화면 전환을 확인한다.
+Read titles/leads in order to check problem → proposal → execution → verification, duplication, logical jumps.
+Per slide, reconcile lead/diagram conclusions, stated/actual item counts, units/periods/sources,
+terminology/status for the same concept, contents/matrix/body page references.
+Machine passes do not establish natural-language semantic agreement. Record actual defects only as
+page/target/evidence/impact/minimum correction; never determine readiness using model self-scores or defect quotas.
 
-### 데이터 보존과 색상 대비 검사
+Save `notes` for every type: purpose, supplementary off-screen evidence, transition to the next slide.
+Unverified commitments/figures are prohibited in notes too. Split matrices copy the same notes to every output page;
+adjust them to actual pages. Allocate presentation time only from user-provided values; rehearse speaking/screen transitions.
 
-표의 추가/누락 셀은 공백으로 채우거나 버리지 않고 입력 오류(exit 2)로 거부한다.
-열 폭은 열 수와 같은 길이의 유한 양수 배열이어야 하며 우측 정렬 열 번호는 0부터 시작한다.
+### Data preservation and contrast checks
 
-`color_contrast.py`의 공통 검사로 생성기와 `deck_check.py`가 동일 RGB 대비를 계산한다.
-18pt 이상 또는 14pt 굵은 글자는 3:1, 나머지는 4.5:1 미만이면 차단한다. 표지·간지·표 셀도
-검사한다. 기본 생성 덱의 배경은 명시적인 흰색이며 사용자 템플릿의 배경은 유지한다.
-템플릿 테마색·투명도·그라디언트·이미지 배경·부분 겹침·상속 폰트·그룹 배경은 계산 가능한
-단색 조합이 아니면 미검사로 기록한다. RGB 대비 통과는 렌더·육안 승인과 인쇄 접근성 인증을
-대체하지 않는다. [W3C 계산 기준](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)을
-설계 참조값으로 사용하며, 계산값은 반올림하기 전에 하한과 비교한다.
+Extra/missing table cells are input errors (exit 2), never padded or discarded.
+Column widths must be a finite positive array matching column count; right-aligned column indices start at 0.
 
-## 3. 사내 양식 템플릿 사용
+Generator and `deck_check.py` share RGB contrast calculation in `color_contrast.py`.
+Block below 3:1 for 18pt+ or 14pt bold+, and below 4.5:1 otherwise, including covers/dividers/table cells.
+Default generated decks have explicit white backgrounds; user-template backgrounds are preserved.
+Theme colors, transparency, gradients, image backgrounds, partial overlap, inherited fonts, group backgrounds
+remain uninspected unless reducible to a computable solid-color combination.
+RGB contrast passes do not replace render/human approval or print accessibility certification.
+Use [W3C calculation criteria](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
+as design reference values; compare thresholds before rounding.
 
-`--template 사내양식.pptx`를 주면 그 파일의 마스터(배경·로고)를 사용한다. 조건: 16:9(13.333×7.5in),
-"빈 화면(Blank)" 레이아웃 존재, **슬라이드가 하나도 없을 것**. 장표가 남아 있는 템플릿은 거부한다
-— 이전 제안서의 고객명·금액이 최종 덱에 그대로 남고 페이지 수 계산도 어긋나기 때문이다.
-기존 양식을 쓰려면 장표를 모두 지운 사본을 만든다. 좌표 그리드는 동일하므로 로고가 헤더/푸터 영역(상단 0.25~0.55in,
-하단 6.95~7.25in)과 겹치면 템플릿 쪽 로고 위치를 조정한다. 브랜드 토큰은 `meta.palette`로 넘긴다.
+## 3. Corporate templates
 
-## 4. 페이지 배분 — 배점표 → 절대 페이지
+`--template 사내양식.pptx` uses its masters/background/logo.
+Requires 16:9 (13.333×7.5in), a Blank layout, and **zero slides**.
+Reject templates retaining slides: old customer names/amounts would survive and page counts would be wrong.
+Make a slide-free copy of existing forms. The coordinate grid stays fixed, so adjust template logos overlapping
+header/footer areas (top 0.25~0.55in, bottom 6.95~7.25in). Pass brand tokens through `meta.palette`.
 
-`page_limit`이 있으면 percent가 아닌 **장 수**로 배분한다. 공식: 배점 비율 × (제한 − 고정장).
-고정장 = 표지 1 + 목차 1 + 조견표 ⌈요구 수/12⌉ + 간지(장 수) + 마무리 1(제한 산정 포함 여부는
-RFP 규정으로 확인, 보통 표지·목차 제외).
+## 4. Page allocation — evaluation weights → absolute pages
 
-예) 제한 40p, 기술평가 사업이해 10·수행전략 20·기술구성 25·이관 15·사업관리 10(=80), 요구 7건:
-고정장 = 조견표 1 + 간지 5 = 6 → 본문 34장 → 사업이해 4 · 수행전략 9 · 기술구성 10 · 이관 7 · 사업관리 4.
-배점이 큰 장은 리드문을 먼저 쓰고 도식 중심으로, 작은 장은 표 1개로 압축한다.
+With `page_limit`, allocate **slide counts**, not percentages.
+Formula: weight ratio × (limit − fixed slides).
+Fixed = cover 1 + contents 1 + matrix ⌈requirements/12⌉ + dividers (chapter count) + closing 1.
+Check RFP counting rules; cover/contents are usually excluded.
 
-## 5. 생산 단계 체크
+Example: 40p limit; technical evaluation understanding 10, strategy 20, architecture 25, migration 15, management 10 (=80), 7 requirements.
+Fixed = matrix 1 + dividers 5 = 6 → body 34 → understanding 4, strategy 9, architecture 10, migration 7, management 4.
+Write high-weight leads first and emphasize diagrams; condense low-weight chapters into one table.
 
-1. 리드문 맵(제목+lead만 있는 slides.json) → `build_deck.py --strict` → 리드문만 이어 읽어 스토리 확인.
-2. 본문 채움 → `deck_check.py --stage draft` (경고 목록이 작업 목록).
-3. 제출 후보 → `deck_check.py --stage submission --require-req-ids --render --emit-render` +
-   `quality_gate.py --stage submission --names 금지명.txt` → render.json을 meta에 반영 → unified_gate.
-4. 사람: PNG 썸네일 전 장 육안 확인, 발주처 PowerPoint 버전에서 1회 열어 폰트 대체 확인.
-   확인 후 render 블록의 `visual_review_approved: true`와 `visual_reviewer`(실명)를 기록한다
-   — 이 값이 없으면 제출 모드는 통과하지 않는다.
+## 5. Production checks
 
-## 6. 한계 (통과로 추정하지 않는다)
+Follow [quality-first-authoring.md](quality-first-authoring.md) for content review.
+For approved/candidate PDF comparison, use optional regression tools in
+[source-and-visual-evidence.md](source-and-visual-evidence.md).
+Comparison results never promote human visual approval or submission status.
 
-- LibreOffice 렌더는 PowerPoint와 줄바꿈·폰트 대체가 다를 수 있다 → 최종은 PowerPoint 확인.
-- deck_check는 화면 밖 배치와 25% 초과 잘림은 좌표로 잡지만, 표 셀 안의 글자 넘침과 도형 간
-  가림은 밀도(600자)·폰트로만 추정한다. 최종 확인은 썸네일 육안 검토다.
-- 이미지 전용 장표는 텍스트 검사가 불가능하므로 `[경고]`로 표시되고 렌더 육안 확인이 필수다.
+1. Lead map (slides.json with titles/leads only) → `build_deck.py --strict` → read leads alone to verify the story.
+2. Fill body → `deck_check.py --stage draft` (warnings form the work list).
+3. Submission candidate → `deck_check.py --stage submission --require-req-ids --render --emit-render` +
+   `quality_gate.py --stage submission --names 금지명.txt` → reflect render.json in meta → unified_gate.
+4. Human: visually inspect every PNG; open once in the buyer's PowerPoint version to check font substitution.
+   Then record `visual_review_approved: true` and `visual_reviewer` (real name) in render;
+   without these values submission mode cannot pass.
 
-## 생성 크기와 검사 하한
+## 6. Limitations (never infer a pass)
 
-프로파일의 폰트 크기는 생성 기본값이며 내부 검사에는 1pt 여유를 둔다. 상세본/발표본/요약본의
-본문 하한은 10/17/13pt, 표 하한은 9/13/11pt다. 발주처 지정 `font_min_pt`는 별도로 강제된다.
-제출 PPTX의 레이아웃은 통합 게이트에서도 다시 검사하며 렌더·육안 승인 기록은 별도로 필요하다.
+- LibreOffice wrapping/font substitution can differ from PowerPoint; final verification is in PowerPoint.
+- deck_check detects off-slide placement and clipping beyond 25% by coordinates, but estimates table-cell overflow/
+  overlapping shapes only via density (600 characters)/fonts. Thumbnails require final visual inspection.
+- Image-only slides cannot undergo text checks; marked with preserved warning label `[경고]`, requiring visual render review.
+
+## Generated sizes and inspection floors
+
+Profile font sizes are generation defaults; internal checks allow 1pt tolerance.
+Detailed/presentation/summary body floors: 10/17/13pt; table floors: 9/13/11pt.
+Buyer `font_min_pt` is enforced separately. Integrated gates recheck submission PPTX layout;
+render/human approval evidence remains separately required.

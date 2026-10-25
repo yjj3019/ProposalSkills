@@ -1,10 +1,23 @@
 {
   "name": "proposal-skills",
-  "version": "1.2.1",
-  "description": "Korean IT/public proposal workflows with a flagship entry and explicit-only content and governance layers.",
+  "version": "1.2.5",
+  "description": "Korean IT proposal workflows for RFP analysis, editable slide decks, evidence review, and submission checks.",
   "author": {
     "name": "ProposalSkills"
   },
   "repository": "https://github.com/yjj3019/ProposalSkills",
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ProposalSkills",
+    "shortDescription": "RFP analysis, proposal drafting, and submission checks",
+    "developerName": "yjj3019",
+    "category": "Productivity",
+    "capabilities": [
+      "Instructions"
+    ],
+    "websiteURL": "https://github.com/yjj3019/ProposalSkills",
+    "defaultPrompt": [
+      "Use create-best-proposal to draft a proposal for the supplied RFP, then review requirements, evidence, and numbers."
+    ]
+  }
 }

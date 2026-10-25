@@ -1,12 +1,4 @@
-"""공개 저장소 위생 — 커밋되면 안 되는 것이 들어왔는지 기계가 검사한다.
-
-이 저장소는 공개돼 있다. 제안서 작업은 성격상 고객사명·담당자·견적·내부 경로를 다루므로,
-작업 산출물이 그대로 커밋되면 그 정보가 영구히 공개된다. 사람이 매번 눈으로 거르는 대신
-여기서 막는다.
-
-검사 대상은 **객관적으로 판별 가능한 것**뿐이다. "이 이름이 고객사인가"는 기계가 알 수 없으므로,
-그 판단은 AGENTS.md의 작성 규칙과 사람의 검토에 맡긴다.
-"""
+"""Public-repository hygiene: automatically detect content that must not be committed. Proposal work contains customer names, contacts, quotations, and internal paths; accidental commits permanently expose them. Check only objectively detectable content. Identifying whether a name is a customer remains subject to AGENTS.md writing rules and human review."""
 from __future__ import annotations
 
 import re
@@ -16,12 +8,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
 
-# 검사에서 제외: 이 파일 자신(패턴을 문자열로 들고 있다)과 이진 파일.
+# Exclude this file itself (it contains pattern strings) and binary files.
 SELF = Path(__file__).name
 BINARY_SUFFIXES = {".pptx", ".docx", ".xlsx", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".zip"}
 
 PATTERNS: list[tuple[str, str, str]] = [
-    # (이름, 정규식, 왜 문제인가)
+    # (name, regex, reason this is problematic)
     ("windows-user-path", r"[A-Za-z]:\\+(?:Users|AI-Codding)\\+",
      "로컬 절대 경로 — 작업자의 디렉터리 구조가 드러난다"),
     ("unix-home-path", r"/(?:home|Users)/(?!runner\b|claude\b)[A-Za-z][A-Za-z0-9._-]{2,}/",
@@ -37,7 +29,7 @@ PATTERNS: list[tuple[str, str, str]] = [
 
 def tracked_files() -> list[Path]:
     if not (REPO / ".git").exists():
-        return []  # 설치 사본에는 저장소 메타데이터가 없다.
+        return []  # Installed copies lack repository metadata.
     out = subprocess.run(["git", "ls-files"], cwd=str(REPO), capture_output=True,
                          text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:
@@ -99,7 +91,7 @@ class RepoHygieneTests(unittest.TestCase):
         self.assertEqual(hits, [], "공개 저장소에 두면 안 되는 내용:\n" + "\n".join(hits))
 
     def test_no_real_looking_customer_fixtures(self):
-        """픽스처의 발주처는 가상 표기(○○·가상)여야 한다 — 실제 고객명 유입 방지."""
+        """Fixture buyers must use fictional notation (○○·가상), preventing actual customer names."""
         if not self.files:
             self.skipTest("git 추적 파일 목록을 얻을 수 없다")
         import json
@@ -119,8 +111,8 @@ class RepoHygieneTests(unittest.TestCase):
 
     def test_the_rule_is_documented_for_contributors_and_agents(self):
         text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-        self.assertIn("공개 저장소", text)
-        for needle in ("고객사", "커밋"):
+        self.assertIn("Public repository", text)
+        for needle in ("Real customer", "never commit"):
             self.assertIn(needle, text, needle)
 
 

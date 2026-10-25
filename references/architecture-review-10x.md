@@ -1,7 +1,7 @@
 # Architecture Review Report — ProposalSkills ×10
 
 - Generated: `2026-08-08T06:35:31.569148+09:00`
-- Root: 저장소 루트
+- Root: repository root
 - Skills: `create-best-proposal`, `create-proposal-document`, `create-winning-proposal`
 - Method: 10 persona-weighted architecture reviews over shared evidence scores + deterministic jitter
 
@@ -268,7 +268,7 @@ Agent runtime
 
 ### Verdict
 
-Across 10 independent lenses the architecture scores **7.89/10** (range 7.6–8.13, σ=0.14). 
+Across 10 weighted review lenses the recorded architecture score is **7.89/10** (range 7.6–8.13, σ=0.14).
 
 The **3-layer model is sound** and is the main source of high layering/modularity/extensibility scores. The main drag is **deploy topology** (best skill depends on siblings without vendoring) and **control-plane UX lag** versus published origin/main explain/remediation work.
 
