@@ -518,6 +518,17 @@ class StageAndLabelTests(unittest.TestCase):
 class MetaIntegrityTests(unittest.TestCase):
     """F03 — 변환 단계에서 입력이 조용히 바뀌거나 사라지지 않는다."""
 
+    def test_maintenance_scope_heading_accepts_spacing_but_requires_the_section(self):
+        data = {"mode": "draft", "proposal_archetype": "maintenance",
+                "context": {"engagement": "operate"},
+                "sections": ["지원 범위와 서비스 경계", "지원 체계", "SLA",
+                             "장애 대응", "시험·검수", "인수인계"]}
+        self.assertEqual(pg.check_outline(data), [])
+        data["sections"][0] = "지원범위와 서비스 경계"
+        self.assertEqual(pg.check_outline(data), [])
+        data["sections"].pop(0)
+        self.assertTrue(any("지원 범위·대상" in f for f in pg.check_outline(data)))
+
     def _meta(self) -> dict:
         return json.loads((FIXTURES / "meta_sample.json").read_text(encoding="utf-8"))
 
