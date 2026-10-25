@@ -186,6 +186,77 @@ class SubmissionValidationRegressionTests(unittest.TestCase):
         self.assertTrue(any("경로를 해석" in f for f in self.gate.verify_bundle(data, root)))
 
 
+    def test_bundle_symlinks_respect_the_resolved_root(self):
+        root = self.dir / "bundle"
+        root.mkdir()
+        inside = root / "inside.txt"
+        outside = self.dir / "outside.txt"
+        inside.write_text("synthetic inside", encoding="utf-8")
+        outside.write_text("synthetic outside", encoding="utf-8")
+        link = root / "linked.txt"
+        try:
+            link.symlink_to(inside)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"file symlinks unavailable: {exc}")
+        data = {"attachments": [{"name": link.name, "present": True,
+                                  "sha256": digest_of(inside)}]}
+        self.assertEqual(self.gate.verify_bundle(data, root), [])
+        link.unlink()
+        link.symlink_to(outside)
+        data["attachments"][0]["sha256"] = digest_of(outside)
+        self.assertTrue(any("폴더 밖" in p for p in self.gate.verify_bundle(data, root)))
+        link.unlink()
+        link.symlink_to(root / "missing.txt")
+        self.assertTrue(any("첨부 파일 없음" in p for p in self.gate.verify_bundle(data, root)))
+
+
+class SubmissionLifecycleTests(unittest.TestCase):
+    """Real CLI retries must validate the current document, approval and bundle."""
+
+    def test_repair_requires_current_numbers_approval_and_attachment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "제안 검증"
+            root.mkdir()
+            doc = make_pptx(root / "최종 제안.pptx")
+            attachment = root / "첨부 근거.txt"
+            attachment.write_text("synthetic evidence", encoding="utf-8")
+            audit = root / "검토 기록.json"
+            data = ready_audit()
+            data["attachments"] = [{"name": attachment.name, "required": True,
+                                    "present": True, "sha256": digest_of(attachment)}]
+
+            def check(expected, status):
+                audit.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+                result = subprocess.run(
+                    [sys.executable, "-I", str(UG), str(audit), "--doc", str(doc),
+                     "--bundle", str(root), "--no-explain"],
+                    cwd=root, capture_output=True, text=True, encoding="utf-8",
+                    errors="replace", timeout=60)
+                self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                self.assertIn(f"STATUS: {status}", result.stdout)
+                if expected:
+                    self.assertNotIn("STATUS: SUBMISSION-READY", result.stdout)
+
+            def bind():
+                data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest_of(doc)
+
+            bind()
+            check(0, "SUBMISSION-READY")
+            make_pptx(doc, "정상 문서 " + LEDGER_TEXT.replace("37억원", "40억원"))
+            bind()  # A new hash alone cannot approve inconsistent financial content.
+            check(1, "BLOCKED")
+            make_pptx(doc)
+            bind()
+            data["render"]["visual_review_approved"] = False
+            check(1, "BLOCKED")
+            data["render"]["visual_review_approved"] = True
+            check(0, "SUBMISSION-READY")
+            attachment.write_text("revised synthetic evidence", encoding="utf-8")
+            check(1, "BLOCKED")
+            data["attachments"][0]["sha256"] = digest_of(attachment)
+            check(0, "SUBMISSION-READY")
+
+
 class ArtifactBindingTests(unittest.TestCase):
     """F01 — 검증 기록이 '어느 파일'의 것인지 확인한다."""
 
