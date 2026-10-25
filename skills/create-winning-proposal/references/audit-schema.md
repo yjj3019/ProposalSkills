@@ -1,6 +1,6 @@
-# 감사 JSON 스키마
+# Audit JSON schema
 
-최상위 필드를 모두 작성하고 빈 배열도 생략하지 않는다.
+Populate every top-level field; do not omit empty arrays.
 
 ```json
 {
@@ -29,205 +29,193 @@
 }
 ```
 
-- `mode`: `submission`, `draft`, `review`, `analysis` 중 작업 모드를 기록한다.
-- `artifact_mode`(선택): `submission-candidate` 또는 `simulation-only`. 마감 경과 등으로
-  no-bid인 RFP를 벤치마크 작성할 때도 `bid_decision`은 바꾸지 않는다.
-- `conditional-bid`는 모든 조건에 담당자·시간대가 있는 ISO-8601 날짜/시각·수락 기록이 있어야 통과한다.
-- `intake-incomplete`와 `no-bid`는 제출 준비 상태를 통과하지 않는다.
-- 필수 요구의 `not-applicable`에는 사유와 검토자가 필요하다.
-- 중대 주장은 `supported`·`qualified`로 근거를 갖추거나 제거한다. 확약은 담당자 승인도 필요하다.
-- 미결 차단 입력과 Critical/Major 결함은 제출을 차단한다. `conditional-go`는 내부 검토 상태일 뿐이다.
-- `blocking|non-blocking|assumption`, `critical|major|minor|note`, `open|closed`만 허용한다. 모르는 값은 감사를 무효로 만든다.
-- Critical/Major를 해결 처리하려면 해결 근거·검토자·ISO 시각·재검증 범위가 필요하다.
-- 렌더 산출물을 요청받지 않은 경우에만 `artifact_required: false`를 사용한다.
-- 편집 가능한 Office 파일은 패키지 검사 `required`를 설정한다. 도구가 없으면 통과가 아니라 `inspected: false`다.
-- 검증된 렌더/패키지 상태에는 산출물 해시·도구 식별·근거/검사 결과·검토자가 필요하다. 검토 기록의 존재를 보여 주며 판단의 진위를 증명하지 않는다.
-- 제출 모드에서는 필수 패키지 검사의 실패·미검사가 준비 상태를 차단한다.
-- 제출 패키지는 문서 속성·노트·주석·숨김 내용·포함 파일·외부 링크·매크로·이전 고객 자료·가격 누출을 검사한다. 검토자가 책임지는 경우에만 `not-applicable`을 사용한다.
-- 제출 허가에는 리허설 근거와 접수 증적 확보 계획이 필요하다. 실제 접수 증적은 제출 후 추가하며 제출 전에 발명하지 않는다.
-- `win_themes`(선택): `[{id, statement, req_ids[], proof?}]`. 각 theme의 `req_ids`는
-  비어 있지 않아야 한다(장식 theme 금지). 게이트 필수 필드는 아니나 meta 빌더
-  `--strict`와 작성 규율이 강제한다.
-- requirements 항목 선택 필드(후방호환): `fit` ∈ {STRONG, PARTIAL, GAP},
-  `eval_weight`, `win_theme_id`, `risk`, `support`, `evidence_refs`(approved 시 필수).
-- `flags`, `regulatory_checks`, `vendor_confirmations`(선택·후방호환): 없으면 검사하지 않는다.
-  - `regulatory_checks[]` status ∈ {met, gap, in-progress, not-applicable}. `gap`·`in-progress`는 차단, `met`는 evidence 필수. `flags.financial: true`인 submission은 `regulatory_checks`가 비면 차단(금융 규제 미기재 방지).
-  - `vendor_confirmations[]` kind ∈ {support, supply}. `required && !present`이면 차단 — 제조사 기술지원·공급 확약서 같은 계약 전 필수 제출물을 blocking으로 모델링한다.
-- 일관성·산술·제출 검사를 완료했거나 해당 없음의 사유를 기록한 경우 `true`로 표시한다.
+- `mode`: record `submission`, `draft`, `review`, or `analysis`.
+- `artifact_mode` (optional): `submission-candidate` or `simulation-only`. Keep `bid_decision` unchanged when benchmarking a no-bid RFP, including expired notices.
+- `conditional-bid` passes only with an owner, timezone-aware ISO-8601 deadline, and acceptance record for every condition.
+- `intake-incomplete` and `no-bid` never pass submission readiness.
+- Mandatory `not-applicable` requirements need rationale and reviewer.
+- Material claims need evidence as `supported`/`qualified`, or removal. Commitments additionally require owner approval.
+- Open blocking inputs and Critical/Major defects block submission. `conditional-go` is only an internal review state.
+- Only `blocking|non-blocking|assumption`, `critical|major|minor|note`, `open|closed` are allowed. Unknown values invalidate the audit.
+- Closing Critical/Major requires closure evidence, reviewer, ISO timestamp, reverified scope.
+- Use `artifact_required: false` only when no rendered artifact was requested.
+- Editable Office files require package inspection `required`. Missing tools mean `inspected: false`, never a pass.
+- Verified render/package states need artifact hash, tool identification, evidence/check results, reviewer. These establish a review record's existence, not the truth of its judgment.
+- Failed/uninspected required package checks block submission readiness.
+- Inspect properties, notes, comments, hidden content, embedded files, external links, macros, previous customer data, price leakage. Use `not-applicable` only with reviewer responsibility.
+- Submission clearance needs rehearsal evidence and a receipt-evidence plan. Add actual receipt evidence after submission; never invent it beforehand.
+- `win_themes` (optional): `[{id, statement, req_ids[], proof?}]`. Each theme needs nonempty `req_ids` (no decorative themes). Not mandatory gate fields, but enforced by meta-builder `--strict` and authoring discipline.
+- Optional backward-compatible requirement fields: `fit` ∈ {STRONG, PARTIAL, GAP}, `eval_weight`, `win_theme_id`, `risk`, `support`, `evidence_refs` (required when approved).
+- `flags`, `regulatory_checks`, `vendor_confirmations` are optional/backward-compatible; absent fields are not checked.
+  - `regulatory_checks[]` status ∈ {met, gap, in-progress, not-applicable}. `gap`/`in-progress` block; `met` requires evidence. Submission with `flags.financial: true` blocks if this register is empty, preventing omitted financial regulation.
+  - `vendor_confirmations[]` kind ∈ {support, supply}. `required && !present` blocks, modeling mandatory pre-contract manufacturer support/supply letters.
+- Mark consistency/arithmetic/submission checks `true` only after completion or recorded non-applicability rationale.
 
-## 반낙관 하드닝(anti-optimism) — 자기선언 낙관 통과 차단
+## Anti-optimism hardening — block optimistic self-declarations
 
-게이트는 자기보고 어서션의 *구조적 완전성*만 검증하고 *진위*는 검증하지 않는다.
-따라서 모든 요구를 `approved`, 첨부를 `present`, 제출을 `cleared`로 낙관 선언하면
-READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
+The gate validates self-reported assertions' *structural completeness*, not their *truth*.
+Previously, optimistically marking requirements `approved`, attachments `present`, and submission `cleared`
+could yield READY. The following three guard categories close that gap.
 
-- **근거 필수(evidence)**: 필수 requirement가 `state: approved`이면 비어있지 않은
-  `evidence_refs: []`(제안서 위치·산출물 해시 등)가 반드시 있어야 한다. 근거 없는
-  승인 자기선언은 차단된다. submission 모드에서는 `claims[]`도 같다 —
-  `status: supported|qualified`인 material·commitment 주장에 `evidence_refs`가 없으면 차단.
-- **검토 상태 ≠ 준수 상태**: `state`(검토가 어디까지 왔는가)와 `support`/`fit`(요구를
-  충족하는가)은 다른 축이다. `support: X`(또는 `미지원`)이거나 `fit: GAP`인 항목을
-  `state: approved`로 두면 차단된다 — "미지원임을 검토자가 확인했다"가 "충족했다"로
-  승격되지 않는다. 발주처가 허용한 예외만 인정하며, 그때는
-  `exception: {granted_by, evidence: []}`를 기록한다.
-- **미수용 표기의 별칭**: `X`, `X 미수용`, `미수용`, `미지원`, `✗`, `부적합`은 모두 같은 상태로
-  본다 — 표기 변형 하나로 승인 모순 검사를 빠져나가지 못한다(`N/A`·`해당없음`은 미지원이 아니다).
-  `exception`과 `response_refs`는 meta→audit 변환에서 그대로 보존된다.
-- **응답 위치 ≠ 근거**: 조견표의 응답 위치는 `response_refs`에 넣는다. `evidence_refs`는
-  주장을 뒷받침하는 출처(확인서·시험성적서·제조사 회신)다. `bulk_matrix.py`도 두 필드를
-  분리해 생성한다 — `slide:99`가 사실의 증거로 승격되지 않는다.
-- **분류(context)**: `{buyer_types[], engagement, stage, reading_mode, constraints[], rfx_type}`.
-  기관 이름이 아니라 축으로 분류하며(공공병원 → `["public","healthcare"]`), 게이트가 이 값을 읽어
-  요구사항을 바꾼다. 값 목록과 각 축이 무엇을 바꾸는지는 [sectors/README.md](sectors/README.md)
-  참조. RFP의 명시 요구가 언제나 분류보다 우선한다. **제출 모드는 `buyer_types`와 `stage`가
-  필수**다 — 분류가 없으면 분류가 바꾸는 검사가 전부 조용히 꺼지므로, 누락을 정상값으로 두지
-  않는다(초안·검토 단계는 후방호환으로 허용).
-- **문서 종류(context.rfx_type)**: `rfp`(기본) | `rfi` | `rfq`. 구매 단계(`stage`)와 다른 축이다.
-  `rfi`이면 (1) 공공이라도 평가표 원장을 요구하지 않고, (2) `kind: commitment` 주장을 차단한다
-  — RFI 응답은 계약 제안이 아니므로 추정치가 확약 문장으로 승격되면 안 된다. 자격(`eligibility`)·
-  첨부·형식 검사는 RFI에서도 그대로다(RFI라는 이유로 자격 요구를 생략하지 않는다).
-- **평가표(evaluation_criteria)**: `{id, label, weight, parent?, stage?, method?, minimum_ratio?,
-  minimum_score?, disclosed?, source?}` 배열과 선택적 `evaluation_total`(원장의 만점, 기본 100).
-  `buyer_types`에 `public`이 있고 제출 단계이면 필수다 — 공공 입찰에서 배점표는 목차·분량·근거
-  배분의 기준이므로, 없으면 무엇에 점수가 걸렸는지 모르는 채로 쓴 것이다.
-  원문의 평가 방식은 "합계 100"으로 환원되지 않으므로 다음을 구분한다.
-  - **최상위 항목의 합 = `evaluation_total`**. 기술 90점만 원장에 있고 가격이 별책이면
-    `evaluation_total: 90`으로 적는다(100으로 고치지 않는다).
-  - **하위 항목(`parent`)의 합 = 상위 항목의 배점**. 1단계 기술평가 100 = 정량 20 + 정성 80처럼
-    계층을 그대로 옮기며, 상·하위를 한 번에 더해 100을 넘기는 이중 합산을 막는다.
-  - **배점 미공개는 `disclosed: false`**로, `weight` 없이 기록한다. 게이트가 80:20을 지어내지 않는다.
-  - **과락은 `minimum_ratio`(배점한도 대비 비율, 0.85 = 85%) 또는 `minimum_score`**로 보존만
-    한다. 게이트는 심사 점수를 예측하거나 "기술 미달"을 판정하지 않는다 — 협상적격 기준의 85%는
-    기술능력평가분야 **배점한도**의 85%(만점 90이면 76.5)이지 총점 85가 아니며, 적용 여부는
-    공고마다 확인한다.
-  각 요구는 `requirements[].criterion_ids`로 **말단** 배점 항목에 연결하며, 대응 요구가 없는 말단
-  항목은 차단한다(목차가 통째로 빠진 신호). `reading_mode`가 규격을 기대하는데
-  `render.output_profile`이 **없거나** 다르면 제출 모드에서 차단한다(누락 = 미검사).
-  규격을 기대하는 읽기 조건은 `screen-presentation`(발표본)과 `print-evaluation`(상세본)
-  둘뿐이다 — `individual-review`는 임원 요약본일 수도 상세 기술평가서일 수도 있어서 읽는
-  환경만으로 문서 역할을 정할 수 없으므로 매핑하지 않는다.
-- **목차 뼈대(proposal_archetype, sections, archetype_rationale)**: `build`(구축) |
-  `maintenance`(유지보수·기술지원) | `technical-response`(기술답변서). 사업 성격
-  (`context.engagement`)이 표준 뼈대를 정한다 — build·migrate → `build`,
-  `operate`·`service-improvement` → `maintenance`, `product-selection` → `technical-response`.
-  둘이 어긋나면 차단하되, 발주처가 목차를 지정했다면 `archetype_rationale`에 근거를 적어
-  통과시킨다. 제출 모드에서 매핑되는 사업 성격이면 **어떤 뼈대를 썼는지 기록**해야 한다.
-  `sections[]`(`{title}` 또는 문자열 배열)를 적으면 뼈대별 필수 절 누락을 검사한다 —
-  구축이면 사업 범위·구축 방안·추진 일정·시험/검수·이행 조직, 유지보수면 지원 범위·지원
-  체계·SLA·장애 대응, 기술답변서면 요구 대응표·제품 규격·근거 증빙. 원장이 없으면 검사하지
-  않는다(없는 목차를 만들어내지 않으며, `slides[]`는 요구 대응 매핑이지 목차가 아니므로
-  거기서 유추하지도 않는다).
-  **교육·컨설팅·정책에는 이 저장소에 목차 근거가 없다.** 유형을 강제하지 않되, IT 구축
-  목차를 그대로 쓰려면 이유를 적게 한다.
-- **제3자 의존 확약(claims[].depends_on_vendor)**: 제조사·협력사의 SLA·공급 조건에 기대는
-  약속이면 그 제조사 이름을 적는다. 제출 모드에서는 같은 이름의 `vendor_confirmations` 항목이
-  `present: true`여야 한다 — **제조사 공개 문서를 인용하는 것과 이 사업에 적용된다는 확약을
-  받는 것은 다르다.** "심각도1 1시간 내 대응"은 그 SLA가 해당 계약·구독 등급에 적용될 때만
-  성립하며, 적용되지 않으면 계약 후 이행 불가로 남는다.
-- **시점 주장(claims[].time_sensitive, as_of)**: 라이프사이클·EOL·버전·인증 유효기간처럼 시간이
-  지나면 거짓이 되는 주장은 `time_sensitive: true`로 표시하고 `as_of`에 기준일(`YYYY-MM` 또는
-  `YYYY-MM-DD`)을 적는다. 자유 문자열("2026년 여름")은 기준일이 아니다. 문서에도 같은 기준일을
-  표기해야 재사용된 장표가 조용히 낡지 않는다.
-- **수치 사이의 관계(numbers[].at_most, at_least)**: 값 하나하나가 맞아도 관계가 틀릴 수 있다.
-  SLA 표는 "최초 응답 ≤ 지속 응답", 심각도가 낮아질수록 시간이 길어지는 순서가 성립해야 한다.
-  고정 경과시간(분·시간·일·주)만 환산해 `4시간` vs `2일`을 비교한다. 영업일·개월·년은
-  시작일·휴일·업무시간 근거 없이 고정 시간으로 환산하지 않는다. 같은 단위끼리는 비교하고,
-  다른 단위면 차단한다. 필요한 경우 원문 달력 기준으로 산출한 동일 단위 값을 원장에 기록한다.
-- **제출 묶음(attachments)**: `{name, required?, present?, role?, file?, format?, sha256?,
-  copies?, channel?, anonymity_checked?, price_screened?, reviewer?}`. 제출은 파일 하나가 아니라
-  기명 원본·익명 사본·밀봉 가격서·별책 워크시트가 함께 나가고 파일마다 규칙이 다르다.
-  `role`(`proposal` | `proposal-anonymous` | `price` | `form` | `certificate` | `presentation` |
-  `appendix` | `other`)을 적으면 그 역할의 규칙이 붙는다. 해시는 역할 유무와 관계없이
-  요구한다. 역할별 익명·가격 검사는 해당 역할을 명시한 경우 적용된다. 제출 모드에서 `present: true`인 항목은:
-  - `sha256`이 필요하다 — 묶음의 어느 바이트를 검사했는지 남긴다.
-  - `proposal-anonymous`이면 `anonymity_checked: true`와 `reviewer`가 필요하다. 본문뿐 아니라
-    노트·문서속성·파일명의 식별 표기를 검사하고(`quality_gate.py --names`), 로고·그림 속 표기는
-    사람이 확인한다. 익명 사본만 있고 기명 원본이 없으면 경고한다.
-  - `price`가 아닌 산출물은 `price_screened: true`가 필요하다 — 가격을 담으면 안 되는 기술본에
-    가격이 섞였는지 확인한 기록이다.
-  - `proposal`·`proposal-anonymous`·`price` 역할이 둘 이상이면 차단한다(어느 파일이 제출본인지
-    하나로 정한다).
-  `unified_gate.py --bundle <폴더>`는 각 첨부를 실제 파일과 해시 대조한다(`file`이 있으면 그
-  이름, 없으면 `name`). 검토 뒤 바뀌었거나 없는 첨부를 잡는다. 경로는 묶음 폴더 안의
-  상대 경로여야 한다(절대 경로·부모 경로·링크로 폴더 밖을 참조하면 차단). 제출 모드에서
-  실제 문서와 필수 또는 present 첨부가 있으면 `--bundle`이 필수다. audit-only는 실물 제출 판정이 아니다.
-- **요구 강도(requirements[].strength)**: `required` | `recommended` | `optional` | `conditional`
-  | `informational`. 없으면 `mandatory`에서 유도한다(미기재 = `required`, fail-closed). 둘 다 있고
-  서로 어긋나면 스키마 오류다. `conditional`은 `condition`(어떤 조건에서 필수가 되는가)이 필요하며
-  필수로 센다. `recommended`를 따르지 않은 채 제출하려면 `rationale`을 적어야 한다 — 권장 분량
-  초과와 필수 위반은 같은 무게가 아니지만, 권장을 조용히 잊는 것과 사유를 갖고 넘기는 것은
-  구분돼야 한다. 조견표(`bulk_matrix.py`)의 `필수` 열에 적힌 권장·선택·조건부·참고는 강도로
-  옮겨진다.
-- **수치 원장(numbers)**: `numbers[] = {id, label, value(JSON 숫자), unit, source?, components?[],
-  percent_of?, amount?, tolerance?(기본 0.005), must_appear?}`. `components`가 있으면 값이 구성
-  요소의 합과 같아야 하고(단위가 섞이면 차단), `percent_of`+`amount`가 있으면 비율을 다시
-  계산한다. **제출 모드는 원장 없이 `checks.arithmetic: true`만으로 통과하지 못한다.** 원장
-  값이 실제 문서에 있는지는 `check_numbers.py`가 대조하며, 중간 계산값은
-  `must_appear: false`로 제외한다. 값은 유한한 JSON 숫자여야 하고(`Infinity`·`NaN` 차단),
-  자기 자신을 `components`나 `percent_of`로 참조할 수 없으며, `percent_of`에는 유한한
-  `amount`와 0이 아닌 모수가 있어야 한다(계산 불가는 통과가 아니라 미검증이다). 단위가
-  통화(`KRW`·`원`·`USD` 등)이면 합계 검산에 상대 오차가 아니라 **1원 단위 절대 오차**를 쓴다.
-  제출 모드에서 원장이 비어 있으면 `numbers_not_applicable`에 사유를 적어야 한다.
-  문서 대조는 **평가위원이 보는 본문**만 인정하며(노트·레이아웃·마스터에만 있으면 차단),
-  소수·단위·부호를 구분한다 — `37.5개월`은 `37`의 근거가 아니고 `37개월`은 `37원`의 근거가
-  아니며 `-37`은 `37`의 근거가 아니다.
-- **검증 의무는 취소되지 않는다**: `mode: submission`이면 `artifact_required` 값과 무관하게
-  렌더 검증·해시 형식·패키지 검사를 요구한다. `artifact_required: false`는 draft/review에서만
-  의미가 있다 — 입력값 하나로 제출 검사를 끄지 못한다.
-- **렌더 성공 ≠ 육안 승인**: 제출 모드는 `render.visual_review_approved: true`와
-  `render.visual_reviewer`(실명)를 요구한다. `deck_check.py`는 이 값을 항상 false로 기록하며,
-  PNG 썸네일을 확인한 사람이 직접 바꾼다. PDF 변환 성공은 디자인 승인이 아니다.
-- **검사 기록의 누락 = 미검사**: `render.layout_checked`는 **필수**다. false이면 물론이고,
-  **필드를 생략해도 차단**한다 — 지우면 요구가 사라지던 구멍을 막았다. `verified: true`인데
-  `render_succeeded: false`처럼 서로 모순되는 기록도 차단한다. `build_audit_from_meta.py`는
-  입력 meta에 있는 `render_succeeded`·`layout_checked`·`visual_review_approved`·
-  `visual_reviewer`·`output_profile`을 그대로 옮긴다(없는 승인을 만들어내지는 않는다).
-- **산출물 해시 결속(artifact binding)**: submission 모드에서 `artifact_required: true`이면
-  `render.artifact_hash`와 `package.artifact_hash`는 실제 sha256 값(`sha256:<64 hex>`)이어야
-  하고 서로 같아야 한다. 문자열 라벨(`sha256:proposal`)은 차단된다. 판정은
-  `unified_gate.py --doc <최종파일>`로 받으며, 전달한 파일의 해시가 audit의 해시와 다르면
-  차단된다(검토 이후 바뀐 파일에 과거 판정을 재사용할 수 없다). 문서 없이 audit만
-  점검하려면 `--audit-only`를 쓰고, 이때 최선의 결과는 `SUBMISSION-READY`가 아니라
-  `AUDIT-VALID`다.
-  audit의 파싱된 바이트와 문서의 첫 하위 검사 전 SHA-256을 최종 판정 전에 다시 대조한다.
-  내용 변경·삭제·읽기 실패가 확인되면 `INVALID`(exit 2)이며, 변경 없는 quality 실패는
-  기존 `BLOCKED`(exit 1)를 유지한다. 첨부는 audit 평가 이후 실제 파일·해시를 확인한다.
-  파일 잠금은 아니므로 중간 변경 후 원복이나 최종 대조 이후의 변경까지 보장하지 않는다.
-- **단계 강제(stage)**: `mode: submission` audit은 `--stage submission`으로만 검사한다.
-  `--stage draft`로 낮춰 `[NEEDS INPUT]`을 경고로 만드는 우회는 사용 오류(exit 2)다.
-- **시뮬레이션 산출물**: `artifact_mode: simulation-only`는 `mode: submission`과 함께 쓸 수
-  없다 — 내부 확인용 산출물은 외부 제출 준비 상태로 승격되지 않는다.
-- **ID 무결성**: `requirements[]`·`claims[]`의 각 항목에는 비어 있지 않은 고유 `id`가 있어야
-  한다. ID를 지워 원장을 익명화하거나 중복 ID로 근거를 뒤섞을 수 없다.
-- **원장 항목의 내용**: 제출 모드에서 `requirements[]`·`claims[]`의 각 항목에는 사람이 읽을 수
-  있는 내용이 있어야 한다 — `text`, `label`, `title`, `summary`, `description` 중 하나. ID만 있는
-  껍데기 원장은 "R1 승인"이 무엇을 승인한 기록인지 확인할 수 없다(초안 단계의 부분 원장은 허용).
-- **informational 주장의 면제 사유**: `kind: informational`은 근거(`evidence_refs`) 검사를
-  면제받는 유일한 유형이므로, 제출 모드에서는 `rationale`(왜 근거가 필요 없는지)을 요구한다.
-  근거 없는 성능·실적 주장을 informational로 재분류해 빠져나가는 경로를 막는다.
-- **마감일 검증(deadline)**: `submission.deadline`은 timezone 포함 ISO-8601. submission
-  모드는 필수이며, 기준 현재시각(`PROPOSAL_GATE_NOW`로 주입 가능, 기본 UTC now)보다
-  과거이면 차단한다. 만료된 RFP를 `cleared: true`로 통과시킬 수 없다.
-- **플레이스홀더는 근거가 아니다**: `evidence_refs`, `render.artifact_hash/tool/evidence`,
-  `package.artifact_hash/tool/reviewer`, `submission.rehearsal_evidence/receipt_plan`,
-  `regulatory_checks[].evidence`, `defects[].closure_evidence`에 `TBD`, `TODO`, `???`,
-  `[NEEDS INPUT]`, `입력요망`, `미정` 등이 있으면 비어 있는 것으로 취급해 차단한다.
-- **엄격 불리언(strict boolean)**: `accepted`, `present`, `cleared`, `verified`, `inspected`,
-  `owner_approved`, `met`, `curable`, `mandatory`, `required`는 JSON `true`/`false`만 허용한다.
-  `"yes"`/`"pending"`/`"no"` 같은 문자열은 INVALID AUDIT(exit 2)다. `mandatory`·`required`를
-  생략하면 필수로, claim `kind`를 생략하면 `material`로 취급한다(fail-closed). `kind`는
-  `material | commitment | informational` 중 하나여야 한다.
-- **조건부 입찰의 범위**: `conditional-bid`는 `mode: draft|review|analysis`에서만 CONDITIONAL-GO가
-  된다. `mode: submission`이면 차단된다 — 조건부는 내부 계속 진행 상태이지 외부 제출 클리어가
-  아니다. 각 `bid_conditions[].deadline`은 현재시각 이후여야 한다.
-- **자격 일관성(eligibility)**: `eligibility[] = {id, criterion, mandatory, met, curable}`.
-  submission 모드는 원장 필수. 미충족(`met:false`)이면서 `curable:false`면 `bid`/
-  `conditional-bid` 불가(no-bid만 허용); 미충족+`curable:true`면 단독 `bid` 불가
-  (조건부입찰 또는 불참). 치유 불가능한 자격 미달을 낙관적 `bid`로 선언할 수 없다.
+- **Evidence required**: a mandatory requirement with `state: approved` needs nonempty `evidence_refs: []`
+  (proposal location, artifact hash, etc.). Unsupported approval self-declarations block.
+  In submission, material/commitment `claims[]` with `status: supported|qualified` also block without `evidence_refs`.
+- **Review state ≠ compliance**: `state` (review progress) differs from `support`/`fit` (fulfillment).
+  `support: X` (or preserved Korean code `미지원`) or `fit: GAP` with `state: approved` blocks.
+  A reviewer confirming unsupported status does not mean fulfillment. Only buyer-granted exceptions count;
+  record `exception: {granted_by, evidence: []}`.
+- **Nonacceptance aliases**: `X`, `X 미수용`, `미수용`, `미지원`, `✗`, `부적합` mean the same state;
+  spelling variants cannot evade approval contradiction checks (`N/A`/`해당없음` do not mean unsupported).
+  Meta→audit preserves `exception` and `response_refs`.
+- **Response location ≠ evidence**: matrix response locations go in `response_refs`.
+  `evidence_refs` contains supporting sources (certificates, test reports, manufacturer replies).
+  `bulk_matrix.py` generates separate fields: `slide:99` is not promoted to factual evidence.
+- **Context**: `{buyer_types[], engagement, stage, reading_mode, constraints[], rfx_type}`.
+  Classify by axes, not institution names (public hospital → `["public","healthcare"]`).
+  Gates read context to change requirements; see [sectors/README.md](sectors/README.md) for values/effects.
+  Explicit RFP requirements always override classification.
+  **Submission requires `buyer_types` and `stage`**: missing classification silently disables affected checks,
+  so omission is not a valid default (draft/review remain backward-compatible).
+- **Document type (context.rfx_type)**: `rfp` (default) | `rfi` | `rfq`, separate from purchasing `stage`.
+  For `rfi`, (1) do not require an evaluation register even for public buyers, (2) block `kind: commitment` claims:
+  an RFI is not a contractual proposal, so estimates must not become promises.
+  Eligibility, attachments, format checks still apply; RFI does not waive qualification requirements.
+- **Evaluation table (evaluation_criteria)**: array of `{id, label, weight, parent?, stage?, method?, minimum_ratio?,
+  minimum_score?, disclosed?, source?}` and optional `evaluation_total` (register maximum, default 100).
+  Required for public buyers in submission: weights govern outline/space/evidence, without them the author does not know what is scored.
+  Do not reduce every source evaluation to a total of 100:
+  - **Top-level weights sum to `evaluation_total`**. If only technical 90 is in the register and price is separate,
+    record `evaluation_total: 90`, never change it to 100.
+  - **Children (`parent`) sum to their parent's weight**. Preserve hierarchy, e.g., stage-1 technical 100 = quantitative 20 + qualitative 80;
+    prevent double-counting parents and children together.
+  - **Undisclosed weights use `disclosed: false`** without `weight`; the gate never invents 80:20.
+  - Preserve cutoffs as `minimum_ratio` (fraction of allocated maximum, 0.85 = 85%) or `minimum_score`.
+    The gate does not predict evaluation scores or determine technical failure. A negotiation-eligibility 85% threshold
+    means 85% of the technical evaluation **allocated maximum** (76.5 when maximum is 90), not total score 85.
+    Confirm applicability for each notice.
+  Link requirements through `requirements[].criterion_ids` to **leaf** criteria; leaves without responses block
+  as a signal of missing chapters. If `reading_mode` expects a profile, absent or mismatched `render.output_profile`
+  blocks submission (missing = uninspected). Only `screen-presentation` (presentation) and `print-evaluation`
+  (detailed submission) imply profiles. Do not map `individual-review`: it can mean an executive summary
+  or detailed technical evaluation, so reading environment alone cannot determine document role.
+- **Outline (proposal_archetype, sections, archetype_rationale)**:
+  `build` | `maintenance` | `technical-response`. `context.engagement` maps build/migrate → `build`,
+  operate/service-improvement → `maintenance`, product-selection → `technical-response`.
+  Mismatches block unless buyer-prescribed contents are evidenced in `archetype_rationale`.
+  Submission with a mapped engagement **must record the chosen skeleton**.
+  If `sections[]` (`{title}` or string array) exists, check mandatory sections:
+  build = scope/build approach/schedule/testing-acceptance/delivery organization;
+  maintenance = support scope/support organization/SLA/incident response;
+  technical response = requirements matrix/products-specifications/evidence.
+  Without a register, do not check or fabricate contents; `slides[]` maps responses, not chapters, so do not infer from it.
+  **This repository has no outline evidence for education/consulting/policy.**
+  Do not force a type, but require rationale for reusing IT-build outlines.
+- **Third-party commitments (claims[].depends_on_vendor)**: name the manufacturer/partner when promises rely on its SLA/supply conditions.
+  Submission requires a same-name `vendor_confirmations` entry with `present: true`.
+  **Citing public manufacturer documentation is different from obtaining confirmation that it applies to this project.**
+  Korean example "심각도1 1시간 내 대응" holds only if that SLA applies to the contract/subscription tier;
+  otherwise it becomes an undeliverable post-contract promise.
+- **Time-sensitive claims (claims[].time_sensitive, as_of)**: lifecycle/EOL/version/certification validity claims
+  that can become false need `time_sensitive: true` and `as_of` (`YYYY-MM` or `YYYY-MM-DD`).
+  Free text (Korean example "2026년 여름") is not a reference date.
+  Show the same date in the document so reused slides do not silently age.
+- **Numeric relationships (numbers[].at_most, at_least)**: individually correct values can have incorrect relationships.
+  SLA first response ≤ continuing response; response times should increase as severity decreases.
+  Convert only fixed elapsed units (minutes/hours/days/weeks), e.g., preserved inputs `4시간` vs `2일`.
+  Do not convert business days/months/years to fixed durations without start date, holidays, business-hour evidence.
+  Compare identical units; block different units. If needed, record same-unit values calculated using the source calendar.
+- **Submission bundle (attachments)**:
+  `{name, required?, present?, role?, file?, format?, sha256?, copies?, channel?, anonymity_checked?, price_screened?, reviewer?}`.
+  Submissions include named originals, anonymous copies, sealed pricing, separate worksheets; files have different rules.
+  `role` = `proposal` | `proposal-anonymous` | `price` | `form` | `certificate` | `presentation` | `appendix` | `other`.
+  Role-specific rules apply when declared. Hashes are required regardless of role.
+  For `present: true` in submission:
+  - Require `sha256` to identify inspected bytes.
+  - `proposal-anonymous` requires `anonymity_checked: true` and `reviewer`.
+    Inspect identifiers in body, notes, properties, filenames (`quality_gate.py --names`); humans inspect logos/image text.
+    Warn if only an anonymous copy exists without a named original.
+  - Every non-`price` artifact requires `price_screened: true`, recording technical-copy price-leakage screening.
+  - Multiple artifacts for any of `proposal`, `proposal-anonymous`, `price` block; select one submission file per role.
+  `unified_gate.py --bundle <폴더>` compares actual files/hashes (`file` if supplied, otherwise `name`),
+  catching missing or post-review changes. Paths must be relative within the bundle;
+  absolute/parent/link escapes block. Submission with an actual document and required or present attachments
+  requires `--bundle`. Audit-only does not judge physical submission readiness.
+- **Requirement strength (requirements[].strength)**:
+  `required` | `recommended` | `optional` | `conditional` | `informational`.
+  Derive from `mandatory` when absent (both omitted = `required`, fail-closed).
+  Contradictions between both fields are schema errors.
+  `conditional` requires `condition` identifying when it becomes mandatory and counts as mandatory.
+  Unfollowed `recommended` requirements need `rationale` for submission: exceeding recommended length differs
+  from mandatory violations, but omission must be distinguished from reasoned deviation.
+  `bulk_matrix.py` maps Korean `필수` column values 권장·선택·조건부·참고 into strength.
+- **Numeric register (numbers)**:
+  `numbers[] = {id, label, value(JSON number), unit, source?, components?[], percent_of?, amount?, tolerance?(default 0.005), must_appear?}`.
+  With `components`, value must equal their sum; mixed units block.
+  With `percent_of`+`amount`, recalculate the ratio.
+  **Submission cannot pass with `checks.arithmetic: true` alone and no register.**
+  `check_numbers.py` compares values with actual documents; exclude intermediate calculations using `must_appear: false`.
+  Values must be finite JSON numbers (block `Infinity`/`NaN`), with no self-reference via `components`/`percent_of`.
+  `percent_of` requires finite `amount` and nonzero denominator; inability to calculate is unverified, not passed.
+  Currency units (`KRW`, `원`, `USD`, etc.) use **absolute tolerance at the 1-won level**, not relative tolerance, for sum checks.
+  An empty submission register requires `numbers_not_applicable` rationale.
+  Document matching accepts only the **body seen by evaluators**, blocking values appearing solely in notes/layouts/masters.
+  Distinguish decimals/units/sign: Korean examples `37.5개월` does not evidence `37`;
+  `37개월` does not evidence `37원`; `-37` does not evidence `37`.
+- **Verification duties cannot be cancelled**: `mode: submission` requires render verification, hash format,
+  package checks regardless of `artifact_required`.
+  `artifact_required: false` matters only in draft/review; one input cannot disable submission checks.
+- **Render success ≠ visual approval**: submission requires `render.visual_review_approved: true`
+  and `render.visual_reviewer` (real name). `deck_check.py` always writes false;
+  the human reviewing PNGs changes it. PDF conversion success is not design approval.
+- **Missing check records = uninspected**: `render.layout_checked` is **required**.
+  Both false and **omission block**, closing the deletion bypass.
+  Contradictory `verified: true`/`render_succeeded: false` also block.
+  `build_audit_from_meta.py` copies supplied `render_succeeded`, `layout_checked`,
+  `visual_review_approved`, `visual_reviewer`, `output_profile`; it never fabricates approvals.
+- **Artifact binding**: submission with `artifact_required: true` requires real matching
+  `render.artifact_hash`/`package.artifact_hash` values (`sha256:<64 hex>`).
+  Labels such as `sha256:proposal` block. Judge with `unified_gate.py --doc <최종파일>`;
+  mismatches between the file and audit block, preventing reuse after edits.
+  For document-free audit checks, use `--audit-only`; the best result is `AUDIT-VALID`, not `SUBMISSION-READY`.
+  Recompare parsed audit bytes and the document's pre-first-subcheck SHA-256 before final judgment.
+  Content change/deletion/read failure means `INVALID` (exit 2); unchanged quality failures remain `BLOCKED` (exit 1).
+  Check actual attachments/hashes after audit evaluation. This is not file locking:
+  intermediate changes reverted before comparison and changes after final comparison are not guaranteed detectable.
+- **Stage enforcement**: `mode: submission` audits require `--stage submission`.
+  Lowering to `--stage draft` to downgrade `[NEEDS INPUT]` into warnings is usage error (exit 2).
+- **Simulation artifacts**: `artifact_mode: simulation-only` cannot pair with `mode: submission`;
+  internal checks cannot become external readiness.
+- **ID integrity**: every `requirements[]`/`claims[]` item needs a nonempty unique `id`;
+  IDs cannot be removed to anonymize registers or duplicated to mix evidence.
+- **Register content**: submission `requirements[]`/`claims[]` items need human-readable content in
+  `text`, `label`, `title`, `summary`, or `description`.
+  ID-only records cannot identify what an approval approves (partial draft registers remain allowed).
+- **Informational exemption rationale**: `kind: informational` alone exempts `evidence_refs`;
+  submission needs `rationale` explaining why evidence is unnecessary, preventing unsupported performance/track-record relabeling.
+- **Deadline**: `submission.deadline` is timezone-aware ISO-8601, mandatory in submission.
+  Past deadlines block against current time (injectable `PROPOSAL_GATE_NOW`, default UTC now).
+  `cleared: true` cannot pass expired RFPs.
+- **Placeholders are not evidence**: treat `TBD`, `TODO`, `???`, `[NEEDS INPUT]`,
+  Korean placeholder inputs `입력요망`, `미정`, etc. as empty and block in
+  `evidence_refs`, `render.artifact_hash/tool/evidence`, `package.artifact_hash/tool/reviewer`,
+  `submission.rehearsal_evidence/receipt_plan`, `regulatory_checks[].evidence`, `defects[].closure_evidence`.
+- **Strict booleans**: `accepted`, `present`, `cleared`, `verified`, `inspected`,
+  `owner_approved`, `met`, `curable`, `mandatory`, `required` accept only JSON `true`/`false`.
+  Strings such as `"yes"`/`"pending"`/`"no"` mean INVALID AUDIT (exit 2).
+  Omitted `mandatory`/`required` default mandatory; omitted claim `kind` defaults `material` (fail-closed).
+  `kind` must be `material | commitment | informational`.
+- **Conditional bid scope**: `conditional-bid` yields CONDITIONAL-GO only for `mode: draft|review|analysis`.
+  It blocks in `mode: submission`: conditional means internal continuation, not external clearance.
+  Every `bid_conditions[].deadline` must be future.
+- **Eligibility consistency**: `eligibility[] = {id, criterion, mandatory, met, curable}`.
+  Submission requires the register. Unmet (`met:false`) and `curable:false` prohibits `bid`/`conditional-bid`
+  (only no-bid); unmet and `curable:true` prohibits unconditional `bid` (conditional or no-bid).
+  Optimistic bid declarations cannot override unremediable ineligibility.
 
-## eligibility · conditional-bid 작성 예제 (자주 틀리는 부분)
+## eligibility / conditional-bid examples (common mistakes)
 
-**eligibility 원장** — 제출 모드 필수. 각 필수 자격 기준을 met/curable로 표기한다.
+**Eligibility register** — mandatory in submission. Mark each mandatory qualification met/curable.
+Korean example inputs remain verbatim.
 
 ```json
 "eligibility": [
@@ -237,12 +225,13 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 ]
 ```
 
-**치유 항목을 어디에 담느냐가 상태를 가른다(중요).** 동일한 "실적 1건 부족"이라도 표현 위치에 따라
-게이트 상태가 달라진다 — 작성자가 의도에 맞게 선택해야 한다.
+**Where remediation is recorded changes status.**
+The same shortfall (Korean example "실적 1건 부족") yields different gate states depending on its location;
+the author must select according to intent.
 
-- **CONDITIONAL-GO를 원하면**: 치유 항목을 `eligibility`(met:false, curable:true) + **accepted `bid_condition`**
-  으로 모델링하고 `bid_decision:"conditional-bid"`, `mode`는 `draft` 또는 `review`. 제출물에 지금 당장
-  있어야 하는 서류로 만들지 않는다. 조건 기한은 미래 시각이어야 한다.
+- **For CONDITIONAL-GO**: model remediation as `eligibility` (met:false, curable:true) +
+  **accepted `bid_condition`**, `bid_decision:"conditional-bid"`, and `mode` draft/review.
+  Do not model it as a document that must be present in today's submission. Condition deadlines must be future.
   ```json
   "mode": "draft",
   "bid_decision": "conditional-bid",
@@ -252,51 +241,57 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
   ],
   "eligibility": [{"id": "E1", "criterion": "실적 2건", "mandatory": true, "met": false, "curable": true}]
   ```
-- **NO-GO(정상 차단)가 맞으면**: 치유 항목이 **이번 봉투에 반드시 present여야 하는** 필수 서류/제조사
-  확약서라면 `attachments`/`vendor_confirmations`에 `required:true, present:false`로 둔다. 제출 모드에서는
-  이것이 하드 차단이라 `conditional-bid`라도 NO-GO로 내려간다(fail-closed, 의도된 동작).
-- **결정 시점 검토**는 `mode:"review"`, **실제 봉투 제출**은 `mode:"submission"`로 분리한다. review 모드는
-  마감·eligibility 원장·제출 리허설 강제를 적용하지 않으므로 추진 판단에 적합하다.
+- **For legitimate NO-GO blocking**: if remediation is a mandatory document/manufacturer confirmation
+  that **must be present in this envelope**, use `required:true, present:false` in `attachments`/`vendor_confirmations`.
+  This hard-blocks submission even for `conditional-bid` (fail-closed, intentional).
+- Separate **decision review** (`mode:"review"`) from **actual envelope submission** (`mode:"submission"`).
+  Review mode does not enforce deadlines, eligibility-register presence, or submission rehearsals, fitting continuation decisions.
 
-치유 불가 미달은 `curable:false` + `bid_decision:"no-bid"`. 치유 가능한데 조건을 아직 못 걸었으면
-`no-bid` 또는 미수락 `conditional-bid`(→ 차단)로 두되, 낙관적 단독 `bid`로 선언하지 않는다.
+Unremediable shortfall: `curable:false` + `bid_decision:"no-bid"`.
+For remediable gaps without accepted conditions, use no-bid or unaccepted conditional-bid (blocks),
+never an optimistic unconditional bid.
 
-## 게이트 결과 설명 — `proposal_gate.py --explain`
+## Explaining gate results — `proposal_gate.py --explain`
 
-차단 시 "무엇을 왜 고쳐야 하는지"를 마크다운 조치표로 출력한다. `no-bid`·`intake-incomplete`는 결함이
-아니라 **DECISION_MEMO**(정상 불참/보류)로 분기하고, `conditional-bid`가 미결로 막히면
-`CONDITIONAL-GO → NO-GO 다운그레이드`와 회복 조건을 함께 보여준다. `python proposal_gate.py --explain AUDIT.json`.
+On blocking, output a Markdown action table explaining what to fix and why.
+Route no-bid/intake-incomplete to **DECISION_MEMO** (valid nonparticipation/hold), not defects.
+If unresolved conditions block conditional-bid, show the downgrade and recovery conditions
+(preserved output label: `CONDITIONAL-GO → NO-GO 다운그레이드`).
+`python proposal_gate.py --explain AUDIT.json`.
 
-## 완성도 수치 일원화 — `score_completeness.py`(create-best-proposal/scripts, 루트에도 동일 진입점)
+## Centralized completeness — `score_completeness.py` (create-best-proposal/scripts and root entry point)
 
-리뷰어마다 'overall 수치'를 다르게 계산해 값이 갈리던 문제를 없애기 위해 동일 audit에서
-두 축을 결정론적으로 산출한다: 제출가능성(readiness, 세부 차원 충족률 + 게이트),
-제안 품질(quality, `--quality` 지표 파일이 있을 때 `0.4·compliance + 0.3·claim_support
-+ 0.2·(1−defect) + 0.1·rehearsal`). **최종 상태는 오직 게이트가 결정한다** — 품질 점수가
-높아도 open BLOCKING이 있으면 NO-GO다. `python score_completeness.py AUDIT.json [QUALITY.json]`.
+Deterministically derive two axes from the same audit to eliminate reviewer-specific overall-score differences:
+readiness (dimension fulfillment + gate) and quality
+(with `--quality` metrics: `0.4·compliance + 0.3·claim_support + 0.2·(1−defect) + 0.1·rehearsal`).
+**Only the gate determines final status**: open BLOCKING means NO-GO regardless of quality.
+`python score_completeness.py AUDIT.json [QUALITY.json]`.
 
-## 수치의 항목 대조와 실제 레이아웃 검사
+## Item-specific numeric matching and actual layout checks
 
-통합 게이트의 하위 검사 프로세스는 각각 240초로 제한한다. 시간 초과·실행 실패는
-`INVALID`(exit 2)이며 게이트 통과로 처리하지 않는다. 렌더러의 버전 조회와 `pdfinfo`는
-15초로 제한하고 실패 시 기존 PDF 검사 경로로 진행한다(별도 미확인 기록).
-`deck_check.py --png-dir`을 요청하면 이번 변환의 PNG가 모든 페이지에 있어야 한다.
-이전 PNG는 증거에서 제외하며 변환 실패·누락·빈 파일·도구 부재는 차단하고
-`render_succeeded:false`, `verified:false`로 기록한다. 사람의 시각 승인은 여전히 별도다.
+Each integrated-gate child check has a 240-second limit.
+Timeout/execution failure means `INVALID` (exit 2), never a pass.
+Renderer version lookup and `pdfinfo` have 15-second limits;
+on failure continue the existing PDF inspection path with a separate unverified record.
+With `deck_check.py --png-dir`, the current conversion must supply a PNG for every page.
+Exclude older PNGs as evidence; conversion failure, missing/empty files, or missing tools block and record
+`render_succeeded:false`, `verified:false`. Human visual approval remains separate.
 
-`numbers[].match_label`은 선택적 불리언(기본 false)이다. true이면 `label`이 본문에
-나오는 각 위치에서 항목명 직후 첫 숫자를 대조한다. 항목명 뒤에는 공백·콜론·등호·표 구분자만
-허용한다. 값 뒤바뀜과 반복된 요약/상세 항목의 불일치를 차단한다. 문서와 같은 정확한 항목명을
-사용한다. false이면 기존처럼 본문 전체의 값 존재만 확인한다. 금액 변형은 배율 전체를
-매치해야 한다(37원과 37억원은 다르다). meta→audit는 이 필드를 그대로 보존한다.
-명시된 분·초·시간·일·영업일의 충돌도 구별하며, 띄어쓴 시간 단위는 일반 단어의 접두사와
-구별할 수 있을 때만 검사한다. 단위 없는 표 셀·미지원 복합 단위의 의미는 원문과 별도 대조한다.
-`tolerance`는 유한한 0 이상의 숫자여야 한다. NaN·Infinity는 합계·비율 검사를 우회하지 못한다.
+`numbers[].match_label` is an optional boolean (default false).
+When true, at every body occurrence of `label`, compare the first number immediately afterward.
+Only whitespace, colons, equals signs, table separators may intervene.
+This blocks swapped values and inconsistent repeated summary/detail items.
+Use the exact document label. False retains whole-body value-existence checks.
+Amount variants must match the full multiplier (Korean examples: 37원 differs from 37억원).
+Meta→audit preserves this field. Distinguish explicit minutes/seconds/hours/days/business days;
+check spaced time units only when distinguishable from ordinary word prefixes.
+Separately compare unitless cells/unsupported compound units with sources.
+`tolerance` must be finite and nonnegative; NaN/Infinity cannot bypass sum/ratio checks.
 
-제출 PPTX는 `unified_gate.py --doc`에서 `deck_check.py`를 직접 실행한다. 렌더 성공과
-육안 승인 기록은 여전히 필요하며, 자동 레이아웃 통과가 이를 대신하지 않는다.
+For submission PPTX, `unified_gate.py --doc` directly runs `deck_check.py`.
+Render success and human approval records remain required; automated layout passes do not replace them.
 
-
-레이아웃 재검사에는 표지·간지·표 셀의 명시적 RGB 단색 대비도 포함된다. 일반 글자는
-4.5:1, 18pt 이상 또는 14pt 굵은 글자는 3:1 미만이면 차단한다. 테마색·투명도·이미지 배경·
-부분 겹침·상속 폰트 등 계산할 수 없는 조합은 미검사로 표시하고 렌더 육안 검토로 확인한다.
+Layout rechecks include explicit solid RGB contrast on covers/dividers/table cells.
+Block below 4.5:1 for normal text, 3:1 for 18pt+ or 14pt bold+.
+Uncomputable combinations (theme colors, transparency, image backgrounds, partial overlap, inherited fonts)
+remain uninspected and require rendered visual review.

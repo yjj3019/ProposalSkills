@@ -1,56 +1,57 @@
-# 근거로 설득하고 실제 페이지로 검토하는 제안서
+# Persuade with evidence and review actual pages
 
-Full·Pink·Red·PT의 내용·장표 품질을 높일 때 읽는다. 검사를 많이 실행한 것과 좋은 제안서는
-같지 않다. 평가자가 **무엇을 어떻게 수행하고, 왜 믿을 수 있으며, 어떻게 확인할지** 찾을 수
-있어야 한다. 게이트 통과·모델 자기 점수·화려한 디자인을 설득력의 증거로 사용하지 않는다.
+Read this when improving content and slide quality for Full, Pink, Red, and PT. Running many checks does not
+make a good proposal. Evaluators must be able to find **what will be done, how, why it is credible, and how it will be verified**.
+Do not treat gate passes, model self-scores, or elaborate design as evidence of persuasiveness.
 
-## 원문에서 주장까지
+## From source to claim
 
-1. 수정공고까지 포함한 원문을 확인하고 요구·근거 원장에 최신 출처를 연결한다. 표의 제목,
-   병합 셀, 단위, 예외 조건, 각주와 다음 페이지 연결을 함께 읽는다. OCR 텍스트만 보고
-   자격·금액·기간·SLA를 확정하지 않는다. 필요한 경우 [source-and-visual-evidence.md](source-and-visual-evidence.md)의
-   선택형 추출을 쓴다. 도구가 없어도 제공된 원문으로 검토를 이어 간다.
-   명시적으로 대체된 값은 변경 이력과 현재 적용값을 분리한다. 원문 미대조라는 한계와
-   최신 값의 적용 여부는 별개다. 사용자가 수정 관계를 알려준 요약 초안에서는 최신 값을
-   적용하고, 이전 값과 최신 값 중 무엇이 맞는지 반복 질문하지 않는다.
-2. 배점이 큰 요구부터 `REQ-ID → 평가 질문 → 제안하는 수행 방식 → 증거 → 검증 방법`을
-   연결한다. 단순한 “준수한다”를 실행 방법으로 취급하지 않는다. 수행 주체·절차·산출물·
-   완료 기준 중 필요한 항목을 구체화한다. 미확인 인력·일정·성능은 약속으로 바꾸지 않는다.
-   일반 지원시간과 별도 주기를 함께 대조한다. 예를 들어 평일 지원과 매일 백업 확인이
-   병존하면 휴일의 확인 주체·방식·기록과 장애 후속조치 시간을 구분해 수행 공백을 해소한다.
-   이는 수행 설계이며, 실제 당직 인력 확보나 새로운 SLA의 증거를 대신하지 않는다.
-3. 차별화 주장은 고객의 판단 기준과 관련된 차이일 때만 쓴다. 같은 기준·기간·범위의 비교
-   근거가 없으면 “유일/최고/우월”을 삭제하고 제안 방식과 적용 조건을 설명한다. 기대효과와
-   이미 검증한 실적을 구분하고, 효과 수치에는 기준값·계산·조건을 붙인다.
+1. Check source documents including amendments, and link current sources to the requirements/evidence register.
+   Read table titles, merged cells, units, exceptions, footnotes, and continuation onto following pages together.
+   Do not finalize qualifications, amounts, periods, or SLAs from OCR alone. If needed, use optional extraction in
+   [source-and-visual-evidence.md](source-and-visual-evidence.md). Continue reviewing supplied sources even without the tool.
+   Separate superseded values in change history from currently applicable values. The limitation of not having checked
+   the original source is separate from applying the latest value. For summary drafts where the user has explained
+   the amendment relationship, apply the latest value without repeatedly asking which of the old/new values is correct.
+2. Starting with high-weight requirements, connect `REQ-ID → evaluation question → proposed method → evidence → verification method`.
+   A bare declaration of compliance is not an execution method. Specify the relevant actor, procedure, deliverable,
+   and completion criterion. Do not turn unverified staffing, schedules, or performance into promises.
+   Cross-check general support hours against separate recurring obligations. For example, weekday support and daily
+   backup checks require distinct holiday owners, methods, records, and incident follow-up times to close delivery gaps.
+   This is delivery design; it does not establish actual on-call staffing or a new SLA.
+3. Make differentiation claims only for differences relevant to the customer's decision criteria. Without comparative
+   evidence using the same criteria, period, and scope, remove Korean exaggeration examples “유일/최고/우월” and explain
+   the proposed method and conditions. Separate expected benefits from verified track records; give benefit figures
+   a baseline, calculation, and conditions.
 
-예: “신속한 장애 대응 제공”만 쓰지 않는다. 확인된 운영 범위에 대해
+Korean proposal examples: do not merely write “신속한 장애 대응 제공”. For confirmed operating scope, connect
 “탐지→분류→조치→복구 확인의 책임과 승인 경로를 분리하고, 각 단계 기록으로 이행을
-검토한다”를 절차·RACI·검증 증거와 연결한다. 보장 시간은 원문과 승인된 수행 능력이 있을
-때만 적는다. 이 예시를 모든 사업의 정답 문장이나 새로운 SLA로 복제하지 않는다.
+검토한다” to procedures, RACI, and verification evidence. State guaranteed times only when supported by source
+requirements and approved delivery capability. Do not copy this example as a universal answer or a new SLA.
 
-## 장표 한 장과 전체 흐름
+## Individual slides and overall flow
 
-- 작성 전 제목·리드문만 순서대로 읽는다. 사업의 제약 → 해결 전략 → 기술/운영 설계 →
-  이행 계획 → 검증·효과가 이어지는지 확인한다. 이미 제공된 브랜드·양식은 다시 선택하지 않는다.
-- 각 핵심 장표에서 리드문의 주장, 본문 도식/표, 출처·REQ-ID가 같은 결론을 가리키도록 한다.
-  본문이 주장에 답하지 못하면 장식을 더하기 전에 내용을 수정한다.
-- 실행 방식은 아키텍처·흐름·역할·산출물 중 관계에 맞는 표현을 고른다. 실제 없는 시스템,
-  경로, 수행 인원은 그리지 않는다. 비교표에는 동일한 기준과 단위를 사용한다.
-- 상세 제출본과 PT는 같은 수치·범위·약속을 사용하되 밀도는 다르게 한다. PT에서 생략한
-  세부 근거는 본제안서/별첨 위치로 연결한다. 출력 크기를 줄여 과밀을 숨기지 않는다.
+- Before drafting, read only titles and leads in order. Check the progression: constraints → solution strategy →
+  technical/operational design → delivery plan → verification/benefits. Do not reselect an already supplied brand/template.
+- On every key slide, ensure the lead claim, body diagram/table, source, and REQ-ID support the same conclusion.
+  If the body does not answer the claim, fix content before adding decoration.
+- Choose architecture, flow, role, or deliverable representations according to the relationship being explained.
+  Do not draw nonexistent systems, paths, or staff. Use identical criteria and units in comparisons.
+- Detailed submissions and PT must use the same figures, scope, and commitments with different density.
+  Link evidence omitted from PT to the main proposal/appendix. Do not hide crowding by shrinking output.
 
-## 증거가 남는 Red 검토
+## Red review with traceable evidence
 
-평가 항목별로 해당 답변·근거 위치를 실제로 찾아본다. 주장 누락, 근거 범위 불일치,
-실행 불가능한 일정/인력, 모순된 숫자, 설명 없는 도식, 표의 단위·각주 누락을 우선 지적한다.
-지적은 `페이지/REQ-ID · 문제 · 원문/증빙 · 평가상 영향 · 최소 수정안 · 재확인 결과`로 남긴다.
-허구의 평가점수·수주확률을 만들거나 정해진 지적 개수를 채우지 않는다.
+Actually locate each evaluation item's response and evidence. Prioritize missing claims, mismatched evidence scope,
+infeasible schedules/staffing, contradictory figures, unexplained diagrams, and missing table units/footnotes.
+Record findings as `Page/REQ-ID · Issue · Source/evidence · Evaluation impact · Minimum correction · Recheck result`.
+Do not fabricate evaluation scores/win probabilities or fill a fixed quota of findings.
 
-시각 검토는 렌더한 **모든 페이지**에서 수행한다. 한글 글꼴 대체, 표 셀 넘침, 가림,
-차트 축/범례/기준선, 캡션·페이지 참조, 이미지 속 숫자를 확인한다. 비교 도구의 SAME은
-“그 설정의 허용 오차 안에서 변화 없음”이며 의미·사실·가독성 승인이 아니다.
-수정이 의도된 경우 차이를 검토한 뒤 기준본을 새로 만들고, 통과시키려고 오차를 높이거나
-기준본을 자동 교체하지 않는다. 최종 파일이 바뀌면 관련 원장·수치·참조·해시·렌더를 재확인한다.
+Visually review **every rendered page**. Check Korean font substitution, table-cell overflow, obscured content,
+chart axes/legends/baselines, captions/page references, and figures within images. A comparison tool's SAME means
+no change within the tolerance of that configuration; it does not approve meaning, facts, or readability.
+For intentional edits, review differences before creating a new baseline. Do not raise tolerance or automatically
+replace the baseline to force a pass. If the final file changes, recheck affected registers, figures, references, hashes, and renders.
 
-최종 보고는 내용 검토, 기계 검사, 렌더, 사람의 시각 승인, 미확인 항목을 구분한다.
-좋은 초안이더라도 승인·실물·증거가 없으면 제출 가능으로 표시하지 않는다.
+In the final report, distinguish content review, machine checks, rendering, human visual approval, and unknowns.
+Even a good draft must not be marked submission-ready without approvals, the actual artifact, and evidence.

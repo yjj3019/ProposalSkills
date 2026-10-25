@@ -1,8 +1,4 @@
-"""회귀 테스트 — 2026-09 외부 정밀 진단(F01~F05)에서 재현된 허위 통과·유실의 재발 방지.
-
-각 테스트는 진단 당시 실제로 '통과'했던 입력을 그대로 재현하고, 이제 차단·사용 오류로
-판정되는지 확인한다. 정상 대조군을 함께 둬서 과민 차단도 같이 잡는다.
-"""
+"""Regression tests for false passes and data loss reproduced by the 2026-09 external diagnostic (F01~F05). Reuse previously passing inputs and expect blockers/usage errors; include positive controls to detect overly strict blocking."""
 from __future__ import annotations
 
 import copy
@@ -33,10 +29,7 @@ import build_audit_from_meta as bam  # noqa: E402
 
 
 def run(*args: object, **kw) -> Result:
-    """스킬 스크립트 실행 — 기본은 같은 프로세스(test_support 참조).
-
-    env를 주면 자식 프로세스로 승격된다(인코딩 계약 검사).
-    """
+    """Run skill scripts in-process by default (see test_support); env promotes execution to a child process for encoding-contract checks."""
     return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
@@ -44,11 +37,7 @@ LEDGER_TEXT = "총 사업비 37억원 · 구축비 25억원 · 유지보수비(3
 
 
 def make_pptx(path: Path, text: str = "정상 문서 " + LEDGER_TEXT) -> Path:
-    """정상 패키지. 열리지 않는 파일을 양성 대조군으로 쓰지 않는다.
-
-    통합 게이트가 원장 수치를 문서와 대조하므로, 양성 대조군은 audit의 원장과 같은
-    금액을 담아야 한다 — 원장과 어긋난 문서를 '정상'이라고 부르면 대조 자체가 무의미하다.
-    """
+    """Valid package: never use an unopenable file as a positive control. Since the unified gate compares ledger values with documents, positive controls must contain the audit amounts; mismatches would defeat the comparison."""
     return fixtures.submission_pptx(path, text)
 
 
@@ -61,7 +50,7 @@ def ready_audit() -> dict:
 
 
 class SubmissionValidationRegressionTests(unittest.TestCase):
-    """정밀 분석에서 재현한 단위·실물·검사 범위 오류를 정상 대조군과 함께 확인한다."""
+    """Verify diagnosed unit, physical-artifact, and inspection-scope errors alongside positive controls."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -395,7 +384,7 @@ class SyntheticProposalLayoutTests(unittest.TestCase):
 
 
 class ArtifactBindingTests(unittest.TestCase):
-    """F01 — 검증 기록이 '어느 파일'의 것인지 확인한다."""
+    """F01: identify which file each verification record concerns."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -421,7 +410,7 @@ class ArtifactBindingTests(unittest.TestCase):
     def test_matching_document_is_submission_ready(self):
         doc = make_pptx(self.dir / "final.pptx")
         data = ready_audit()
-        data["attachments"] = []  # 대표 파일만 제출하는 양성 대조군.
+        data["attachments"] = []  # Positive control submitting only the main file.
         data["render"]["artifact_hash"] = data["package"]["artifact_hash"] = digest_of(doc)
         proc = self._gate(data, "--doc", str(doc))
         self.assertEqual(proc.returncode, 0, proc.stdout)
@@ -547,7 +536,7 @@ class InFlightInputBindingTests(unittest.TestCase):
 
 
 class StageAndLabelTests(unittest.TestCase):
-    """F02 — 단계·라벨·설명이 하나의 판정에서 나온다."""
+    """F02: stage, label, and explanation share one decision."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -585,7 +574,7 @@ class StageAndLabelTests(unittest.TestCase):
 
 
 class MetaIntegrityTests(unittest.TestCase):
-    """F03 — 변환 단계에서 입력이 조용히 바뀌거나 사라지지 않는다."""
+    """F03: conversion must not silently alter or lose inputs."""
 
     def test_maintenance_scope_heading_accepts_spacing_but_requires_the_section(self):
         data = {"mode": "draft", "proposal_archetype": "maintenance",
@@ -637,7 +626,7 @@ class MetaIntegrityTests(unittest.TestCase):
 
 
 class EvidenceSeparationTests(unittest.TestCase):
-    """F04 — 검토 상태·준수 상태·근거를 서로 대신하지 않는다."""
+    """F04: review status, compliance status, and evidence cannot substitute for one another."""
 
     def test_supported_claim_needs_evidence_in_submission(self):
         data = ready_audit()
@@ -666,7 +655,7 @@ class EvidenceSeparationTests(unittest.TestCase):
 
 
 class DocumentScanTests(unittest.TestCase):
-    """F05 — 차트 값과 패키지 유효성까지 실제로 읽는다."""
+    """F05: inspect actual chart values and package validity."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -688,7 +677,7 @@ class DocumentScanTests(unittest.TestCase):
         return p
 
     def test_stale_name_in_titled_chart_is_found(self):
-        # 제목(a:t)이 있으면 run 경로만 타고 범주값(c:v)을 건너뛰던 미탐지 재현.
+        # Reproduce title a:t selecting the run path and skipping category c:v values.
         titled = self._chart_deck("<c:title><c:tx><c:rich><a:p><a:r>"
                                   "<a:t>연도별 실적</a:t></a:r></a:p></c:rich></c:tx></c:title>")
         proc = run(QG, titled, "--names", self._names())

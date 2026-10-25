@@ -1,9 +1,4 @@
-"""10차 — 제출은 파일 하나가 아니다.
-
-기명 원본·익명 사본·밀봉 가격서·별책 워크시트가 함께 나가고, 파일마다 규칙이 다르다.
-대표 파일 하나에만 해시를 묶어 두면 익명본의 노트에 남은 업체명도, 빠진 가격 별책도,
-검토 뒤 바뀐 첨부도 잡히지 않는다. 원장 수치와 문서의 대조도 같은 자리에서 돌린다.
-"""
+"""Round 10: submission is a bundle, not one file. Named originals, anonymous copies, sealed prices, and separate worksheets have different rules. Hashing only the main file misses bidder names in anonymous-copy notes, absent price volumes, and attachments changed after review. Compare ledger values with documents here too."""
 from __future__ import annotations
 
 import hashlib
@@ -32,10 +27,7 @@ LEDGER_TEXT = "총 사업비 37억원 · 구축비 25억원 · 유지보수비(3
 
 
 def run(*args: object, **kw) -> Result:
-    """스킬 스크립트 실행 — 기본은 같은 프로세스(test_support 참조).
-
-    env를 주면 자식 프로세스로 승격된다(인코딩 계약 검사).
-    """
+    """Run skill scripts in-process by default (see test_support); env promotes execution to a child process for encoding-contract checks."""
     return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
@@ -48,7 +40,7 @@ def submission(attachments: list[dict]) -> dict:
 
 
 class AttachmentLedgerTests(unittest.TestCase):
-    """제출 첨부의 해시는 역할과 관계없이 요구하며 역할별 검사를 더한다."""
+    """Require hashes for submission attachments regardless of role, then add role-specific checks."""
 
     def test_role_free_submission_also_requires_a_digest(self):
         self.assertTrue(any("without a sha256" in f for f in pg.check_attachments(
@@ -76,7 +68,7 @@ class AttachmentLedgerTests(unittest.TestCase):
     def test_non_price_documents_need_a_price_screening_record(self):
         item = {"name": "기술본.pptx", "present": True, "role": "proposal", "sha256": DIGEST}
         self.assertTrue(any("price_screened" in f for f in pg.check_attachments(submission([item]))))
-        # 가격서 자신은 가격을 담아야 하므로 요구하지 않는다
+        # Do not require price screening for the price document itself, which must contain prices.
         price = {"name": "가격서.xlsx", "present": True, "role": "price", "sha256": DIGEST}
         self.assertEqual(pg.check_attachments(submission([price])), [])
 
@@ -112,7 +104,7 @@ class AttachmentLedgerTests(unittest.TestCase):
 
 
 class BundleVerificationTests(unittest.TestCase):
-    """묶음의 파일이 실제로 그 자리에 그 내용으로 있는지 확인한다."""
+    """Verify bundle files actually exist at recorded locations with recorded contents."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -165,7 +157,7 @@ class BundleVerificationTests(unittest.TestCase):
 
 
 class NumbersInTheUnifiedGateTests(unittest.TestCase):
-    """원장 수치 대조를 사람 손에 맡기지 않는다 — 문서를 받은 경로에서 기본으로 돈다."""
+    """Do not leave ledger/document comparison to humans; run it by default when documents are supplied."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -189,7 +181,7 @@ class NumbersInTheUnifiedGateTests(unittest.TestCase):
         self.assertIn("STATUS: SUBMISSION-READY", proc.stdout)
 
     def test_stale_amount_in_the_document_blocks(self):
-        """원장은 37억인데 장표에 옛 금액이 남은 경우 — 해시는 맞아도 통과하지 못한다."""
+        """A ledger value of 37억 with stale slide amounts must fail even if hashes agree."""
         audit, doc = self._bound("총 사업비 40억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
         proc = run(UG, audit, "--doc", doc, "--no-explain")
         self.assertEqual(proc.returncode, 1)

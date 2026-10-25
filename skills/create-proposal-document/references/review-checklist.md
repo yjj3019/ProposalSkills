@@ -1,137 +1,135 @@
-# 품질 게이트 (review-checklist)
+# Quality gates (review-checklist)
 
-제출 전 통합 검수 1회. **8개 항목 전부 통과해야 완료 선언**한다.
-하나라도 실패하면 수정 후 실패 항목만 재검하고, 구조 변경이 있었으면 전체 재검한다.
+Run one integrated review before submission. **All 8 items must pass before declaring completion.**
+After failure, fix and recheck the failed items; after structural changes, recheck everything.
 
-## 검수 전용 요청 (review-only) — 새 제안서를 쓰지 않을 때
+## Review-only requests — when not writing a new proposal
 
-기존 제안서를 "검토·수정만" 요청받으면, 아래 8대 게이트를 **작성이 아니라 진단
-관점으로** 적용한다. 원칙은 세 가지다.
+For review/revision of an existing proposal, apply the 8 gates **as diagnosis rather than drafting**.
 
-1. **원본 보존**: 원문을 통째로 다시 쓰지 않는다. 발견 항목만 지적하고 최소 수정안을
-   제시한다(사용자가 전면 개정을 요청한 경우만 예외).
-2. **비례형 범위**: 주어진 자료 범위 안에서만 검토한다. 없는 RFP·증빙을 검토한 것처럼
-   말하지 않고, 확인 못 한 범위를 명시한다.
-3. **심각도 분류**로 결과를 정렬한다:
-   - **Critical**: 실격·필수 누락·근거 없는 고영향 주장·미승인 약속, 또는 자격·필수
-     목표·범위·가격·인력·보안·일정에 영향을 주는 모순
-   - **Major**: 중요한 공백. 누락된 값이 필수 누락·약속 불일치를 만들면 Critical로 승격
-   - **Minor**: 국소적 명확성·용어·구조·형식 문제
-   - **Note**: 선택적 개선
+1. **Preserve the original**: do not rewrite the entire document. Report findings and minimum corrections
+   (except when the user requests comprehensive revision).
+2. **Proportionate scope**: review supplied material only. Do not claim to have reviewed absent RFP/evidence; state unchecked scope.
+3. Sort results by **severity**:
+   - **Critical**: disqualification, mandatory omission, unsupported high-impact claim, unapproved commitment,
+     or contradictions affecting eligibility, mandatory targets, scope, price, staffing, security, schedule.
+   - **Major**: significant gap; promote to Critical if the missing value causes mandatory omission or conflicting commitments.
+   - **Minor**: local clarity, terminology, structure, or formatting issue.
+   - **Note**: optional improvement.
 
-**최소 수정 지시 포맷**: 각 지적마다 바뀔 사실 / 담당(owner·역할) / 결정 기한 /
-승인 필요 여부 / 함께 갱신할 하위 계산·섹션을 함께 적는다. (예: "투입인력 50↔35 모순 →
-M/M표 기준으로 재산정, owner=PM, 기한=제출 3일 전, 요약·조직도·프로필 3처 동기화")
+**Minimum correction format**: for each finding, specify the changed fact / owner-role / decision deadline /
+approval requirement / dependent calculations and sections to update.
+Korean example: "투입인력 50↔35 모순 → M/M표 기준으로 재산정, owner=PM, 기한=제출 3일 전, 요약·조직도·프로필 3처 동기화".
 
-**검증 불가 항목**: 원문만으로 참·거짓을 못 정하는 것(어느 수치가 맞는지, 승인자
-존재 여부 등)은 확언하지 말고 `[unverified]`/"누락"으로 표기해 사용자에게 확인을
-요청한다. 기계 검사는 `scripts/quality_gate.py`로 placeholder·과장어·잔존 명칭을
-1차 스캔한다. 결과 산출물은 원본 + 심각도순 지적 목록 + 최소 수정안 + 검토 범위·한계.
+**Unverifiable items**: do not assert truth/falsehood from insufficient source material (e.g., which figure is correct,
+whether an approver exists). Mark `[unverified]` or missing and request user confirmation.
+Initially scan placeholders, exaggerations, and residual names with `scripts/quality_gate.py`.
+Deliver original + severity-sorted findings + minimum corrections + scope/limitations.
 
-## 8대 검수 항목
+## Eight review items
 
-### 1. 요구사항 전수 매핑 (조견표)
-- [ ] 요구사항 대장의 모든 행이 "검수완료" 상태인가
-- [ ] 조견표의 페이지 번호가 최종 조판 기준으로 정확한가 (조판 후 갱신했는가)
-- [ ] 부분수용·X 항목에 사유와 대안이 비고에 있는가
-- [ ] 본문 각 페이지의 REQ-ID ↔ 조견표가 양방향으로 일치하는가
+### 1. Exhaustive requirement mapping (compliance matrix)
+- [ ] Every requirements-register row is review-approved (Korean display: "검수완료").
+- [ ] Matrix page numbers match final layout and were updated afterward.
+- [ ] Partial/X responses have reasons and alternatives in Notes.
+- [ ] Body-page REQ-IDs ↔ matrix agree bidirectionally.
 
-### 2. 리드문 스토리 검증
-- [ ] 전 장표의 리드문만 이어 읽었을 때 제안 논리가 성립하는가
-- [ ] 내용 없는 리드문("~에 대해 설명합니다")이 없는가
-- [ ] 1페이지 1메시지 — 두 메시지가 섞인 페이지는 분할했는가
-- [ ] 제안 요약(개요) 장이 5가지 질문에 답하는가: 발주처가 내릴 결정 / 지금 중요한
-      문제와 영향 / 무엇을 왜 제안하는가 / 측정 가능한 성과와 위험 / 다음 단계
+### 2. Lead-statement story
+- [ ] Reading every slide lead alone establishes the proposal logic.
+- [ ] No content-free leads (Korean example: "~에 대해 설명합니다").
+- [ ] One page, one message; split pages containing two.
+- [ ] The overview answers five questions: buyer decision / current problem and impact /
+      what is proposed and why / measurable outcome and risk / next step.
 
-### 3. 과장어·근거 검사
-- [ ] 금지어 검색: 최고·완벽·혁신적·획기적·100%·무중단·완전 자동화·위험 제로·유일한
-      → 발견 시 같은 페이지에 객관 근거·적용 범위가 있는지 확인, 없으면 대체 표현으로 수정
-- [ ] 모든 실적·인증·성능·SLA 주장에 출처·기준일·범위가 병기되었는가
-- [ ] `[unverified]` 목록이 비었거나, 사용자에게 보고되었는가
+### 3. Exaggeration and evidence
+- [ ] Search Korean banned-word inputs: 최고·완벽·혁신적·획기적·100%·무중단·완전 자동화·위험 제로·유일한.
+      Check same-page objective evidence/scope for each hit; otherwise replace.
+- [ ] Every track-record, certification, performance, SLA claim has source, reference date, scope.
+- [ ] The `[unverified]` list is empty or reported to the user.
 
-### 4. 수치·버전·일정 문서 내 일관성
-- [ ] 인력 수: 요약 ↔ 조직도 ↔ 프로필 ↔ M/M표 일치
-- [ ] 일정: 로드맵 ↔ 간트 ↔ 마일스톤 일치
-- [ ] 제품 버전: 소개 ↔ 구성도 ↔ 명세 ↔ 라이선스 일치
-- [ ] EOL·지원 종료일을 웹에서 최신 확인했는가
+### 4. Internal consistency of figures, versions, schedules
+- [ ] Staffing: summary ↔ organization ↔ profiles ↔ M/M agree.
+- [ ] Schedule: roadmap ↔ Gantt ↔ milestones agree.
+- [ ] Versions: introduction ↔ architecture ↔ specifications ↔ licenses agree.
+- [ ] EOL/support-end dates verified current on the web.
 
-### 5. 고객명·재사용 자료 검사
-- [ ] 발주처 명칭·시스템명이 RFP 표기와 정확히 일치하는가
-- [ ] **이전 고객사 이름 전수 검색** (재사용 원본의 고객명 목록으로 grep) — 잔존 0건
-- [ ] 재사용 페이지의 날짜·인력·실적이 현재 기준으로 갱신되었는가
+### 5. Customer names and reused material
+- [ ] Buyer/system names exactly match the RFP.
+- [ ] **Search all previous customer names** (grep against the reused source's name list): 0 remain.
+- [ ] Reused dates/staff/track records refreshed to current values.
 
-### 6. 형식 요건 (RFP 규정)
-- [ ] 페이지 제한·분량 준수 (초과는 감점·실격 사유)
-- [ ] 제출 형식(PPTX/PDF/인쇄), 표지 기재 사항, 목차 규정 준수
-- [ ] 별첨 요구 서류(견적서·인증서 사본·확약서) 목록 대조 완료
+### 6. Format requirements (RFP rules)
+- [ ] Page/length limits met (excess causes deduction/disqualification).
+- [ ] Submission format (PPTX/PDF/print), cover fields, contents comply.
+- [ ] Required attachments (quotation, certification copies, commitment letters) reconciled.
 
-### 7. 시각 규격 (visual-style + 브랜드 스킬) — 기계 검사: `deck_check.py`
-- [ ] `deck_check.py --require-req-ids --max-pages N` 차단 0건(리드문·REQ-ID·페이지·최소 폰트·표 헤더)
-- [ ] 색이 지정 팔레트(브랜드 스킬 토큰 또는 중립 기본값)로 통일 — 임의 색 0건
-- [ ] 폰트가 지정 폰트 또는 공식 폴백인가 (임시 폴백 사용 시 1줄 고지)
-- [ ] 상태·구분을 색상만으로 표현한 곳이 없는가 (레이블·기호 병행)
-- [ ] 표에 헤더·단위·출처·기준일, 그림에 캡션·대체 텍스트가 있는가
-- [ ] 플레이스홀더(lorem·xxxx·샘플·TBD) 잔존 0건
+### 7. Visual specifications (visual-style + brand skill) — machine check: `deck_check.py`
+- [ ] `deck_check.py --require-req-ids --max-pages N`: 0 blockers (leads, REQ-IDs, pages, minimum fonts, table headers).
+- [ ] All colors use prescribed palette (brand tokens or neutral defaults); 0 arbitrary colors.
+- [ ] Fonts are prescribed or official fallbacks (one-line notice for temporary fallback).
+- [ ] No color-only statuses/categories; labels/symbols accompany them.
+- [ ] Tables have headers/units/sources/reference dates; figures have captions/alt text.
+- [ ] 0 remaining placeholders (preserved test inputs: lorem·xxxx·샘플·TBD).
 
-### 8. 최종 렌더 검증 — 기계 검사: `deck_check.py --render --png-dir out/png --emit-render render.json`
-- [ ] 렌더 PDF 페이지 수 = 슬라이드 수, `render.json`의 `verified:true`를 meta.render에 반영
-- [ ] `out/png` 전 페이지 이미지 육안 확인: 텍스트 잘림·폰트 깨짐·표 넘침 0건
-- [ ] 목차 페이지 번호 = 실제 페이지 번호
-- [ ] 시크릿·자격증명·내부 호스트명 노출 0건 (발견 시 `****` 마스킹)
-- [ ] 원본 파일의 메타데이터·노트·댓글·숨김 콘텐츠·첨부·외부 링크·매크로를 별도 검사했는가
-- [ ] 가격 분리 사업이면 기술 패키지 전체에서 가격·원가·할인율 노출이 0건인가
-- [ ] 검사할 수 없는 패키지 항목을 `[NOT INSPECTED]`로 남겼는가
-- [ ] Critical·Major·BLOCKING INPUT이 모두 Closed이고 해결 증거가 기록되었는가
-- [ ] 제출 파일 열림/업로드 또는 인쇄 리허설과 접수 증적 계획이 확인되었는가
+### 8. Final render — machine check: `deck_check.py --render --png-dir out/png --emit-render render.json`
+- [ ] PDF page count equals slide count; reflect `render.json` `verified:true` in meta.render.
+- [ ] Visually inspect every `out/png` image: 0 clipped text, broken fonts, overflowing tables.
+- [ ] Contents page numbers equal actual pages.
+- [ ] 0 exposed secrets/credentials/internal hostnames (mask findings as `****`).
+- [ ] Separately inspect source metadata, notes, comments, hidden content, attachments, external links, macros.
+- [ ] For separated pricing, 0 price/cost/discount-rate disclosures anywhere in the technical package.
+- [ ] Uninspectable package items marked `[NOT INSPECTED]`.
+- [ ] All Critical/Major/BLOCKING INPUT items Closed with resolution evidence.
+- [ ] File opening/upload or print rehearsal and receipt-evidence plan confirmed.
 
-## 검수 실행 방법
+## Running the review
 
-- 1·3·5·7의 텍스트 검사는 `scripts/quality_gate.py`로 실행한다
-  (과장어·플레이스홀더·잔존 명칭·팔레트 일탈을 한 번에 검사, 종료 코드로 판정).
-  예: `python3 scripts/quality_gate.py 제안서.pptx --names 이전고객명.txt --palette "1F3864,8FAADC,D6E0F0,EDF1F8,C00000,1F7A3D,202020,595959"`
-- 2·4는 리드문 목록·수치 대조표를 만들어 눈으로 대조한다.
-- 8은 `deck_check.py --render`(LibreOffice) → PNG 썸네일 → 사람 시각 확인. soffice가 없으면
-  `NOT INSPECTED`로 남기고 PowerPoint에서 직접 확인한다.
-- 검수 결과는 항목별 통과/실패 + 수정 내역으로 사용자에게 요약 보고한다.
+- Text checks for 1/3/5/7 use `scripts/quality_gate.py`
+  (exaggerations/placeholders/residual names/palette deviations in one run, judged by exit code).
+  Example: `python3 scripts/quality_gate.py 제안서.pptx --names 이전고객명.txt --palette "1F3864,8FAADC,D6E0F0,EDF1F8,C00000,1F7A3D,202020,595959"`
+- For 2/4, make lead lists and numeric comparison tables and compare visually.
+- For 8: `deck_check.py --render` (LibreOffice) → PNG thumbnails → human visual review.
+  Without soffice, leave `NOT INSPECTED` and inspect directly in PowerPoint.
+- Report item-level pass/fail and corrections concisely to the user.
 
-## 결과 점수·상태 표준 (평가자 간 수렴용)
+## Standard scores and statuses (reviewer convergence)
 
-서로 다른 검토자가 같은 제안서를 채점해도 수치·상태가 갈리지 않도록 아래를 고정한다.
+Fix these rules so reviewers do not diverge on numbers/status for the same proposal.
 
-1. **두 축을 항상 분리**해 보고한다. 하나의 종합 점수로 뭉개지 않는다.
-   - **작성 품질(0~100)**: 요구사항·근거·설득·실행·시각·보안
-   - **제출 준비도(0~100)**: 필수입력·승인·증빙·렌더·패키지·파일규정·리허설
-2. **상태는 준비도 게이트로만 결정**한다(작성 품질이 높아도 무관).
-   - `SUBMISSION-READY`: BLOCKING 미해결 0건 + 렌더·패키지·리허설 확인
-   - `CONDITIONAL-GO`: 남은 조건이 **전부** owner·기한·수락(accepted)을 가질 때만
-   - `NO-GO`: BLOCKING 미해결이 1건이라도 있거나 마감 경과 → **기본값**
-   - 초안/발견 단계는 `DRAFT`/`DISCOVERY`로 표기(제출 프레임 아님)
-   - 판정 예: 미수락 BLOCKING 입력이 남아 있으면 `CONDITIONAL-GO`가 아니라 `NO-GO`다.
-3. 종합 한 줄 수치가 필요하면 "작성 X / 준비도 Y"를 **함께** 적고, 준비도가
-   게이트 실패면 상태를 반드시 앞세운다(예: "NO-GO · 작성 88 / 준비도 20").
-4. 상태 어휘는 create-winning-proposal의 audit 상태와 동일하게 쓴다(스킬 간 호환).
+1. Always report **two separate axes**, never one merged score:
+   - **Authoring quality (0~100)**: requirements, evidence, persuasion, execution, visual, security.
+   - **Submission readiness (0~100)**: mandatory inputs, approvals, evidence, render, package, file rules, rehearsal.
+2. **Only readiness gates determine status**, regardless of writing quality.
+   - `SUBMISSION-READY`: 0 unresolved BLOCKING + render/package/rehearsal confirmed.
+   - `CONDITIONAL-GO`: only when **all** remaining conditions have owner, deadline, and accepted status.
+   - `NO-GO`: any unresolved BLOCKING or expired deadline → **default**.
+   - Draft/discovery stages use `DRAFT`/`DISCOVERY` (outside submission framing).
+   - Example: an unaccepted BLOCKING input means `NO-GO`, not `CONDITIONAL-GO`.
+3. If a one-line score is needed, give authoring X / readiness Y **together**. Put status first if readiness
+   gates fail. Preserved Korean output example: "NO-GO · 작성 88 / 준비도 20".
+4. Use the same status vocabulary as create-winning-proposal audit (cross-skill compatibility).
 
-## 미확정 마커와 게이트 단계 (quality_gate --stage)
+## Unresolved markers and gate stages (quality_gate --stage)
 
-사실을 못 채운 슬롯은 `[NEEDS INPUT]`(노트)·`［입력요망］`(PPTX 본문)으로 남긴다.
-게이트는 단계로 구분한다:
+Unfilled factual slots use `[NEEDS INPUT]` in notes and the Korean marker `［입력요망］` in PPTX bodies.
+Distinguish stages:
 
-- `quality_gate.py … --stage draft`: 미확정 마커를 **비차단 경고**로 허용(초안 검수).
-- `--stage submission`(기본): 미확정 마커를 **차단**한다(제출본엔 남으면 안 됨).
-- 생성 도구 기본 테마색의 `[NOT INSPECTED]`는 항상 **비차단 경고**다 — 정상 생성
-  덱을 팔레트가 완전해도 막지 않는다. 최종 HEX 확인은 사람이 별도로 한다.
+- `quality_gate.py … --stage draft`: unresolved markers are **nonblocking warnings** (draft review).
+- `--stage submission` (default): unresolved markers **block** (none may remain in a submission).
+- `[NOT INSPECTED]` for default theme colors is always a **nonblocking warning**; normal generated decks
+  must not be blocked despite a complete palette. A human separately checks final HEX values.
 
-### 단계 선택 결정 트리
-- 아직 사실을 채우는 중(초안 회람·내부 검토)인가? → `--stage draft`. 미확정 마커는
-  경고로만 뜨고, 채워야 할 자리를 보여준다.
-- 이번 산출물이 실제 제출본 후보인가? → `--stage submission`(기본). 마커가 하나라도
-  남으면 차단 — 제출본엔 빈칸이 없어야 한다.
-- 판단 규칙: "고객에게 이대로 낼 수 있는가?"가 예면 submission, 아니면 draft.
-  애매하면 submission으로 엄격히 본 뒤 경고를 초안 기준으로 재분류한다.
+### Stage decision tree
+- Still filling facts (draft circulation/internal review)? → `--stage draft`. Markers warn and identify gaps.
+- Is this artifact a real submission candidate? → `--stage submission` (default). Any marker blocks; no blanks in submissions.
+- Rule: could this be sent to the customer unchanged? Yes → submission; no → draft.
+  If unclear, inspect strictly as submission, then reclassify warnings under draft criteria.
 
-### 완성도 수치는 score_completeness.py로 일원화
-"완성도 몇 점"을 물으면 `create-best-proposal/scripts/score_completeness.py`(저장소 루트에도 동일 진입점)로 산출한다 — 제출가능성
-(readiness)과 작성 품질(quality) 두 축을 한 산식으로 계산하고, **상태는 게이트가 결정**
-한다(품질이 높아도 BLOCKING 있으면 NO-GO). 리뷰어별 수치 차이를 없애는 단일 기준이다.
-governance 축의 반낙관 가드(근거 없는 approved·만료 마감·치유불가 자격미달 차단)는
-create-winning-proposal의 [audit-schema.md](../../create-winning-proposal/references/audit-schema.md)를 따른다.
+### Centralize completeness figures in score_completeness.py
+
+For completeness-score requests, run `create-best-proposal/scripts/score_completeness.py` (same entry point at repository root).
+It calculates readiness and quality using one formula; **gates determine status** (BLOCKING means NO-GO even with high quality).
+This single standard removes reviewer score differences.
+
+Governance anti-optimism guards (unsupported approved states, expired deadlines, unremediable ineligibility)
+follow create-winning-proposal [audit-schema.md](../../create-winning-proposal/references/audit-schema.md).

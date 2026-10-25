@@ -1,98 +1,99 @@
-# 합성 RFP 실제 제작 검증 (2026-10-25)
+# Actual production validation with a synthetic RFP (2026-10-25)
 
-## 범위
+## Scope
 
-완전 합성 공공 IT 유지보수 RFP로 편집형 제안서를 작성했다. 22개 요구, 12개월,
-34개 관리항목, SLA·보안·인수인계·검수·교육·가격·제출 규격을 포함했다.
-100점 평가표는 대응 구조를 확인하는 입력이며 획득 점수나 수주 확률은 계산하지 않았다.
-UI는 제외하고 PowerPoint의 `WithWindow=false` 파일 변환으로 실제 PDF·PNG를 생성했다.
+Created an editable proposal for a fully synthetic public-sector IT maintenance RFP: 22 requirements,
+12 months, 34 management items, SLA/security/handoff/acceptance/training/pricing/output specifications.
+The 100-point evaluation sheet was input for coverage structure; no attained score or win probability was calculated.
+UI was excluded; actual PDF/PNG files were generated with PowerPoint `WithWindow=false` conversion.
 
-작성자의 조견표와 별도로 RFP 원문을 실제 PPTX 본문·표 및 렌더 이미지와 대조했다.
-번호 밖의 계약 날짜·제외범위도 확인했다. 실제 자격·실적 자료가 없으므로
-`simulation-only`, `intake-incomplete`, 사람 시각·제출 승인 false를 유지했다.
+Separately from the author's matrix, compared original RFP text with actual PPTX body/tables/rendered images,
+including contract dates/exclusions outside numbered requirements. With no actual eligibility/track-record
+material, retained `simulation-only`, `intake-incomplete`, and false human visual/submission approvals.
 
-## 확인한 문제와 반영
+## Findings and changes
 
-| 발견 | 조치 | 재검증 |
+| Finding | Action | Revalidation |
 |---|---|---|
-| 보고서 요구의 원인·조치·재발방지가 `RCA` 약어로만 처리됨 | 세 필수 항목을 본문에 명시하고 하위 조건 대조 지침 보강 | 실제 7번 장표 응답 확인 |
-| 대체담당 역할표가 연락·인계 실행 경로를 대신함 | 주담당 실패→대체→PM, 접수시각·미결·다음조치 인계 명시 | 실제 5·13번 장표 확인 |
-| 제공되지 않은 고객 문제를 현재 사실로 단정 | 예방할 위험으로 표시 | 세 Win Theme의 사실/가정 경계 재검토 |
-| 고객 효과가 카드의 근거 필드에 들어감 | 효과와 향후 합성 검수계획 분리 | 실제 카드와 원문 대조 |
-| 표기용 B 유형·초안 분류를 감사 열거값과 혼동 | 기존 스키마의 유형·단계·입력·평가 항목 필드로 정규화하고 변환 지침 보강 | 실제 미결·승인 false를 유지한 게이트 재실행 |
-| 정상 목차 `지원 범위와 서비스 경계`가 공백 때문에 누락으로 판정됨 | 유지보수 목차의 기존 키워드에 `지원 범위` 표기 추가 | 공백 유무 두 형태 통과, 실제 절 삭제는 계속 차단 |
-| 긴 REQ-ID가 4개 장표에서 두 줄로 내려와 푸터 영역에 진입 | 글자 크기·전체 ID를 유지하고 하단 가로 폭 재배분 | native PDF의 해당 줄바꿈 4장→0장 |
-| 간트의 빨간 라벨이 짙은 막대 위에 놓임 | 기존 텍스트 도형에 짧은 흰 배경 배지 적용 | 대비 미검사 6개 run→0개, native PNG 재확인 |
+| Required report cause/action/recurrence prevention reduced to `RCA` abbreviation | Explicitly stated all three in body; strengthened subcondition comparison guidance | Actual slide 7 response checked |
+| Backup role table substituted for contact/handoff execution path | Stated primary failure→backup→PM and received-time/open-item/next-action handoff | Actual slides 5/13 checked |
+| Unprovided customer problems asserted as current facts | Labeled as risks to prevent | Re-reviewed fact/assumption boundaries of three Win Themes |
+| Customer effects placed in card evidence field | Separated effects from future synthetic acceptance plans | Compared actual cards/source |
+| Display B type/draft classification confused with audit enums | Normalized existing schema type/stage/input/criterion fields; strengthened conversion guidance | Reran gates preserving actual open items/false approvals |
+| Valid outline title (Korean example: `지원 범위와 서비스 경계`) falsely missing due to spacing | Added existing maintenance keyword variant `지원 범위` (Korean input preserved) | Spaced/unspaced forms pass; actually removed sections still block |
+| Long REQ-IDs wrapped into footer on 4 slides | Reallocated bottom width while retaining font size/all IDs | Native PDF wrapping reduced 4 slides→0 |
+| Red Gantt labels on dark bars | Applied short white badges to existing text shapes | Unchecked-contrast runs reduced 6→0; native PNG rechecked |
 
-REQ-ID 자체가 한 줄 영역을 넘거나 줄바꿈을 포함하면 strict 빌드를 차단한다.
-폭 확대 때문에 기존에 맞던 캡션이 밀려나는 반례도 차단한다. 원래 짧은 ID의 3.2in
-배치는 유지한다. 글자폭은 근사치이므로 사용자 글꼴·긴 출처·막대 문구의 실제 렌더 검토는 필요하다.
+Strict builds block IDs exceeding single-line space or containing newlines, and counterexamples where widened
+IDs displace captions that previously fit. Original short-ID 3.2in placement remains.
+Text width is approximate; actual renders still require review for user fonts/long sources/bar wording.
 
-스키마·의존성·승인 필드는 추가하지 않았다. 의미의 완전성을 자동 판정하는 새 점수나
-게이트를 만들지 않고, 기존 평가자 검토·재검증·장표 제작 지침에 확인된 대조 절차를 반영했다.
+No schema/dependency/approval fields added. No new semantic-completeness score/gate; confirmed comparison
+procedures were incorporated into existing evaluator/revalidation/slide-production guidance.
 
-## 실제 산출물 검증
+## Actual artifact validation
 
-| 항목 | 확인 결과 |
+| Item | Confirmed result |
 |---|---|
-| 요구 대응 | 22개 요구의 본문 응답과 필수 하위 조건 대조. 조견표·ID 표시만으로 판정하지 않음 |
-| 공통 조건 | 계약 날짜, 외부 라이선스 구매·장비교체·신규구축 제외, 예산·제출 규격 확인 |
-| 문서 규격 | 16:9, 24장, 최소 14pt, 20MB 미만, 이미지 없이 네이티브 도형·텍스트·표 |
-| 실제 변환 | PPTX 24장→PowerPoint PDF 24쪽→PNG 24장. 추출 텍스트 단락 누락·페이지 밖 텍스트 없음 |
-| 수치 원장 | 45항목 토큰 대조와 별도의 가격·SLA 관계 재검산 |
-| 가격 | 공급가액 192,000,000원+부가세 19,200,000원=211,200,000원. 합성 예산보다 28,800,000원 낮음 |
-| SLA | S1 달력시간과 S2 지원시간 분리. 금요일 17:30 접수→월요일 09:30 응답·16:30 임시복구 목표 재계산(월요일 공휴일 없음 가정) |
-| 음성 대조 | 총액 1원 변경·S1 응답/복구 값 교체를 독립 산식·행 관계 대조에서 각각 거부 |
-| 설득력 | 위험→수행방법→계획된 수용증거→고객효과의 세 연결 검토. 실제 실적·효과로 오인시키는 문구 제거 |
+| Requirement coverage | Compared body responses/mandatory subconditions for 22 requirements; matrix/ID labels alone were insufficient |
+| Shared conditions | Contract dates, external-license procurement/equipment replacement/new implementation exclusions, budget/output specs |
+| Document specs | 16:9, 24 slides, minimum 14pt, under 20MB, native shapes/text/tables without images |
+| Actual conversion | 24 PPTX slides→24 PowerPoint PDF pages→24 PNGs; no missing extracted text paragraphs or off-page text |
+| Numerical ledger | 45-item token comparison plus independent price/SLA relationship recalculation |
+| Price | Supply amount 192,000,000 KRW + VAT 19,200,000 KRW = 211,200,000 KRW; 28,800,000 KRW below synthetic budget |
+| SLA | Separate S1 calendar clock/S2 support clock; Friday 17:30 receipt→Monday 09:30 response/16:30 workaround targets recalculated (Monday assumed nonholiday) |
+| Negative controls | Independently rejected total changed by 1 KRW and swapped S1 response/recovery values using formulas/row relationships |
+| Persuasiveness | Reviewed three risk→execution→planned acceptance evidence→buyer-effect chains; removed wording implying actual results/effects |
 
-배점·수치 토큰의 존재와 실제 의미·산식의 정합성은 구분했다. 자동 ID·수치 검사의 성공만으로
-의미 검토가 끝났다고 하지 않는다. 초기 검증에서 남았던 밀도 경고 3건은 아래 후속 간결화로
-해소했다. 실제 서비스의 SLA 달성이나 검수시험 수행은 검증하지 않았다.
+Distinguished score/numerical token presence from actual semantic/formula consistency.
+Automated ID/numerical passes do not complete semantic review. Three initial density warnings were resolved
+in the follow-up below. Actual service SLA attainment or acceptance-test execution was not validated.
 
-### 후속: 밀도 경고 해소
+### Follow-up: density warnings resolved
 
-| 장표 | 이전 글자 수 | 간결화 후 | 유지한 정보 |
+| Slide | Previous characters | After shortening | Information preserved |
 |---|---:|---:|---|
-| 4 — 세 제안 전략 | 268 | 244 | 세 위험·대응방법·검수계획·효과와 요구 ID |
-| 6 — SLA | 262 | 245 | S1/S2 정의·측정시계·기한·통보·휴일 조건·시간 계산 예시 |
-| 18 — 가격 | 296 | 249 | 금액·수량·단가·12개월·할인 0·부가세 10%·총액·예산 차액 |
+| 4 — Three proposal strategies | 268 | 244 | Three risks/responses/acceptance plans/effects and requirement IDs |
+| 6 — SLA | 262 | 245 | S1/S2 definitions/clocks/deadlines/notifications/holiday conditions/time example |
+| 18 — Price | 296 | 249 | Amounts/quantities/unit prices/12 months/0 discount/10% VAT/total/budget difference |
 
-기존 `presentation`의 250자 기준, 초안 검사 단계, 24장 이하·14pt 이상 규격을 유지했다.
-중복 제목·리드문과 표 라벨을 줄였으며 수치를 다른 장·캡션·노트로 옮기지 않았다.
-가격표의 숫자 등장 순서와 SLA 첫 세 행은 그대로이고, 나머지 21장 입력도 동일하다.
-22개 요구·45개 수치 및 독립 산식/SLA 관계 검사와 음성대조 2건을 다시 통과했다.
-PowerPoint에서 실제 재렌더한 4·6·18번 장표의 잘림·겹침·수치 식별성을 확인했다.
-생성기·검사기 실행 코드, 임계값, 프로파일 정의, 승인 필드는 수정하지 않았다.
+Retained `presentation` 250-character threshold, draft check stage, ≤24 slides/≥14pt specifications.
+Reduced duplicated titles/leads/table labels without moving numbers to other slides/captions/notes.
+Price-table numeric occurrence order and first three SLA rows remain; other 21 slide inputs are identical.
+Passed 22 requirements/45 numbers/independent price-SLA checks and 2 negative controls again.
+Actual PowerPoint rerenders of slides 4/6/18 were checked for clipping/overlap/numeric legibility.
+No generator/checker runtime code, thresholds, profiles, or approval fields changed.
 
-### 후속: 정밀 검토에서 확인한 문제와 수정
+### Follow-up: detailed review findings and fixes
 
-| 우선순위 | 문제·재현 근거 | 해결·확인 |
+| Priority | Issue/reproduction evidence | Fix/confirmation |
 |---|---|---|
-| P1 | 원장 단위가 분/초이면 같은 숫자의 시간/분도 대조 통과. 영업일/일도 구별하지 못함 | 분·초·영업일의 명시 단위를 대조하고 명확한 공백 시간 표기도 검사. 단위 없는 표 셀과 일반 명사는 기존 경계를 유지 |
-| P1 | NaN/Infinity 허용오차가 합계·비율 비교를 무력화 | 기존 유한 숫자 검사로 거부. 잘못된 합계·비율도 함께 차단하며 0 허용오차 정상값은 유지 |
-| P2 | 영업일=24시간, 개월=730시간으로 달력 근거 없이 관계 판정 | 분·시간·일·주만 고정 경과시간으로 환산. 영업일·개월·년의 혼합 단위는 차단하고 동일 단위 비교는 유지 |
-| P2 | 14번 장표의 분기 복원·반기 교육이 연속 작업 막대로 표시됨 | 기존 표 레이아웃의 월별 수행행렬로 변경. 복원·검수 3/6/9/12월, 교육 6/12월만 표시 |
-| P2 | 평일 일반지원과 매일 백업 확인 사이의 휴일 수행체계 누락 | 11번 장표에 휴일 포함 확인·주/대체담당·성공/실패 기록, 비S1 일반지원시간/S1 절차 구분 |
+| P1 | Ledger minutes/seconds matched same-number hours/minutes; business days/days indistinguishable | Compare explicit minute/second/business-day units and unambiguous spaced time forms; preserve boundaries for unitless table cells/general nouns |
+| P1 | NaN/Infinity tolerance disabled sum/ratio comparison | Reject with existing finite-number validation; block incorrect sums/ratios while retaining valid zero-tolerance values |
+| P2 | Assumed business day=24 hours/month=730 hours without calendar | Convert only minutes/hours/days/weeks as fixed elapsed times; block mixed business-day/month/year units, retain same-unit comparisons |
+| P2 | Slide 14 quarterly restoration/semiannual training shown as continuous bars | Use existing table layout as monthly execution matrix: restoration/acceptance months 3/6/9/12, training months 6/12 only |
+| P2 | No holiday arrangements between weekday support and daily backup checks | Slide 11 specifies checks including holidays, primary/backup owners, success/failure records, non-S1 support-hours versus S1 procedure |
 
-수치 검사 회귀 3개는 수정 전 19개 하위 사례에서 실패했다. 수정 후 정상/오류 대조와
-실제 PPTX의 응답 단위 교체를 통합 게이트로 재검사해 오류 차단·정상 통과를 확인했다. 소문자 통화 표기를 잘못
-거부하던 경로도 기존 대소문자 무시 토큰 규칙과 일치시켰다. 새 스키마 필드·의존성은 없다.
-달력 없는 혼합 기간 원장은 원문 기준으로 동일 단위 값을 산출해 갱신해야 한다.
+Three numerical regression tests failed in 19 subcases before fixes. After fixes, normal/error controls and
+actual PPTX response-unit substitutions through the unified gate confirmed valid passes/error blocks.
+Also aligned incorrectly rejected lowercase currencies with existing case-insensitive token rules.
+No new schema fields/dependencies. Mixed-duration ledgers without calendars must be updated to same-unit
+values calculated from original sources.
 
-정밀개선 덱은 24장·최소 14pt·밀도 경고 0건이며, 수정 장표 밀도는 11번 244자·14번 203자다.
-요구 22개·수치 45개·가격/SLA 검산과 두 음성대조를 유지했다. 실제 PowerPoint 재렌더는
-PDF 24쪽·PNG 24장이고 텍스트 단락 누락·화면 밖 텍스트·푸터 겹침이 없다. 두 장표의
-이미지를 확인했으며 나머지 22장 입력과 native 렌더 픽셀은 동일하다. 휴일 운영은 제안 설계이지 실제 인력 배정
-증명이 아니며, 합성 자료·사람 승인 false 상태를 유지한다.
+The refined deck has 24 slides/minimum 14pt/0 density warnings; changed slides have 244 characters (11) and 203 (14).
+Retained 22 requirements/45 numbers/price-SLA calculations/two negative controls.
+Actual PowerPoint rerender produced 24 PDF pages/24 PNGs, with no missing paragraphs/offscreen text/footer overlap.
+Inspected both changed slide images; other 22 inputs/native-render pixels are identical.
+Holiday operations are proposed design, not proof of actual staffing. Synthetic material/false human approvals remain.
 
-## 회귀 검증과 한계
+## Regression validation and limitations
 
-`test_gate_integrity.SyntheticProposalLayoutTests` 5개가 짧은 ID 배치, 긴 ID의 확대·폰트 유지,
-표현 불가능한 ID 차단, 캡션 밀려남 차단, 마일스톤 배경·대비를 검사한다.
-수정 전 재현 실패와 수정 후 통과를 확인했다. 전체 회귀·위생 검사 및 원격 CI의
-실행 결과는 PR 검증란에 기록한다.
-별도의 목차 회귀 테스트는 정상 제목의 띄어쓰기를 허용하면서 필수 절 존재 검사를 유지한다.
+Five `test_gate_integrity.SyntheticProposalLayoutTests` cover short-ID placement, long-ID widening/font
+preservation, impossible-ID blocks, caption-displacement blocks, milestone background/contrast.
+Confirmed reproduction failure before fixes and passes afterward. Full regression/hygiene/remote-CI actual
+results are recorded in PR validation. A separate outline regression allows normal-title spacing while retaining
+mandatory-section checks.
 
-생성 자료·실행 로그·전후 PDF/PNG·해시 원장은 검증 작업 폴더에 보관하며 배포 스킬에
-포함하지 않는다. 이 한 건의 합성 사례는 모든 RFP·글꼴·템플릿의 품질이나 실제 수주 성과를
-보증하지 않는다. 이미지 검토는 에이전트 검토이며 필수 사람 승인이나 호스트 UI 검증을 대체하지 않는다.
+Generated material/logs/before-after PDF-PNG/hash ledgers remain in the validation working folder, outside
+distributed skills. This single synthetic case guarantees neither all RFP/font/template quality nor real wins.
+Image inspection was agent review; it replaces neither required human approval nor host UI validation.

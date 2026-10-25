@@ -39,16 +39,15 @@ def _as_list(value: Any) -> list:
 
 
 def _validate_meta_types(meta: dict) -> None:
-    """리스트여야 할 필드가 문자열 등으로 오면 조용히 버리지 않고 오류를 낸다.
-    ("requirements": "R1 R2 all approved" → requirements=[] → READY 허위 통과 차단)"""
+    """Reject non-list fields instead of silently dropping them. Prevent false READY from ("requirements": "R1 R2 all approved" → requirements=[])."""
     bad = [k for k in LIST_FIELDS if k in meta and meta[k] is not None and not isinstance(meta[k], list)]
     if bad:
         raise ValueError(f"meta fields must be arrays: {', '.join(bad)}")
     for k in ("submission", "render", "package", "checks", "flags"):
         if k in meta and meta[k] is not None and not isinstance(meta[k], dict):
             raise ValueError(f"meta field must be an object: {k}")
-    # 원장 항목은 객체여야 한다. 문자열 요구 하나가 섞이면 조용히 버려져
-    # 필수 요구 3건이 2건이 된 채 통과하던 유실 경로를 위치와 함께 막는다.
+    # Ledger entries must be objects. Report the location instead of dropping a string
+    # requirement and passing with only 2 of 3 mandatory requirements.
     for name in ("requirements", "claims", "win_themes", "eligibility", "attachments",
                  "inputs", "defects", "bid_conditions", "slides", "numbers",
                  "evaluation_criteria"):
@@ -59,8 +58,7 @@ def _validate_meta_types(meta: dict) -> None:
 
 
 def _str_list(container: dict, key: str, where: str) -> list:
-    """리스트만 받는다. 문자열을 list()로 감싸면 글자 단위로 쪼개져
-    'TBD' → ['T','B','D']가 되고, 각 글자가 플레이스홀더 검사를 빠져나갔다."""
+    """Accept lists only. Wrapping a string in list() split 'TBD' → ['T','B','D'], letting individual characters bypass placeholder checks."""
     value = container.get(key)
     if value is None:
         return []
@@ -73,7 +71,7 @@ def _str_list(container: dict, key: str, where: str) -> list:
 
 
 def _bool(container: dict, key: str, default: bool, where: str) -> bool:
-    """JSON true/false만 허용. 'yes'/'no'/'pending' 등 문자열은 오류(bool('no')==True 방지)."""
+    """Accept JSON true/false only; reject strings such as 'yes'/'no'/'pending' to avoid bool('no')==True."""
     value = container.get(key, default)
     if not isinstance(value, bool):
         raise ValueError(f"{where}.{key} must be true/false (got {value!r})")
@@ -159,8 +157,8 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
         if isinstance(refs, list):
             item["evidence_refs"] = refs
         else:
-            # 슬라이드 번호만으로 근거를 만들어 주지 않는다 — 'approved 무증빙' 반낙관
-            # 검사를 빌더가 우회시키던 결함. 근거는 작성자가 명시해야 한다.
+            # Do not manufacture evidence from slide numbers; the builder previously bypassed
+            # the approved-without-evidence check. Authors must supply evidence explicitly.
             item["evidence_refs"] = []
             if req.get("slide") is not None and req.get("state") == "approved":
                 warnings.append(
@@ -172,11 +170,11 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
             if strict:
                 raise ValueError(msg)
             warnings.append(msg)
-        # 응답 위치는 근거와 별도 필드로 보존한다(둘을 섞으면 위치가 증거로 승격된다).
+        # Keep response locations separate from evidence to avoid promoting locations into proof.
         if "response_refs" in req:
             item["response_refs"] = _str_list(req, "response_refs", f"requirement {item['id']}")
-        # 발주처가 허용한 예외. 게이트가 이 필드로 '미지원인데 approved'를 판정하므로
-        # 변환에서 사라지면 정당한 예외가 허위 차단된다.
+        # Buyer-approved exceptions affect the unsupported-but-approved decision;
+        # dropping them during conversion would falsely block legitimate exceptions.
         if "exception" in req:
             exc = req["exception"]
             if not isinstance(exc, dict):
@@ -192,7 +190,7 @@ def _normalize_requirements(meta: dict, strict: bool, warnings: list[str]) -> li
         # Optional S2 matrix fields passthrough
         if "criterion_ids" in req:
             item["criterion_ids"] = _str_list(req, "criterion_ids", f"requirement {item['id']}")
-        # 요구 강도와 조건. 변환에서 빠지면 권장이 필수로 승격되거나 조건이 사라진다.
+        # Preserve requirement strength and conditions to avoid making recommendations mandatory or losing conditions.
         for key in ("strength", "condition"):
             if key in req:
                 if not isinstance(req[key], str):
@@ -240,8 +238,8 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "tool": render_in.get("tool") or "",
         "evidence": _str_list(render_in, "evidence", "render"),
     }
-    # 검사·승인 기록은 입력에 있는 것만 그대로 옮긴다. 여기서 빠지면 승인까지 마친
-    # 정상 경로가 "육안 승인 없음"으로 차단된다(승인 사실을 만들어내지는 않는다).
+    # Copy only supplied check and approval records. Dropping them blocks valid approved
+    # paths as missing visual approval; never invent approvals.
     for flag in ("render_succeeded", "layout_checked", "visual_review_approved"):
         if flag in render_in:
             render[flag] = _bool(render_in, flag, False, "render")
@@ -281,8 +279,8 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "inputs": _as_list(meta.get("inputs")),
         "defects": _as_list(meta.get("defects")),
         "checks": _normalize_checks(meta),
-        # 제출 후보(submission)만 렌더·패키지 검증을 기본 요구한다. draft/review/analysis는
-        # 명시하지 않으면 false — 리드문 맵 단계(Pink)에서 DRAFT-READY 체크포인트에 도달할 수 있게 한다.
+        # Require rendering and package checks by default only for submission candidates.
+        # draft/review/analysis default to false so the Pink lead-map stage can reach DRAFT-READY.
         "artifact_required": _bool(meta, "artifact_required", mode == "submission", "meta"),
         "render": render,
         "package": package,
@@ -293,12 +291,12 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
         "vendor_confirmations": _as_list(meta.get("vendor_confirmations")),
         "win_themes": win_themes,
     }
-    # 수치 원장은 게이트가 합계·비율을 다시 계산하는 입력이다 — 변환에서 잃으면
-    # 제출 모드가 "원장 없이 arithmetic 자기선언"으로 차단된다.
+    # The numerical ledger supplies sums and ratios for gate recalculation; losing it
+    # blocks submission as an arithmetic self-declaration without a ledger.
     if meta.get("numbers") is not None:
         audit["numbers"] = _as_list(meta.get("numbers"))
-    # 분류와 평가표는 게이트 요구사항을 바꾸는 입력이다 — 변환에서 잃으면 공공 제안이
-    # 평가표 없이 통과하거나, 읽는 조건과 장표 규격의 불일치를 놓친다.
+    # Classification and evaluation criteria change gate requirements; losing them lets public proposals
+    # pass without evaluation criteria or hides reading-condition and slide-spec mismatches.
     if meta.get("context") is not None:
         if not isinstance(meta["context"], dict):
             raise ValueError("meta field must be an object: context")
@@ -311,11 +309,11 @@ def build_audit(meta: dict, strict: bool = False) -> dict:
                 raise ValueError(f"meta field must be a string: {field}")
             audit[field] = meta[field]
     if meta.get("sections") is not None:
-        # slides[]에서 유추하지 않는다 — 그것은 요구 대응 매핑이지 목차가 아니다.
-        # 부분 매핑을 목차로 읽으면 있는 절을 없다고 잡는다.
+        # Do not infer this from slides[]; that maps requirement responses, not the outline.
+        # Treating partial mappings as an outline falsely reports existing sections as missing.
         audit["sections"] = _as_list(meta.get("sections"))
     if meta.get("evaluation_total") is not None:
-        # 가격 별책 등으로 원장의 만점이 100이 아닐 때. 잃어버리면 게이트가 100을 요구한다.
+        # Preserve totals other than 100, such as a separate price volume, or the gate requires 100.
         audit["evaluation_total"] = meta["evaluation_total"]
     if meta.get("artifact_mode"):
         audit["artifact_mode"] = meta["artifact_mode"]
@@ -343,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         meta = json.loads(args.meta.read_text(encoding="utf-8-sig"))
         audit = build_audit(meta, strict=args.strict)
-    except (OSError, ValueError) as exc:  # JSONDecodeError·UnicodeDecodeError 포함
+    except (OSError, ValueError) as exc:  # Includes JSONDecodeError and UnicodeDecodeError.
         print(f"error: {exc}", file=sys.stderr)
         return 2
     text = json.dumps(audit, ensure_ascii=False, indent=2)

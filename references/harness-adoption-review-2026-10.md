@@ -1,144 +1,142 @@
-# 제작 하네스 비교·선별 반영 검토
+# Production harness comparison and selective adoption review
 
-## 범위와 판정 기준
+## Scope and decision criteria
 
-2026-10-24 기준 ProposalSkills `52639d1382053c46d3eb9480e4ac130aa19d5bdb`를 기준으로,
-비교 대상으로 제공된 AI-Harness의 단계 실행·문서 제작·인계 방식을 검토했다.
-비교 대상은 비공개 저장소다. 원문·코드·내부 자료는 싣지 않고, 필요한 운영 개념을
-ProposalSkills의 기존 검사 도구에 맞춰 자체 작성했다.
-비교 대상의 제품·연구·도구 지원 관련 외부 주장은 이번 반영의 근거로 사용하지 않는다.
+Against ProposalSkills `52639d1382053c46d3eb9480e4ac130aa19d5bdb` as of 2026-10-24,
+reviewed the supplied AI-Harness stage execution, document production, and handoff methods.
+The comparison repository is private. No original text, code, or internal material is reproduced;
+necessary operational concepts were independently written for ProposalSkills' existing check tools.
+External claims about the comparison target's products, research, or tool support are not evidence for this adoption.
 
-검토 기준은 기존 기능과의 중복, 실제 실행 여부, 제출 판정의 신뢰성, 모델/호스트 중립성,
-추가 절차의 비용이다. 스킬 지침의 개선과 런타임 기능 구현을 구분한다.
+Criteria: duplication of existing functionality, actual execution, submission-decision reliability,
+model/host neutrality, and procedural cost. Distinguish instruction improvements from runtime features.
 
-## 현재 구조에서 이미 충족하는 부분
+## Already covered by the current structure
 
-| 계층 | 확인한 구현·지침 | 판단 |
+| Layer | Implementation/guidance inspected | Decision |
 |---|---|---|
-| 진입·범위 | 플래그십의 Full/Pink/Red/Gold/Review-only 등 경로, 형제 명시 호출 정책 | 범용 하네스의 일괄 개발 루프로 바꾸지 않음 |
-| 단계별 제작 | 접수·참여 판단 → 원장·골격 → 본문 → 제작·검사 → 감사·제출 | 새 단계 러너보다 기존 Phase A–E 재사용 |
-| 재현 가능한 산출 | `build_deck.py`, `deck_profiles.py`와 지정 출력 규격 | 모델의 자유 좌표 배치를 도입할 이유 없음 |
-| 실제 검증 | `deck_check.py`, `quality_gate.py`, `check_numbers.py`, `proposal_gate.py`, `unified_gate.py` | 검사 결과 없는 자기평가보다 구체적인 기존 경로 유지 |
-| 승인 결속 | render/package/첨부 해시, 렌더와 사람의 시각 승인 분리, audit-only 상태 분리 | 외부 하네스의 일반 PASS로 대체하지 않음 |
-| 배포·회귀 | 공통 스킬 + 호스트별 매니페스트, 설치 검증, 루트 테스트 디스커버리 | 새 호스트·의존성·자동 설치를 추가하지 않음 |
+| Entry/scope | Flagship Full/Pink/Red/Gold/Review-only paths; explicit sibling invocation | Do not replace with a generic harness development loop |
+| Staged production | Intake/bid → ledgers/skeleton → body → production/checks → audit/submission | Reuse Phase A–E rather than add a stage runner |
+| Reproducible artifacts | `build_deck.py`, `deck_profiles.py`, specified output | No reason to add model-controlled free coordinates |
+| Actual validation | `deck_check.py`, `quality_gate.py`, `check_numbers.py`, `proposal_gate.py`, `unified_gate.py` | Retain concrete checks rather than unsupported self-evaluation |
+| Approval binding | Render/package/attachment hashes; separate rendering/human visual approval; distinct audit-only state | Never replace with an external harness's generic PASS |
+| Distribution/regression | Shared skills + host manifests; install validation; root test discovery | No new host/dependency/automatic installation |
 
-주요 근거: [플래그십](../skills/create-best-proposal/SKILL.md),
-[통합 게이트](../skills/create-best-proposal/scripts/unified_gate.py),
-[검사기](../skills/create-proposal-document/scripts/deck_check.py),
-[스키마·제출 계약](../skills/create-winning-proposal/references/audit-schema.md),
-[테스트 발견](../test_skill_scripts.py), [설치기](../install_skill.py),
-[패키징](../package_plugin.py).
+Primary evidence: [flagship](../skills/create-best-proposal/SKILL.md),
+[unified gate](../skills/create-best-proposal/scripts/unified_gate.py),
+[checker](../skills/create-proposal-document/scripts/deck_check.py),
+[schema/submission contract](../skills/create-winning-proposal/references/audit-schema.md),
+[test discovery](../test_skill_scripts.py), [installer](../install_skill.py),
+[packaging](../package_plugin.py).
 
-추가로 meta→audit의 입력 타입·검토 기록 보존, 장표 생성기의 오류 반환과 규격 표시,
-프로파일/발주처 규격 파서, 세 스킬의 동시 설치·배포 연결을 읽기 전용으로 점검했다.
-이 범위에서는 실행 안정성 항목 외에 재현 가능한 추가 결함을 확인하지 못했다.
-이는 저장소 전체의 결함 부재나 외부 호스트에서의 실제 플러그인 호출을 보증하지 않는다.
+Also inspected meta→audit input types/review-record preservation, generator error returns/specification display,
+profile/buyer-spec parsers, and joint three-skill installation/distribution linkage read-only.
+No additional reproducible defects beyond execution-reliability items were confirmed in this scope.
+This does not guarantee a defect-free repository or actual plugin invocation on external hosts.
 
-## 선별 결과
+## Selections
 
-| 후보 | 판단 | 반영 또는 제외 이유 |
+| Candidate | Decision | Adoption/exclusion reason |
 |---|---|---|
-| 대표 장표를 전체 제작 전에 렌더 | 조건부 채택 | 새 디자인의 불확실성이 있을 때만 적용. 고정 3장 의무나 매 작업 추가 승인은 만들지 않음 |
-| 작성 → 검사 → 수정 → 재검사 | 보완 | 기존 도구를 재사용하고 RFP/수치/시각/첨부 변경별 재검사 범위를 명시 |
-| 독립 평가 | 보완 | Red 검토에서 별도 검토자/컨텍스트를 사용할 조건과 도구 부재 시 한계를 명시. 사람 승인 대체 금지 |
-| 실패 반복 제한 | 채택 | 같은 원인 3회 실패 후 가설·증거·blocker 보고. 도구 부재·승인 대기는 반복으로 치유하지 않음 |
-| 세션 인계·실패 학습 | 조건부 채택 | 장기 작업만 기존 작업 기록 활용. 해시·명령·미검사·다음 작업을 남기고 재개 시 실물과 대조 |
-| 매번 학습 로그·진행 파일 생성 | 제외 | 짧은 검토의 비용 증가, 고객 정보가 설치 폴더/공개 저장소에 남을 위험 |
-| 비교 대상의 JavaScript 루프 러너 | 제외 | 조사한 구현은 단계 이름을 출력하는 뼈대이며 테스트·검증 호출과 실제 재시도 제어가 구현되지 않음 |
-| 컨텍스트 사용률 고정 임계치 | 제외 | 호스트별 관측·동작 차이를 검증하지 못함. 작업 일관성과 인계 가능한 증거를 기준으로 삼음 |
-| 일반적인 PASS·자동 시각 승인 | 제외 | 실제 산출물·필수 증거·사람 승인을 요구하는 기존 제출 계약보다 약함 |
+| Render representative slides before full production | Conditional adoption | Only uncertain new designs; no mandatory fixed 3 slides or per-task extra approval |
+| Write → check → fix → recheck | Strengthen | Reuse tools; specify rechecks for RFP/numerical/visual/attachment changes |
+| Independent evaluation | Strengthen | Specify separate reviewer/context conditions in Red and limitations without tools; never replace human approval |
+| Repeated-failure limit | Adopt | After 3 same-cause failures, report hypothesis/evidence/blocker; repetition cannot cure missing tools/approval |
+| Session handoff/failure learning | Conditional adoption | Existing records only for long work; hashes/commands/uninspected/next work, checked against files on resume |
+| Learning logs/progress files every time | Exclude | Cost for short reviews; risk customer material remains in installation/public repository |
+| Comparison target's JavaScript loop runner | Exclude | Inspected implementation prints stage names; no test/check calls or actual retry control |
+| Fixed context-usage threshold | Exclude | Host observation/behavior differences unverified; use consistency and transferable evidence |
+| Generic PASS/automatic visual approval | Exclude | Weaker than existing actual-artifact/evidence/human-approval submission contract |
 
-실행 지침은 [반복 제작·재검증·인계](../skills/create-best-proposal/references/iteration-and-handoff.md)에
-한 번만 두고, 플래그십·마스터 플레이북에서 연결한다.
+Execution guidance appears once in [iteration, revalidation, and handoff](../skills/create-best-proposal/references/iteration-and-handoff.md),
+linked from flagship/master playbook.
 
-## 함께 바로잡은 문서 불일치
+## Documentation inconsistency corrected alongside this work
 
-마스터 플레이북의 Gold 산출물이 `READY/CONDITIONAL-GO`를 함께 나열해,
-내부 진행 전용인 조건부 판정을 제출 승인으로 오해할 여지가 있었다.
-Gold는 실제 파일과 묶음을 검사한 `SUBMISSION-READY`로 명시하고, `AUDIT-VALID`·
-`DRAFT-READY`·`REVIEW-READY`를 외부 제출 불가 상태로 분리했다.
-기존 게이트 코드는 이 판정 경계를 이미 강제하므로 상태 어휘는 바꾸지 않는다.
+The master playbook listed `READY/CONDITIONAL-GO` together for Gold, risking confusion between internal-only
+conditional status and submission approval. Gold now explicitly requires `SUBMISSION-READY` for actual file/bundle;
+`AUDIT-VALID`, `DRAFT-READY`, and `REVIEW-READY` are separated as non-submittable.
+Existing gate code already enforces this boundary; status vocabulary is unchanged.
 
-## 실행 코드에서 보강한 부분
+## Runtime reliability strengthened
 
-- `unified_gate.py`의 세 하위 검사 호출을 공통 실행 함수로 모으고 각 240초의 제한과
-  시간 초과·실행 실패의 `INVALID` 반환을 추가했다. 무기한 대기로 검증이 끝나지 않는 경로를 줄인다.
-- `deck_check.py`의 버전·PDF 정보 조회를 각 15초로 제한했다. 선택적 메타데이터 조회 실패는
-  미확인으로 알리고 기존 PDF 페이지 대조를 유지한다. PDF 구조 정규식 대조의 기존 한계는 남는다.
-- 요청한 PNG는 임시 폴더에서 새로 변환하고 성공 코드·페이지별 파일·빈 파일 여부를 확인한 뒤
-  출력 위치에 복사한다. 이전 실행의 PNG로 누락 페이지가 채워지는 경로를 차단했다.
-  PNG 도구 부재·변환 실패·출력 불완전은 차단으로 처리한다. 이전 파일은 삭제하지 않고 알린다.
-- 시간 초과·실행 실패·반환 코드 전파, 부분 PNG·과거 PNG 혼입·정상 변환·선택적 조회 실패를
-  `test_gate_integrity.py` 회귀 테스트로 검증한다. 사람이 해야 할 시각 승인 필드는 자동 승격하지 않는다.
-- 전체 회귀 검증 중 첨부 경로의 NUL 입력이 환경에 따라 '경로 해석 실패'가 아니라
-  '파일 없음'으로 분류되는 기존 테스트 실패를 확인했다. 파일 시스템 호출에 의존하지 않고
-  입력 경계에서 NUL을 명시적으로 거부해 기존 오류 분류를 일관되게 유지한다.
+- Consolidated three `unified_gate.py` child checks into a shared execution function with 240-second limits
+  and `INVALID` on timeout/execution failure, reducing indefinite validation waits.
+- Limited `deck_check.py` version/PDF information queries to 15 seconds each. Optional metadata failure is
+  disclosed as unknown while existing PDF page comparison remains. Existing regex-based PDF-structure limits remain.
+- Requested PNGs are newly converted in a temporary folder; check success code/per-page files/nonempty output
+  before copying. Old PNGs can no longer fill missing pages. Missing PNG tools/conversion failure/incomplete
+  output block. Old files are reported, not deleted.
+- `test_gate_integrity.py` covers timeouts/execution failures/return-code propagation, partial PNGs/old PNG
+  contamination/normal conversion/optional-query failures. Human visual-approval fields are never automatically promoted.
+- Full regression exposed an existing environment-dependent NUL attachment-path failure: some environments
+  classified it as missing file rather than path-resolution failure. Reject NUL explicitly at the input boundary
+  rather than depend on filesystem calls, preserving consistent error classification.
 
-## 검증 범위와 한계
+## Validation scope and limitations
 
-문서 링크·스킬 라우팅·설치 사본·배포 ZIP 연결은 기존 `test_skill_schema.py`로 검사한다.
-저장소 지침에 따라 루트 전체 테스트와 diff 공백 검사를 실행하고 실제 실행 결과는 작업 완료
-보고에 남긴다. 이 문서는 검사를 실행하기 전부터 통과 결과를 가정하지 않는다.
+Existing `test_skill_schema.py` checks document links/routing/install copies/distribution ZIP linkage.
+Run root tests and diff whitespace checks per repository instructions and record actual results in completion reports.
+This document does not assume passing results before execution.
 
-이번 변경은 지침과 문서, 기존 검사 프로세스의 실행 안정성 보강이다.
-자동 오케스트레이터나 새 감사 스키마를 구현하지 않았으며,
-실제 고객 제안의 시각 품질·수주율 향상, 독립 평가 실행, PowerPoint 최종 확인을 증명하지 않는다.
+This change strengthens instructions/documentation and execution reliability in existing check processes.
+It implements no automatic orchestrator or new audit schema and proves no improvement in actual customer
+proposal visual quality/win rates, independent-evaluation execution, or final PowerPoint inspection.
 
-### 실행 결과 (2026-10-24)
+### Execution results (2026-10-24)
 
-| 검사 | 결과 |
+| Check | Result |
 |---|---|
-| 새 오류 경로 10건 + 기존 스킬 스키마 19건 | 29건 통과, exit 0 |
-| NUL 경로 회귀 + 새 오류 경로 | 11건 통과, exit 0 |
-| 루트 전체 unittest discovery | 501건 실행, 500건 통과·1건 skip, exit 0 (110.118초) |
-| 플래그십 quick_validate | `Skill is valid!`, exit 0 |
-| git diff 공백 검사 | exit 0 |
-| 신규 문서의 기존 위생 패턴 검사 | 검출 0건 |
+| 10 new error paths + 19 existing skill-schema cases | 29 passed, exit 0 |
+| NUL path regression + new error paths | 11 passed, exit 0 |
+| Root unittest discovery | 501 run, 500 passed/1 skipped, exit 0 (110.118 seconds) |
+| Flagship quick_validate | `Skill is valid!`, exit 0 |
+| git diff whitespace check | exit 0 |
+| Existing hygiene patterns on new documents | 0 findings |
 
-최초 기본 임시 폴더의 권한 오류는 쓰기 가능한 별도 임시 경로로 해결했다.
-스킬 검증기의 기본 cp949 읽기는 `PYTHONUTF8=1`로 실행해 해결했으며 전역 설정은 수정하지 않았다.
-NUL 경로 테스트는 변경하지 않은 원본에서도 같은 실패를 재현한 후 입력 검증을 수정했다.
-전체 테스트의 quiet 출력은 skip 사유를 표시하지 않았다.
-별도로 환경에서 LibreOffice를 찾지 못했으므로 실제 LibreOffice→PDF→PNG 전체 렌더와
-PowerPoint 육안 검증은 미수행이다. 새 렌더 오류 테스트는 모의 도구로 오류 전파를 확인한다.
-원격 저장소의 push/PR, 기존 스킬 설치본 업데이트는 이번 로컬 검증에 포함하지 않았다.
+Initial default-temp permission failure was resolved with a separate writable temporary path.
+The skill validator's default cp949 read was resolved using `PYTHONUTF8=1`, without global-setting changes.
+Reproduced the NUL path failure on the unchanged original before fixing input validation.
+Quiet full-test output did not show the skip reason. LibreOffice was separately absent from the environment,
+so actual LibreOffice→PDF→PNG rendering and PowerPoint visual inspection were not performed.
+New render-error tests use mock tools to check error propagation.
+Remote push/PR and updates to existing skill installations were outside this local validation.
 
-### 업데이트 재검토 (2026-10-24)
+### Update re-review (2026-10-24)
 
-비교 기준 `189c75a`에서 `45664d3`까지 12개 커밋을 다시 검토했다. 비교 대상은 기존 출력형
-러너를 실제 테스트 명령 실행·종료 코드 기록·증거 해시 연쇄·코드 변경 감지·CI 재실행과
-환경 진단을 갖춘 검사기로 교체했다. 이전 검토의 러너 스켈레톤 평가는 당시 버전에 한정한다.
-Claude 전용 훅·읽기 추적·단계 JSON 원장은 현재 통합 게이트·CI와 중복되므로 이식하지 않는다.
-입력·산출물과 실제 검사 결과를 결속하는 원칙만 기존 도구에 적용한다.
+Re-reviewed 12 commits from `189c75a` to `45664d3`. The comparison target replaced its output-only runner
+with a checker featuring actual test commands, exit-code records, evidence-hash chains, code-change detection,
+CI reruns, and environment diagnostics. The earlier skeleton-runner assessment applies only to that earlier version.
+Claude-only hooks/read tracing/stage JSON ledgers duplicate existing unified gates/CI and are not imported.
+Apply only the principle of binding inputs/artifacts to actual check results through existing tools.
 
-같은 관점으로 ProposalSkills를 재검토해, 하위 검사 도중 문서 또는 audit이 변경돼도
-기존 통합 게이트가 `SUBMISSION-READY`를 반환하는 경로를 합성 입력으로 재현했다.
-문서·audit의 시작/종료 해시를 대조하고, 변경·삭제·읽기 실패는 `INVALID`로 처리한다.
-첨부 대조는 audit 평가 이후로 옮긴다. 정상 대조군과 변경 없는 quality 실패의 기존 판정,
-사람의 승인·기존 audit 스키마·실물 해시 결속은 유지한다.
+The same review of ProposalSkills reproduced synthetic cases where changing document/audit during child checks
+still returned `SUBMISSION-READY`. Compare start/end document/audit hashes; changes/deletion/read failures
+become `INVALID`. Move attachment comparison after audit evaluation. Preserve normal controls, existing
+unchanged-input quality-failure decisions, human approvals, existing audit schema, and actual-file hash binding.
 
-검증은 `test_gate_integrity.py`의 변경·삭제/quality 실패 조합, audit-only와 첨부 변경 사례로
-수행한다. 최종 실행 결과는 완료 보고에 남긴다. 파일 잠금·OS 격리나 실행 구간 전체의 불변성을
-보증하는 기능은 아니며, 실제 제안서 설득력 향상의 증거로 해석하지 않는다.
+Validate with `test_gate_integrity.py` change/deletion + quality-failure combinations, audit-only, and attachment
+changes. Record final actual results in completion reports. This provides neither file locks/OS isolation nor
+immutability throughout execution, and is not evidence of improved proposal persuasiveness.
 
-### 테스트 강도·Windows 업데이트 재검토 (2026-10-25)
+### Test-strength and Windows update re-review (2026-10-25)
 
-`45664d3`에서 `6bc8e25`까지 3개 커밋의 18개 변경 파일을 비교했다.
-핵심은 Windows 읽기 경로 정규화·실제 Bash 환경 진단, 훅의 경로/명령 패턴 보완,
-실제 CLI·훅 연결 E2E와 재시도·오류 경로 테스트다. 최신 문서의 커버리지 수치는
-상류의 측정치이며 ProposalSkills의 커버리지로 옮기지 않는다.
+Compared 18 changed files across 3 commits from `45664d3` to `6bc8e25`.
+Main changes: Windows read-path normalization/actual Bash diagnostics, improved hook path/command patterns,
+real CLI/hook E2E, and retry/error-path tests. Latest documented coverage belongs to upstream; do not transfer
+it as ProposalSkills coverage.
 
-| 후보 | 선별 결과 |
+| Candidate | Selection |
 |---|---|
-| Windows 경로 변환·Bash 진단·Claude 읽기 훅 | 이식 제외. ProposalSkills는 Python Path와 인자 배열을 사용하며 호스트 훅에 의존하지 않음 |
-| 단일 OS에서 벗어난 검증 | 기존 Ubuntu 24.04·26.04/Windows × Python 3.10·3.12 매트릭스 유지 |
-| 설치·압축본의 실제 실행 연결 | 기존 `PortableExecutionTests`가 한국어·공백 경로, 별도 작업 폴더와 격리 Python에서 검사하므로 중복 추가하지 않음 |
-| 실패 → 수정 → 재검증 E2E | 채택. 실제 통합 게이트 CLI로 수치 오류·승인 철회·첨부 변경의 차단과 복구를 순차 검증 |
-| 심볼릭 링크 경계 | 채택. 제출 폴더 안의 정상 대상은 허용하고 외부 대상·끊어진 링크는 차단하는 테스트 보강 |
-| 표적 변이 검증 | 별도 비공개 검증에서 검사 함수를 제거해 기존 테스트가 실패하는지 확인. 새 러너·의존성은 배포하지 않음 |
+| Windows path conversion/Bash diagnostics/Claude read hooks | Exclude. ProposalSkills uses Python Path/argument arrays without host hooks |
+| Validation beyond one OS | Retain existing Ubuntu 24.04/26.04/Windows × Python 3.10/3.12 matrix |
+| Actual installed/archive execution linkage | Existing `PortableExecutionTests` covers Korean/space paths, separate working folders, isolated Python; no duplicate |
+| Failure → fix → revalidation E2E | Adopt. Actual unified-gate CLI sequentially verifies block/recovery for numerical errors, revoked approval, changed attachments |
+| Symbolic-link boundaries | Adopt. Tests allow valid in-bundle targets and block external/broken links |
+| Targeted mutation validation | Privately remove check functions to confirm existing tests fail; no new runner/dependency distributed |
 
-새 lifecycle 테스트는 문서 해시를 갱신해도 잘못된 금액은 차단되는지 확인한다.
-이후 숫자 수정·승인 복구·첨부 해시 갱신을 각각 다시 실행해 과거 PASS/FAIL이 재사용되지
-않는지 확인한다. 승인 필드는 합성 픽스처이며 사람의 실제 시각 검토를 실행한 증거가 아니다.
-심볼릭 링크를 만들 수 없는 Windows 환경에서는 해당 테스트만 skip하고 Linux CI에서 확인한다.
-제품 코드·감사 스키마·제출 계약은 변경하지 않는다. UI는 이번 범위에서 제외한다.
+New lifecycle tests verify incorrect amounts remain blocked even with updated document hashes.
+Then rerun numerical fixes, approval restoration, and attachment-hash updates individually to ensure old PASS/FAIL
+is not reused. Approval fields are synthetic fixtures, not evidence of actual human visual review.
+Where Windows cannot create symlinks, skip only those tests and verify in Linux CI.
+No product-code/audit-schema/submission-contract changes. UI is outside scope.

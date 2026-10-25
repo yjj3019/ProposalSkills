@@ -107,11 +107,7 @@ class VerifySchemaIntegrationTests(unittest.TestCase):
 
 
 class ReferenceWiringTests(unittest.TestCase):
-    """새 reference를 만들고 연결하지 않거나, 경로를 바꾸고 문서를 두는 회귀를 막는다.
-
-    규약: 마크다운 링크는 문서 파일 기준 상대 경로, 백틱 경로는 스킬 루트 기준 상대 경로다
-    (sibling-map.md «경로 기준»). 백틱은 두 기준 중 하나로 해석되면 통과시킨다.
-    """
+    """Prevent unlinked references or stale documentation after path changes. Markdown links are relative to document files; backtick paths are relative to skill roots (sibling-map.md path-base rules). Accept backticks resolved by either base."""
 
     LINK = re.compile(r"\]\(([^)\s#]+)(?:#[^)]*)?\)")
     TICK = re.compile(r"`((?:\.\./[\w-]+/)?(?:references|scripts|fixtures|assets)/[\w./-]+"
@@ -149,7 +145,7 @@ class ReferenceWiringTests(unittest.TestCase):
         self.assertEqual(orphans, [], "어느 문서에서도 가리키지 않는 reference")
 
     def test_flagship_links_its_own_new_references(self):
-        """플래그십 references는 SKILL.md 또는 master-playbook에서 직접 도달해야 한다."""
+        """Flagship references must be directly reachable from SKILL.md or master-playbook."""
         flagship = SKILLS / install_skill.FLAGSHIP
         entry = (flagship / "SKILL.md").read_text(encoding="utf-8") + \
             (flagship / "references" / "master-playbook.md").read_text(encoding="utf-8")

@@ -1,8 +1,4 @@
-"""회귀 테스트 — 모호 확약(AMBIGUOUS_COMMITMENT) 경고.
-
-제안사 행위를 "가능/예정/검토"로 흐린 문장은 잡되, 조건 주체가 명시된 문장·기능 설명·
-발주처 주어 문장은 잡지 않는다. 오탐 검증 전까지 제출을 막지 않는 경고여야 한다.
-"""
+"""Regression tests for AMBIGUOUS_COMMITMENT warnings. Detect bidder actions blurred by "가능/예정/검토", excluding explicit conditional subjects, functionality descriptions, and buyer subjects. Warnings remain nonblocking until false positives are reviewed."""
 from __future__ import annotations
 
 import sys

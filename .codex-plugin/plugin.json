@@ -1,7 +1,7 @@
 {
   "name": "proposal-skills",
-  "version": "1.2.4",
-  "description": "제안요청서 분석부터 편집 가능한 제안서 작성·근거 검토·제출 검사까지 지원하는 한국어 IT 제안서 스킬 모음입니다.",
+  "version": "1.2.5",
+  "description": "Korean IT proposal workflows for RFP analysis, editable slide decks, evidence review, and submission checks.",
   "author": {
     "name": "ProposalSkills"
   },
@@ -9,7 +9,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "ProposalSkills",
-    "shortDescription": "제안요청서 분석·제안서 작성·근거 검토·제출 검사",
+    "shortDescription": "RFP analysis, proposal drafting, and submission checks",
     "developerName": "yjj3019",
     "category": "Productivity",
     "capabilities": [
@@ -17,7 +17,7 @@
     ],
     "websiteURL": "https://github.com/yjj3019/ProposalSkills",
     "defaultPrompt": [
-      "create-best-proposal 스킬로 첨부 RFP의 제안서를 작성하고 요구사항·근거·수치를 검토해줘."
+      "Use create-best-proposal to draft a proposal for the supplied RFP, then review requirements, evidence, and numbers."
     ]
   }
 }

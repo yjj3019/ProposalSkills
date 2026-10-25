@@ -1,8 +1,4 @@
-"""회귀 테스트 — 제안 맥락 분류(F07 축소판).
-
-분류가 문서에만 있으면 검증되지 않는다. 이 테스트는 분류가 실제로 **게이트 요구사항을
-바꾸는지**를 고정한다. 업종별 서술 지침의 타당성은 사람이 판단할 영역이다.
-"""
+"""Regression tests for proposal-context classification (reduced F07). Verify that classification actually changes gate requirements; documentation alone cannot prove this. Humans assess industry-specific writing guidance."""
 from __future__ import annotations
 
 import copy
@@ -64,8 +60,7 @@ class AxisValidationTests(unittest.TestCase):
                                 pg.validate_context(ctx))
 
     def test_missing_context_is_tolerated_only_before_submission(self):
-        """초안·검토 단계는 후방호환으로 허용한다. 제출 기록에 분류가 없으면 분류가
-        바꾸는 검사(공공 평가표·규격 대조)가 전부 조용히 꺼지므로 차단한다."""
+        """Allow draft/review for backward compatibility. Block missing submission classification because it silently disables public evaluation and specification checks."""
         self.assertEqual(pg.validate_context(None), [])
         data = audit()
         data.pop("context")
@@ -80,7 +75,7 @@ class AxisValidationTests(unittest.TestCase):
 
 
 class PublicProcurementTests(unittest.TestCase):
-    """공공 + 제출 단계면 평가표가 필수다."""
+    """Public-sector submission requires evaluation criteria."""
 
     def test_public_submission_requires_the_criteria_ledger(self):
         data = public_audit()
@@ -128,7 +123,7 @@ class PublicProcurementTests(unittest.TestCase):
 
 
 class ReadingModeTests(unittest.TestCase):
-    """읽는 조건과 실제 장표 규격이 어긋나면 잡는다."""
+    """Detect mismatches between reading conditions and actual slide specifications."""
 
     def test_presentation_context_rejects_a_submission_deck(self):
         data = public_audit()
@@ -143,7 +138,7 @@ class ReadingModeTests(unittest.TestCase):
         self.assertEqual(pg.evaluate(data), [])
 
     def test_missing_profile_is_a_failure_when_the_reading_mode_expects_one(self):
-        """값이 틀리면 잡고 지우면 통과하던 구멍(3차 진단 재점검 항목). 누락 = 미검사."""
+        """Regression for invalid values being caught but omitted values passing (third diagnostic recheck); missing means uninspected."""
         data = public_audit()
         data["context"]["reading_mode"] = "screen-presentation"
         data["render"].pop("output_profile")
@@ -199,7 +194,7 @@ class BuilderPassthroughTests(unittest.TestCase):
 
 
 class SectorDocumentationTests(unittest.TestCase):
-    """제공하는 것과 제공하지 않는 것을 문서가 분명히 말해야 한다."""
+    """Documentation must clearly state provided and unprovided capabilities."""
 
     def test_only_the_public_profile_ships(self):
         profiles = sorted(p.name for p in SECTORS.glob("*.md"))
@@ -207,14 +202,14 @@ class SectorDocumentationTests(unittest.TestCase):
 
     def test_readme_states_why_the_others_are_absent(self):
         text = (SECTORS / "README.md").read_text(encoding="utf-8")
-        self.assertIn("검증할 수 있을 때만", text)
+        self.assertIn("only when verifiable", text)
         for axis in ("buyer_types", "engagement", "stage", "reading_mode", "constraints"):
             self.assertIn(axis, text, axis)
 
     def test_public_profile_separates_machine_checks_from_judgement(self):
         text = (SECTORS / "public.md").read_text(encoding="utf-8")
-        self.assertIn("기계가 검사하는 것", text)
-        self.assertIn("검사하지 않는 것", text)
+        self.assertIn("## Machine checks", text)
+        self.assertIn("Not machine-checked:", text)
         self.assertIn("evaluation_criteria", text)
 
     def test_documented_axis_values_match_the_code(self):

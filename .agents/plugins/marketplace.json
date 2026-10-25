@@ -1,7 +1,7 @@
 {
   "name": "proposal-skills-marketplace",
   "interface": {
-    "displayName": "ProposalSkills 마켓플레이스"
+    "displayName": "ProposalSkills Marketplace"
   },
   "plugins": [
     {

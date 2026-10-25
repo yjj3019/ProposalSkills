@@ -1,4 +1,4 @@
-"""RGB 단색 텍스트 대비 검사. 테마·투명도·이미지 배경은 추정하지 않는다."""
+"""Check solid RGB text contrast; do not infer theme, transparency, or image backgrounds."""
 from __future__ import annotations
 
 from pptx.enum.dml import MSO_COLOR_TYPE, MSO_FILL
@@ -17,7 +17,7 @@ def contrast_ratio(foreground: str, background: str) -> float:
 def solid_rgb(fill) -> str | None:
     if fill.type != MSO_FILL.SOLID or fill.fore_color.type != MSO_COLOR_TYPE.RGB:
         return None
-    # RGB 변환(알파·틴트 등)이 있으면 원래 HEX를 표시색으로 간주하지 않는다.
+    # RGB transformations (alpha, tint, etc.) mean the original HEX is not the displayed color.
     if fill._xPr.xpath("./a:solidFill/a:srgbClr/*"):
         return None
     return str(fill.fore_color.rgb)
@@ -51,7 +51,7 @@ def slide_issues(slide) -> tuple[list[str], int]:
         previous = []
         for shape in shapes:
             if hasattr(shape, "shapes"):
-                # 그룹 내부 좌표는 같은 그룹 안에서만 비교한다.
+                # Compare group-local coordinates only within the same group.
                 walk(shape.shapes, None)
             elif getattr(shape, "has_table", False):
                 for row_no, row in enumerate(shape.table.rows, 1):
@@ -71,7 +71,7 @@ def slide_issues(slide) -> tuple[list[str], int]:
                     if (other.left <= shape.left and other.top <= shape.top
                             and other.left + other.width >= shape.left + shape.width
                             and other.top + other.height >= shape.top + shape.height):
-                        # 이미지·그룹·테마 채움은 배경색을 알 수 없다.
+                        # Image, group, and theme fills have unknown background colors.
                         behind = solid_rgb(other.fill) if hasattr(other, "fill") else None
                     else:
                         behind = None

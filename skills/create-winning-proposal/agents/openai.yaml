@@ -1,8 +1,8 @@
-# 근거·제출 검토 내부 레이어: 명시 호출 전용입니다.
-# 제안서 작성의 통합 진입점은 create-best-proposal입니다.
+# Internal evidence and submission layer: explicit invocation only.
+# Use create-best-proposal as the full proposal entry point.
 interface:
-  display_name: "제안서 근거·제출 검토"
-  short_description: "참여 판단·근거 원장·제출 요건을 검사하는 내부 레이어로 명시 호출 전용"
-  default_prompt: "$create-winning-proposal은 참여 판단·감사·제출 검사 작업을 명시 요청하거나 통합 스킬을 사용할 수 없을 때만 사용해줘. 전체 제안서 작성은 create-best-proposal을 우선하고 수행하지 못한 검사는 밝혀줘."
+  display_name: "Proposal Evidence and Review"
+  short_description: "Bid decisions, evidence, approvals, and submission checks"
+  default_prompt: "Use $create-winning-proposal only for bid, audit, and gate work, or when create-best-proposal is unavailable. For full proposals prefer create-best-proposal and report unperformed checks."
 policy:
   allow_implicit_invocation: false

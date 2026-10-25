@@ -1,103 +1,105 @@
-# 마스터 플레이북 — 한 장 결정 트리
+# Master playbook — one-page decision tree
 
-에이전트는 본 파일을 매 세션 초반에 따른다. 세부 문체·스키마는 형제 reference로 위임한다.
+Follow this file near the start of each session. Delegate detailed style/schema guidance to sibling references.
 
-## 1. 30초 트리아지
+## 1. 30-second triage
 
+```text
+User request
+ ├─ RFI/preliminary specification/competitive positioning? → Capture memo (+ Pink inputs)
+ ├─ Bid decision only?                                  → Decision
+ ├─ Document review only?                               → Review-only
+ ├─ Skeleton/themes/matrix only or early draft?          → Pink (~30%; no full body)
+ ├─ Exhaustive evaluator critique or ~70% draft?         → Red (no full rewrite)
+ ├─ Pre-submission approval?                            → Gold (5 items + unified_gate)
+ ├─ XLSX/security questionnaire/bulk matrix?            → Matrix (+ bulk_matrix.py)
+ ├─ Presentation/PT?                                    → PT (body synchronization required)
+ ├─ Joint opportunity/idea without RFP?                  → Discovery (no submission framing)
+ └─ Other proposal writing                              → Full
 ```
-사용자 요청
- ├─ RFI·사전규격·경쟁구도 포지셔닝? ───────→ Capture 메모 (+ Pink 입력)
- ├─ "참여할까 / bid 판단"만? ──────────────→ Decision
- ├─ "이 문서 검토해"만? ──────────────────→ Review-only
- ├─ 골격·theme·조견표만 / 초안 초기? ─────→ Pink (~30%, 본문 전량 금지)
- ├─ 평가자 시점 전수 비판 / ~70% 초안? ───→ Red (전면 재작성 금지)
- ├─ 제출 직전 승인? ─────────────────────→ Gold (5항목 + unified_gate)
- ├─ XLSX·보안질의·조견표 대량? ───────────→ Matrix (+ bulk_matrix.py)
- ├─ "발표용 / PT" ? ──────────────────────→ PT (본문 동기화 필수)
- ├─ RFP 없이 공동사업·아이디어? ──────────→ Discovery (제출 프레임 금지)
- └─ 그 외 제안서 작성 ────────────────────→ Full
-```
 
-### Pink / Red / Gold 계약 (S1)
+### Pink / Red / Gold contracts (S1)
 
-| 경로 | 시점 | 필수 산출 | 금지 |
+| Path | Timing | Required output | Prohibited |
 |---|---|---|---|
-| **Pink** | 본문 전 | 유형·목차·리드문 맵·조견표 뼈대·win_themes(req_ids)·bid 판정·평가 항목별 핵심 장표와 증거 위치 | 장표 전량 작성, 미검증 실적 채움 |
-| **Red** | 초안 후 | 평가표 항목별 충족 근거 위치·약점(Critical/Major)·미링크 theme·미기입 매트릭스 행 | 원본 통째 재작성(최소 수정), 평가점수·수주확률 산출 |
-| **Gold** | 제출 전 | pre-submission 5항목 + 실제 파일·제출 묶음의 `unified_gate` SUBMISSION-READY | 미검사 패키지·AUDIT-VALID·CONDITIONAL-GO를 제출 승인으로 취급 |
+| **Pink** | Before body | Type/outline/lead map/matrix skeleton/win_themes(req_ids)/bid decision/key slides and evidence locations per criterion | Full-deck writing, filling unverified track records |
+| **Red** | After draft | Coverage evidence locations and weaknesses (Critical/Major) per criterion/unlinked themes/unfilled matrix rows | Full original rewrite (use minimum edits), evaluation scores/win probabilities |
+| **Gold** | Before submission | Five pre-submission items + `unified_gate` SUBMISSION-READY for actual file/bundle | Treating uninspected packages/AUDIT-VALID/CONDITIONAL-GO as submission approval |
 
-Pink·Red 점검 기준(뼈대 논리, 10초 탐색): [evaluator-journey.md](evaluator-journey.md).
-Capture 메모는 Pink 입력만 보강한다. bid 판정·게이트를 대체하지 않는다:
+Pink/Red checks (skeleton logic, 10-second discovery): [evaluator-journey.md](evaluator-journey.md).
+Capture strengthens Pink inputs only; it replaces neither bid decisions nor gates:
 [capture-and-positioning.md](capture-and-positioning.md).
 
-**장표 제작 전에 요구사항·평가 항목·리드문 구조를 먼저 확정한다.** PowerPoint를 열고 내용을
-채우며 논리를 찾지 않는다. 순서는 요구 원장 → 평가표 원장 → Win Theme → 리드문 맵 →
-`slides.json` → PPTX다.
+**Finalize requirements, evaluation criteria, and lead structure before producing slides.**
+Do not open PowerPoint and discover the logic while filling content. Order:
+requirement ledger → evaluation ledger → Win Theme → lead map → `slides.json` → PPTX.
 
-## 2. Full 차단 조건 (작성 시작 전)
+## 2. Full blocking conditions (before drafting)
 
-다음 중 하나면 Full 본문 작성 금지:
+Do not write the Full body under any of these conditions:
 
-| 조건 | 판정 | 산출 |
+| Condition | Decision | Output |
 |---|---|---|
-| 자격 판단 자료 자체 없음 | intake-incomplete | 필요 입력 목록 |
-| 치유 불가 자격·역량 미달 | no-bid | 불참 사유 메모 |
-| 마감 경과 + 제출 목적 | no-bid | 메모 (벤치마크면 simulation-only) |
-| 치유 가능 결격 + 조건 미승인 | conditional-bid 대기 | 조건 카드만 |
+| No material for eligibility judgment | intake-incomplete | Required-input list |
+| Incurable eligibility/capability gap | no-bid | No-bid reason memo |
+| Deadline passed + submission purpose | no-bid | Memo (simulation-only for benchmarking) |
+| Curable disqualification + unapproved conditions | conditional-bid pending | Condition cards only |
 
-## 3. Full 체크리스트 (축약)
+## 3. Full checklist (abridged)
 
-- [ ] A. Bid 확정 + 출처 서열 + stale sweep
-- [ ] B. 요구 원자화 + 조견표 + Win Theme≤3 + 리드문 맵
-- [ ] C. 본문 (1p 1메시지, 근거 병기, 과장어 0, 모호 확약 정리, 핵심 기술 장표 6문 검토)
-- [ ] D. 시각·렌더·패키지 분리 검사
-- [ ] E. meta→audit → unified_gate → 제출 직전 5항목
+- [ ] A. Confirm bid + source order + stale sweep.
+- [ ] B. Atomic requirements + matrix + Win Theme≤3 + lead map.
+- [ ] C. Body (one message/page, evidence alongside, 0 overclaims, bounded commitments, six-question review for key technical slides).
+- [ ] D. Separate visual/render/package checks.
+- [ ] E. meta→audit → unified_gate → five pre-submission items.
 
-## 4. 상태 어휘 (스킬 간 통일)
+## 4. Shared status vocabulary
 
-| 상태 | 의미 | 외부 제출 |
+| Status | Meaning | External submission |
 |---|---|---|
-| DECISION_MEMO_ONLY | no-bid / intake-incomplete | 불가 |
-| DRAFT / DISCOVERY | 초안·탐색·Pink | 불가 |
-| NO-GO / BLOCKED | BLOCKING 잔존 또는 게이트 실패 | 불가 |
-| CONDITIONAL-GO | 조건 전부 owner·기한·accepted | **내부만** |
-| SUBMISSION-READY | submission audit + 실제 파일·묶음 대조 통과 + 리허설·접수계획 | 가능(실제 제출 후 증적) |
-| AUDIT-VALID / DRAFT-READY / REVIEW-READY | audit 단독 또는 해당 내부 단계 통과 | 불가 |
+| DECISION_MEMO_ONLY | no-bid / intake-incomplete | No |
+| DRAFT / DISCOVERY | Draft/exploration/Pink | No |
+| NO-GO / BLOCKED | Remaining BLOCKING items or gate failure | No |
+| CONDITIONAL-GO | All conditions have owner/deadline/accepted | **Internal only** |
+| SUBMISSION-READY | Submission audit + actual file/bundle comparison passed + rehearsal/receipt plan | Yes (retain actual submission evidence afterward) |
+| AUDIT-VALID / DRAFT-READY / REVIEW-READY | Audit-only or corresponding internal-stage pass | No |
 
-품질 점수와 상태를 혼동하지 않는다. **상태는 게이트가 결정**한다.
+Do not confuse quality scores with status. **Gates decide status.**
 
-## 5. 유형 신호
+## 5. Type signals
 
-| 유형 | 신호 키워드 |
+Korean signal keywords are examples preserved verbatim.
+
+| Type | Signal keywords (Korean examples) |
 |---|---|
-| A 구축 | 구축, 도입, 마이그레이션, 데이터센터, 플랫폼 |
-| B 유지보수 | 유지보수, SLA, 예방점검, 기술지원, 구독 갱신 |
-| C 기술답변 | 조견표, BMT, 표준제품, 항목별 답변, RFI |
+| A: implementation | 구축, 도입, 마이그레이션, 데이터센터, 플랫폼 |
+| B: maintenance | 유지보수, SLA, 예방점검, 기술지원, 구독 갱신 |
+| C: technical response | 조견표, BMT, 표준제품, 항목별 답변, RFI |
 
-변형: DCO/상주→B, U2L/DR→A, 표준화 권고→C.
+Variants: DCO/resident operations→B, U2L/DR→A, standardization recommendation→C.
 
-## 6. 언어·산출물
+## 6. Language and output
 
-| 조건 | 기본 산출 | 게이트 lang |
+| Condition | Default output | Gate lang |
 |---|---|---|
-| 한국어 RFP·국내 공공/금융 | PPTX 장표 | ko |
-| 영문 RFP·해외 | DOCX 또는 지정 양식 | en |
-| 이중 제출 | 언어별 본문 분리 | both |
+| Korean RFP/domestic public or financial sector | PPTX slides | ko |
+| English RFP/overseas | DOCX or specified form | en |
+| Dual submission | Separate body per language | both |
 
-## 7. 실패 패턴 (시뮬에서 반복)
+## 7. Repeated simulation failures
 
-1. 작성 품질만 높이고 audit/eligibility 비움 → NO-GO
-2. approved에 evidence_refs 없음 → 반낙관 차단
-3. draft 마커를 submission 게이트에 통과시키려 함 → 차단 (stage 분리)
-4. no-bid를 "게이트 버그"로 오해 → DECISION_MEMO_ONLY로 명시
-5. 유형 C에서 샘플 5행만 작성 → bulk_matrix + 별첨 전체
+1. High writing quality but empty audit/eligibility → NO-GO.
+2. approved without evidence_refs → anti-optimism block.
+3. Trying draft markers through submission gate → blocked (separate stages).
+4. Mistaking no-bid for a gate bug → explicitly DECISION_MEMO_ONLY.
+5. Only five sample rows for type C → bulk_matrix + full appendix.
 
-## 8. 근거·경계 reference
+## 8. Evidence and boundary references
 
-| 필요할 때 | 문서 |
+| Need | Document |
 |---|---|
-| 공공 규범과 스키마 대응, 상수 금지 값 | `../create-winning-proposal/references/korean-public-proposal-regulatory-basis.md` |
-| 핵심 기술 장표의 서술 깊이 | [technical-depth-six-questions.md](technical-depth-six-questions.md) |
-| 해외 방법론·외부 저장소 개념을 들일 때 | [external-method-boundaries.md](external-method-boundaries.md) |
-| 발주처 지정 출력 규격 | `../create-proposal-document/references/deck-production.md` §1-2 발주처 지정 출력 규격(output_spec) |
-| 새 디자인 파일럿·수정 후 재검사·장기 작업 인계 | [iteration-and-handoff.md](iteration-and-handoff.md) |
+| Public procurement/schema mapping; values never to hardcode | `../create-winning-proposal/references/korean-public-proposal-regulatory-basis.md` |
+| Key technical slide depth | [technical-depth-six-questions.md](technical-depth-six-questions.md) |
+| Adopting overseas methods/external repository concepts | [external-method-boundaries.md](external-method-boundaries.md) |
+| Buyer-specified output | `../create-proposal-document/references/deck-production.md` §1-2 buyer-specified output (output_spec) |
+| New design pilot/rechecks/long-work handoff | [iteration-and-handoff.md](iteration-and-handoff.md) |

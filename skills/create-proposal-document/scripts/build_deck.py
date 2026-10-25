@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""slides.json → 제안서 PPTX 생성기 (visual-style.md 규격의 결정론적 구현).
+"""slides.json → proposal PPTX generator (deterministic implementation of visual-style.md).
 
-사용법:
+Usage:
     python3 build_deck.py slides.json -o 제안서.pptx [--template 사내양식.pptx] [--strict]
 
-매 실행마다 레이아웃·색·폰트를 재발명하지 않도록, 장표 구성(헤더 breadcrumb → 제목 →
-리드문 → 본문 → 캡션/출처/REQ-ID → 푸터)을 고정 좌표·고정 토큰으로 그린다.
-모든 도형에 역할 이름(HEADER/TITLE/LEAD/BODY/CAPTION/REQID/FOOTER)을 부여해
-deck_check.py가 리드문·REQ-ID 존재를 기계 검사할 수 있게 한다.
+Draw a fixed slide structure (header breadcrumb → title → lead → body → caption/source/REQ-ID → footer) with fixed coordinates and tokens rather than reinventing layouts, colors, and fonts each run. Role names (HEADER/TITLE/LEAD/BODY/CAPTION/REQID/FOOTER) let deck_check.py verify leads and REQ-IDs.
 
-slides.json 스키마 요약(상세: references/deck-production.md):
+slides.json schema summary (details: references/deck-production.md):
   {"meta": {"title","subtitle","buyer","bidder","date","doc_name","page_limit","palette":{...},"font"},
    "slides": [ {"type": "cover|toc|section|matrix|table|process|zones|gantt|staff|cards|bullets|closing",
                 "breadcrumb","title","lead","caption","source","req_ids":[...],"notes","status_tag", ...} ]}
 
-종료 코드: 0=생성, 1=--strict 위반(리드문 없는 본문 장표 등), 2=입력 오류.
+Exit codes: 0=generated, 1=--strict violation (such as a body slide without a lead), 2=input error.
 """
 from __future__ import annotations
 
@@ -41,23 +38,23 @@ except ImportError:  # pragma: no cover
     print("python-pptx가 필요합니다: pip install python-pptx", file=sys.stderr)
     raise SystemExit(2)
 
-# ---- 토큰 (visual-style.md §0 폴백 토큰과 동일) --------------------------------
+# ---- Tokens (matching visual-style.md §0 fallback tokens) ----
 DEFAULT_PALETTE = {
     "primary": "1F3864", "tint1": "8FAADC", "tint2": "D6E0F0", "tint3": "EDF1F8",
     "text": "202020", "muted": "595959", "warn": "C00000", "ok": "1F7A3D", "white": "FFFFFF",
 }
 DEFAULT_FONT = "맑은 고딕"
-# 규격은 deck_profiles.py 한 곳에만 둔다 — 생성기와 검사기가 같은 숫자를 읽어야
-# "생성기는 통과시키고 검사기는 막는" 어긋남이 생기지 않는다.
+# Define specifications only in deck_profiles.py so generator and checker read the same values
+# and cannot disagree on whether output passes.
 _DEFAULT_SPEC = deck_profiles.get(deck_profiles.DEFAULT_PROFILE)
-SIZE = _DEFAULT_SPEC["sizes"]                      # 하위호환: 기본 프로파일 크기
-LEAD_MAX_CHARS = _DEFAULT_SPEC["lead_max_chars"]   # writing-style.md: 리드문 60자 이내
+SIZE = _DEFAULT_SPEC["sizes"]                      # Backward compatibility: default profile sizes.
+LEAD_MAX_CHARS = _DEFAULT_SPEC["lead_max_chars"]   # writing-style.md: lead within 60 characters.
 MATRIX_ROWS_PER_SLIDE = _DEFAULT_SPEC["matrix_rows_per_slide"]
 
-# 16:9 (13.333in × 7.5in) 고정 그리드 — 좌표는 EMU
+# Fixed 16:9 (13.333in × 7.5in) grid; coordinates in EMU.
 IN = 914400
 W, H = int(13.333 * IN), int(7.5 * IN)
-M = int(0.5 * IN)                     # 좌우 여백
+M = int(0.5 * IN)                     # Left and right margins.
 HEADER_Y, HEADER_H = int(0.25 * IN), int(0.3 * IN)
 TITLE_Y, TITLE_H = int(0.6 * IN), int(0.55 * IN)
 LEAD_Y, LEAD_H = int(1.2 * IN), int(0.65 * IN)
@@ -88,10 +85,10 @@ class DeckBuilder:
         self.spec = spec
         self.template = template
         self.meta = spec.get("meta", {})
-        # 우선순위: CLI --profile > meta.output_profile > 기본(평가용 상세본)
+        # Priority: CLI --profile > meta.output_profile > default detailed evaluation profile.
         self.profile = profile or self.meta.get("output_profile") or deck_profiles.DEFAULT_PROFILE
-        # 발주처 지정 규격(meta.output_spec)은 프로파일 기본값보다 우선한다. 검사기도 같은
-        # 함수로 해석하므로 생성·검사 기준이 갈리지 않는다. 모르는 값은 생성 전에 거부한다.
+        # Buyer specifications (meta.output_spec) override profile defaults. The checker uses the same
+        # resolver to keep generation and validation aligned; reject unknown values before generation.
         self.output_spec = deck_profiles.resolve_output_spec(self.meta.get("output_spec"), self.profile)
         legacy_limit = self.meta.get("page_limit")
         spec_limit = self.output_spec.get("page_limit")
@@ -108,15 +105,15 @@ class DeckBuilder:
         self.violations: list[str] = []
         self.warnings: list[str] = []
         self.page = 0
-        # (slides.json의 matrix 스펙, 실제로 표에 들어간 행 수) — 유실 대조용
+        # (slides.json matrix specification, actual table row count) for loss detection.
         self.matrix_rows: list[tuple[dict, int]] = []
         if template:
             self.prs = Presentation(str(template))
             self.warnings.append(f"사용자 템플릿 사용: {template.name} — 마스터 배경·로고는 템플릿 것을 따른다")
             if abs(int(self.prs.slide_width) - W) > IN // 10 or abs(int(self.prs.slide_height) - H) > IN // 10:
                 raise ValueError("템플릿은 16:9(13.333in×7.5in)여야 한다 — 다른 비율은 좌표 그리드와 맞지 않는다")
-            # 슬라이드가 든 템플릿은 거부한다. 그대로 두면 이전 고객명·금액이 최종 덱에
-            # 남고(기밀 유출), 페이지 카운터도 새 장만 세어 제한 검사가 거짓이 된다.
+            # Reject templates containing slides; otherwise previous customer names and amounts remain
+            # in the final deck (confidentiality leak), and counters count only new pages, invalidating limits.
             if len(self.prs.slides._sldIdLst) > 0:
                 raise ValueError(
                     f"템플릿에 슬라이드 {len(self.prs.slides._sldIdLst)}장이 이미 있다 — "
@@ -127,7 +124,7 @@ class DeckBuilder:
             self.prs.slide_width, self.prs.slide_height = Emu(W), Emu(H)
         self.blank = self._blank_layout()
 
-    # ---- 기본 도형 헬퍼 ------------------------------------------------------
+    # ---- Basic shape helpers ----
     def _blank_layout(self):
         for layout in self.prs.slide_layouts:
             if layout.name.lower() in {"blank", "빈 화면", "빈화면"}:
@@ -143,7 +140,7 @@ class DeckBuilder:
             box.fill.fore_color.rgb = rgb(fill)
         tf = box.text_frame
         tf.word_wrap = wrap
-        tf.auto_size = MSO_AUTO_SIZE.NONE  # 렌더러 자동 축소로 상자 높이가 변하지 않게 고정
+        tf.auto_size = MSO_AUTO_SIZE.NONE  # Disable renderer auto-shrinking to keep box height fixed.
         tf.vertical_anchor = anchor
         for attr in ("margin_left", "margin_right"):
             setattr(tf, attr, Emu(int(0.05 * IN)))
@@ -245,16 +242,16 @@ class DeckBuilder:
         r.font.bold = bold
         r.font.color.rgb = rgb(color or self.pal["text"])
 
-    # ---- 공통 프레임 ----------------------------------------------------------
+    # ---- Shared frame ----
     def _frame(self, s: dict):
-        """헤더 → 제목 → 리드문 → (본문은 호출자) → 캡션/REQ-ID → 푸터."""
+        """Header → title → lead → body supplied by caller → caption/REQ-ID → footer."""
         slide = self.prs.slides.add_slide(self.blank)
         self.page += 1
         doc = self.meta.get("doc_name") or self.meta.get("title") or ""
         crumb = s.get("breadcrumb", "")
         self._text(slide, "HEADER", M, HEADER_Y, BODY_W - int(2.2 * IN), HEADER_H,
                    f"{doc}  |  {crumb}" if crumb else doc, self.size["header"], color=self.pal["muted"])
-        if s.get("status_tag"):  # 유형 C: 우상단 항목 번호·상태
+        if s.get("status_tag"):  # Type C: upper-right item number and status.
             self._text(slide, "STATUS", W - M - int(2.2 * IN), HEADER_Y, int(2.2 * IN), HEADER_H,
                        s["status_tag"], self.size["header"], bold=True, color=self.pal["primary"],
                        align=PP_ALIGN.RIGHT)
@@ -300,7 +297,7 @@ class DeckBuilder:
                    str(self.page), self.size["footer"], color=self.pal["muted"], align=PP_ALIGN.RIGHT)
         return slide
 
-    # ---- 슬라이드 유형 ---------------------------------------------------------
+    # ---- Slide types ----
     def cover(self, s):
         slide = self.prs.slides.add_slide(self.blank)
         self.page += 1
@@ -358,7 +355,7 @@ class DeckBuilder:
         return slide
 
     def matrix(self, s):
-        """조견표: 요구사항 대응표. rows가 많으면 자동 분할, 헤더 반복, '(계속)' 표기."""
+        """Requirements response matrix: split large rows automatically, repeat headers, and mark '(계속)'."""
         rows = s.get("rows", [])
         columns = s.get("columns") or ["ID", "제안요건", "수용여부", "제안내용/응답위치", "비고"]
         keys = s.get("keys") or ["id", "text", "support", "response_loc", "note"]
@@ -366,12 +363,12 @@ class DeckBuilder:
         if per_raw is None or per_raw == "":
             per = self.style["matrix_rows_per_slide"]
         else:
-            # 0·음수·문자열은 행을 통째로 날린다. 조용히 넘기지 않고 입력 오류로 세운다.
+            # Zero, negative, or string values discard entire rows; raise input errors instead.
             if isinstance(per_raw, bool) or not isinstance(per_raw, int) or per_raw < 1:
                 raise ValueError(f"matrix.rows_per_slide must be a positive integer (got {per_raw!r})")
             per = per_raw
         if per > self.style["table_rows_max"]:
-            # 생성기는 통과시키고 검사기만 경고하던 비대칭을 없앤다.
+            # Remove the asymmetry where generation passed and only the checker warned.
             self.warnings.append(
                 f"조견표 rows_per_slide={per} > {self.style['label']} 표 한계 "
                 f"{self.style['table_rows_max']}행 — deck_check도 경고한다. 분할을 늘린다")
@@ -389,7 +386,7 @@ class DeckBuilder:
         return None
 
     def process(self, s):
-        """단계 프로세스: 가로 셰브론/박스 + 단계 설명."""
+        """Phased process: horizontal chevrons/boxes plus phase descriptions."""
         slide = self._frame(s)
         steps = s.get("steps", [])
         if not steps:
@@ -413,7 +410,7 @@ class DeckBuilder:
         return slide
 
     def zones(self, s):
-        """구성도(아키텍처): 영역(zone) 박스 세로 배열 + 영역 내 구성요소 카드. 범례 포함."""
+        """Architecture: stacked zone boxes containing component cards, including a legend."""
         slide = self._frame(s)
         zones = s.get("zones", [])
         if not zones:
@@ -443,13 +440,13 @@ class DeckBuilder:
                         self._shape_text(card, [str(it)], self.size["body"] - 1, bold=True)
         if s.get("legend"):
             self._text(slide, "BODY_LEGEND", M, BODY_Y + BODY_H - legend_h, BODY_W, legend_h,
-                       # 범례는 구성도의 내용이다 — 검사 대상이므로 본문 하한 이상으로 그린다.
+                       # Legends are diagram content subject to inspection; draw at or above the body minimum.
                        "범례: " + "  ·  ".join(s["legend"]), self.size["table"] - 1,
                        color=self.pal["muted"])
         return slide
 
     def gantt(self, s):
-        """추진일정 간트: 월 단위 컬럼, 단계 행, 마일스톤 ◆."""
+        """Schedule Gantt: monthly columns, phase rows, and ◆ milestones."""
         slide = self._frame(s)
         months = int(s.get("months") or 0)
         tasks = s.get("tasks", [])
@@ -487,8 +484,8 @@ class DeckBuilder:
                 dia = self._rect(slide, f"BODY_GMS{ti + 1}", mx - int(0.09 * IN), y + int(row_h * 0.2),
                                  int(0.18 * IN), int(row_h * 0.6), self.pal["warn"], shape=MSO_SHAPE.DIAMOND)
                 if ms.get("label"):
-                    # 마지막 달의 마일스톤은 라벨이 오른쪽 여백을 넘어간다 → 다이아몬드
-                    # 왼쪽에 붙여 뒤집는다(화면 밖으로 나가면 렌더에도 안 보인다).
+                    # Final-month milestone labels cross the right margin; flip them to the diamond's
+                    # left so they remain visible in rendered output.
                     lw = min(int(1.6 * IN), _estimated_text_width(str(ms["label"]), self.size["table"] - 1))
                     lx = mx + int(0.1 * IN)
                     align = PP_ALIGN.LEFT
@@ -500,7 +497,7 @@ class DeckBuilder:
         return slide
 
     def staff(self, s):
-        """인력 프로필 표: 성명 | 역할 | 등급 | 경력 | 자격 | 투입(M/M)."""
+        """Staff profile table: name | role | grade | experience | qualifications | effort (M/M)."""
         people = s.get("people", [])
         columns = s.get("columns") or ["성명", "역할", "등급", "경력", "보유 자격", "투입(M/M)"]
         keys = s.get("keys") or ["name", "role", "grade", "years", "certs", "mm"]
@@ -509,7 +506,7 @@ class DeckBuilder:
                            "right_cols": [len(columns) - 1]})
 
     def cards(self, s):
-        """차별점·기대효과 카드(2~4열): 제목 + 값/한 줄 + 근거."""
+        """Differentiator/benefit cards (2~4 columns): title, value/one line, and evidence."""
         slide = self._frame(s)
         items = s.get("items", [])
         if not items:
@@ -560,7 +557,7 @@ class DeckBuilder:
                        align=PP_ALIGN.CENTER, color=self.pal["muted"])
         return slide
 
-    # ---- 실행 -----------------------------------------------------------------
+    # ---- Execution ----
     def build(self) -> None:
         slides = self.spec.get("slides")
         if not isinstance(slides, list) or not slides:
@@ -585,8 +582,8 @@ class DeckBuilder:
             self.violations.extend(f"슬라이드 {index}: {problem}" for problem in problems)
             if skipped:
                 self.warnings.append(f"슬라이드 {index}: 색상 대비 {skipped}개 run 미검사 — 테마·배경·폰트 육안 확인")
-        # 페이지 수는 실제 파일 기준으로 센다. 내부 카운터만 믿으면 템플릿에 남은
-        # 장이나 분할로 늘어난 장을 놓쳐 제한 검사가 거짓이 된다.
+        # Count pages from the actual file; internal counters miss retained template pages
+        # and split slides, invalidating limit checks.
         actual = len(self.prs.slides._sldIdLst)
         if actual != self.page:
             self.violations.append(f"내부 카운터 {self.page}장 ≠ 실제 슬라이드 {actual}장 — 생성 로직 확인")
@@ -594,7 +591,7 @@ class DeckBuilder:
         limit = self.page_limit
         if limit and actual > int(limit):
             self.violations.append(f"총 {actual}장 > 페이지 제한 {limit}장 (표지·간지 포함 여부는 RFP 규정 확인)")
-        # 조견표 행이 조용히 사라지지 않았는지 대조한다(입력 행 수 = 출력 행 수).
+        # Verify matrix rows did not silently disappear (input rows = output rows).
         for slide_spec, produced in self.matrix_rows:
             expected = len(slide_spec.get("rows", []))
             if produced != expected:
@@ -604,13 +601,13 @@ class DeckBuilder:
 
     def save(self, out: Path) -> None:
         out.parent.mkdir(parents=True, exist_ok=True)
-        # 어떤 규격으로 만들었는지 파일 자체에 남긴다. deck_check가 이 표시를 읽어
-        # 같은 기준으로 검사하므로, 인자를 잊어 발표본을 상세본 기준으로 재는 일이 없다.
+        # Stamp the specification in the file itself so deck_check applies matching criteria
+        # even when arguments are omitted, avoiding presentation checks under detailed-profile rules.
         try:
             self.prs.core_properties.category = deck_profiles.stamp(self.profile)
             if self.output_spec:
                 self.prs.core_properties.keywords = deck_profiles.spec_stamp(self.output_spec)
-        except (AttributeError, ValueError):  # 구버전 python-pptx 등
+        except (AttributeError, ValueError):  # Older python-pptx versions and similar compatibility cases.
             self.warnings.append("프로파일 표시를 파일에 남기지 못했다 — deck_check에 --profile을 준다")
         self.prs.save(str(out))
 
@@ -623,9 +620,9 @@ def main(argv: list[str] | None = None) -> int:
             pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("spec", type=Path, help="slides.json")
-    ap.add_argument("-o", "--output", type=Path, required=True, help="출력 PPTX 경로")
-    ap.add_argument("--template", type=Path, help="사내 양식 PPTX(마스터·배경 사용, 빈 레이아웃 필요)")
-    ap.add_argument("--strict", action="store_true", help="리드문 누락 등 위반 시 exit 1")
+    ap.add_argument("-o", "--output", type=Path, required=True, help="Output PPTX path")
+    ap.add_argument("--template", type=Path, help="Corporate template PPTX (use masters/backgrounds; requires a blank layout)")
+    ap.add_argument("--strict", action="store_true", help="Exit 1 on violations such as missing leads")
     ap.add_argument("--profile", choices=sorted(deck_profiles.PROFILES),
                     help="산출물 종류별 시각 규격(기본: meta.output_profile 또는 "
                          f"{deck_profiles.DEFAULT_PROFILE})")

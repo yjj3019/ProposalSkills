@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
-"""수치 원장 ↔ 실제 문서 대조 — 원장의 금액·기간·수량이 문서에 그대로 있는지 확인한다.
+"""Compare the numerical ledger with the actual document: verify amounts, durations, and quantities appear unchanged.
 
-사용법:
+Usage:
     python3 check_numbers.py 제안서.pptx --audit audit.json [--emit numbers.json]
     python3 check_numbers.py 제안서.pptx --numbers numbers.json
 
-audit의 `numbers[]` 원장을 읽어 각 항목이 문서 본문에 나타나는지 검사한다.
-게이트(proposal_gate)는 원장 안의 합계·비율을 계산하지만, 그 값이 실제 장표에
-적힌 값과 같은지는 문서를 열어야만 알 수 있다. 이 스크립트가 그 사이를 잇는다.
+Read the audit numbers[] ledger and check every entry against the document body. proposal_gate recalculates ledger sums and ratios; this script connects those values to actual slides. Generate notation variants for Korean proposals (3,700,000,000 / 37억 / 37억원 / 3.7억); block values not found in any notation. Skip internal intermediate values marked must_appear: false.
 
-한국어 제안서는 같은 수를 여러 표기로 쓴다(3,700,000,000 / 37억 / 37억원 / 3.7억).
-표기 변형을 만들어 대조하고, 어느 표기로도 찾지 못하면 차단한다.
-
-`must_appear: false`인 항목(내부 계산용 중간값)은 검사에서 제외한다.
-
-종료 코드: 0=대조 통과(경고 가능), 1=불일치 차단, 2=사용 오류·파일 손상.
+Exit codes: 0=matched (warnings possible), 1=mismatch blocked, 2=usage error or damaged file.
 """
 from __future__ import annotations
 
@@ -32,7 +25,7 @@ from quality_gate import extract_labeled_blocks, normalize_text  # noqa: E402
 
 WARN = "[경고]"
 BLOCK = "[차단]"
-# 한국어 금액 배율. 같은 숫자라도 배율이 다르면 다른 값이다.
+# Korean monetary multipliers: identical digits with different scales are different values.
 KOREAN_UNITS = [("조", 10 ** 12), ("억", 10 ** 8), ("천만", 10 ** 7),
                 ("백만", 10 ** 6), ("만", 10 ** 4), ("천", 10 ** 3)]
 SCALE_RE = re.compile(r"^\s*(?:천억|백억|십억|천만|백만|십만|조|억|만|천)")
@@ -48,7 +41,7 @@ def _trim(value: float) -> str:
 
 
 def variants(value: float) -> list[str]:
-    """한국어 제안서에서 같은 수가 쓰이는 표기들을 만든다."""
+    """Generate alternate notations for the same number in Korean proposals."""
     out: list[str] = []
     if float(value).is_integer():
         n = int(value)
@@ -64,8 +57,8 @@ def variants(value: float) -> list[str]:
     return sorted(set(out), key=len, reverse=True)
 
 
-# 평가위원이 읽는 영역. 노트·레이아웃·마스터·문서속성은 인쇄물에 나타나지 않으므로
-# "문서에 있다"의 근거가 될 수 없다(원장 수치가 노트에만 있으면 본문은 빈 채로 나간다).
+# Evaluators read body content. Notes, layouts, masters, and document properties are not printed,
+# so they cannot prove body presence; ledger values only in notes leave the submitted body empty.
 BODY_LABELS = ("슬라이드", "문단", "본문", "시트")
 
 
@@ -80,12 +73,12 @@ def document_text(path: Path, body_only: bool = True) -> str:
     return normalize_text(" ".join(text for _, text in blocks))
 
 
-# 수 뒤에 붙는 한국어·기호 단위. 같은 숫자라도 단위가 다르면 다른 값이다(37원 ≠ 37개월).
-# 붙어 있는 단위와 명확히 분리된 시간 단위를 대조한다. "400 VM" 같은 띄어쓴 일반
-# 명사는 기존처럼 해석하지 않는다 — 표 헤더에만 단위가 있는 문서도 별도 의미 대조가 필요하다.
+# Korean/symbol units after numbers: identical digits with different units differ (37원 ≠ 37개월).
+# Compare attached units and clearly separated time units. As before, do not interpret spaced
+# general nouns such as "400 VM"; header-only units require separate semantic comparison.
 UNIT_TOKEN_RE = re.compile(r"^(%|퍼센트|원|달러|KRW|USD|억|만|천|조|영업일|분기|개월|년|월|일|주|시간|분|초|명|개|건|식|대|회|배|점|배럴|GB|TB|MB|Gbps|Mbps|VM|core|vCPU)",
                            re.IGNORECASE)
-# 원장 단위 → 문서에서 허용되는 표기. 여기 없는 단위는 인접 단위를 검사하지 않는다.
+# Ledger units → allowed document forms; do not inspect adjacent units for unlisted units.
 UNIT_ALIASES: dict[str, set[str]] = {
     "KRW": {"원", "KRW"}, "원": {"원", "KRW"},
     "USD": {"달러", "USD"}, "달러": {"달러", "USD"},
@@ -97,27 +90,27 @@ UNIT_ALIASES: dict[str, set[str]] = {
 }
 
 
-# 띄어쓴 시간 단위만 판별한다. "분석" 같은 낱말과 "400 VM"은 단위로 추정하지 않는다.
+# Detect spaced time units only; do not infer units from words such as "분석" or "400 VM".
 SPACED_TIME_RE = re.compile(r"^\s+(영업일|개월|시간|초|분|일|주|월|년)(?![가-힣A-Za-z])")
 
 
 def _unit_conflict(after: str, unit: str) -> bool:
-    """매치 바로 뒤 단위가 원장 단위와 명백히 다르면 True(같은 수·다른 뜻)."""
+    """True when the unit immediately following a match clearly differs from the ledger unit."""
     allowed = UNIT_ALIASES.get(str(unit).strip())
     if not allowed:
-        return False  # 모르는 단위는 판단하지 않는다 — 거짓 차단을 만들지 않는다
+        return False  # Do not judge unknown units or create false blockers.
     currency = str(unit).strip() in {"KRW", "원", "USD", "달러"}
     m = UNIT_TOKEN_RE.match(after.lstrip() if currency else after)
     if not m and str(unit).strip() in {"초", "분", "시간", "일", "영업일", "주", "개월", "월", "년"}:
         m = SPACED_TIME_RE.match(after)
     if not m:
-        return False  # 단위가 붙어 있지 않으면(표 셀 등) 판단 근거가 없다
+        return False  # Without an attached unit (for example in a table cell), evidence is insufficient.
     actual = m.group(1).upper() if currency else m.group(1)
     return actual not in allowed
 
 
 def _find_spans(haystack: str, needle: str) -> list[re.Match]:
-    """숫자 경계를 지켜 찾는다 — '37'이 '370'·'37.5'·'-37'에 걸리지 않게 한다."""
+    """Respect numeric boundaries so '37' does not match '370', '37.5', or '-37'."""
     literal = re.escape(needle)
     for scale, _ in KOREAN_UNITS:
         if needle.endswith(scale):
@@ -131,17 +124,17 @@ def _find_spans(haystack: str, needle: str) -> list[re.Match]:
 def _found(haystack: str, needle: str, unit: str = "") -> bool:
     for m in _find_spans(haystack, needle):
         tail = haystack[m.end():m.end() + 16]
-        # 배율이 매치에 포함되지 않았으면 다른 값이다: 37원 != 37억원.
+        # A multiplier outside the match changes the value: 37원 != 37억원.
         if SCALE_RE.match(tail) or _unit_conflict(tail, unit):
             continue
         if not needle[-1].isdigit() and unit not in {"", "KRW", "원"}:
-            continue  # 통화 표기 변형을 기간·수량의 근거로 사용하지 않는다.
+            continue  # Do not use monetary notation variants as evidence for durations or quantities.
         return True
     return False
 
 
 def _label_text(text: str, label: str) -> list[str]:
-    """항목명 직후의 첫 수치만 대조해 같은 표의 다른 행과 섞지 않는다."""
+    """Compare only the first number after an item label to avoid mixing table rows."""
     scopes = []
     for anchor in re.finditer(re.escape(label), text):
         tail = re.split(r"\n|[;；·]", text[anchor.end():], maxsplit=1)[0]
@@ -156,7 +149,7 @@ def _label_text(text: str, label: str) -> list[str]:
 
 
 def compare(entries: list[dict], text: str, other: str = "") -> tuple[list[str], list[dict]]:
-    """(검사 항목, 항목별 결과). 원장 순서를 유지한다."""
+    """Return (check items, per-entry results), preserving ledger order."""
     items: list[str] = []
     results: list[dict] = []
     for entry in entries:
@@ -188,7 +181,7 @@ def compare(entries: list[dict], text: str, other: str = "") -> tuple[list[str],
         found = [v for v in variants(value) if any(_found(scope, v, unit) for scope in scopes)]
         if match_label and (not scopes or not all(any(_found(scope, v, unit) for v in variants(value))
                                                   for scope in scopes)):
-            found = []  # 요약과 상세의 같은 항목이 서로 다른 값이면 차단한다.
+            found = []  # Block conflicting values for the same item in summary and detail.
         results.append({"id": nid, "checked": True, "matched": bool(found),
                         "matched_as": found[:3]})
         if found:
@@ -212,11 +205,11 @@ def main(argv: list[str] | None = None) -> int:
             pass
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("doc", type=Path, help="PPTX/DOCX/XLSX 제안서")
+    ap.add_argument("doc", type=Path, help="PPTX/DOCX/XLSX proposal")
     src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument("--audit", type=Path, help="numbers[] 원장을 담은 audit JSON")
-    src.add_argument("--numbers", type=Path, help="원장 배열만 담은 JSON")
-    ap.add_argument("--emit", type=Path, help="대조 결과를 JSON으로 기록")
+    src.add_argument("--audit", type=Path, help="Audit JSON containing the numbers[] ledger")
+    src.add_argument("--numbers", type=Path, help="JSON containing only the ledger array")
+    ap.add_argument("--emit", type=Path, help="Write comparison results as JSON")
     a = ap.parse_args(argv)
 
     if not a.doc.is_file():
@@ -237,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         blocks = extract_labeled_blocks(a.doc)
-    except Exception as exc:  # 손상·미지원 파일
+    except Exception as exc:  # Damaged or unsupported files.
         print(f"검사 불가(파일 형식·손상): {exc}", file=sys.stderr)
         return 2
     text = "\n".join(normalize_text(t) for label, t in blocks if _is_body(label))

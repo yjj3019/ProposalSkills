@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-이 저장소의 AI 지침은 [AGENTS.md](AGENTS.md)에 있습니다. 그 파일을 따르십시오.
+The repository's AI instructions are in [AGENTS.md](AGENTS.md). Follow that file.
 
-요약: 사용자가 로컬 설치를 요청하고 실행 도구가 있으면 `python install_skill.py --auto`를 실행합니다.
-이 컴퓨터에 설치된 AI CLI를 찾아 각각의 스킬 디렉터리(Claude Code는 `~/.claude/skills/`)에
-세 스킬을 모두 넣습니다.
+Summary: when a user requests local installation and execution tools are available, run
+`python install_skill.py --auto`. It detects installed AI CLIs and installs all three skills into
+their skill directories (`~/.claude/skills/` for Claude Code).
 
-실행 도구가 없는 채팅에서는 설치를 수행했다고 하지 말고 제공된 자료로 작성·검토를 진행합니다.
-환경별 실행 방법은 [공통 가이드](skills/create-best-proposal/references/host-portability.md)를 따릅니다.
+In chats without execution tools, do not claim installation occurred; write/review the supplied material.
+Follow the [shared guide](skills/create-best-proposal/references/host-portability.md) for environment-specific execution.

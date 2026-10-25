@@ -1,33 +1,33 @@
-# 저장소 분석에서 얻은 패턴
+# Repository-derived patterns
 
-다음 패턴은 원본 코드·테스트·작업 흐름·라이선스를 확인한 뒤 정리했다.
+Source code, tests, workflows, and licenses were inspected before these patterns were distilled.
 
-## 채택
+## Adopt
 
-- ProposalForce: 요구/질문/응답 분리, 담당자·상태·준수 필드, 권한 검사
-- q-flow: 승인된 문맥이 없으면 중단, 인용 기록, 검토 이력, 명시적 상태 전이, 서버측 내보내기 검사
-- RFP-IGNITE: 필수 필드·단위의 자동 검사, 확인 질문 목록, 초안/승인본 분리, 합계 재계산
-- BidCraft: 추출 평가와 응답 평가 분리, 편집거리 피드백, 기준 검색 평가
-- grant-framework: 제안서 버전 관리, 단계별 사람 승인, 변경 불가능한 이정표 근거
-- open-agreements: 출처/라이선스 보조 파일, 기준 등록부, 스키마 검사, 자동 사후조건 검사, 렌더 검수
-- python-docx-template/python-docx: 기존 양식 보존과 최소 후처리
-- Vale 조직 규칙 모음: 객관 규칙, 정상·오류 예제, 예외, 정책 링크, 단계적 검사 적용
+- ProposalForce: requirement/question/response separation, assignee, status, compliance fields, authorization checks.
+- q-flow: closed-context failure, citation records, review events, explicit state transitions, server-side export gate.
+- RFP-IGNITE: deterministic missing-field/unit checks, clarification queue, separate draft/approved artifacts, recomputed totals.
+- BidCraft: separate extraction assessment from response assessment, edit-distance feedback, golden retrieval evaluation.
+- grant-framework: versioned proposals, staged human approvals, immutable milestone evidence.
+- open-agreements: source/license sidecars, canonical registry, schema checks, deterministic postconditions, render QA.
+- python-docx-template/python-docx: existing template preservation plus minimal post-processing.
+- Vale organization packs: objective rules, positive/negative fixtures, exceptions, policy links, gradual gating.
 
-## 제외
+## Reject
 
-- 독립적으로 유용한 상태 없이 에이전트 이름만 여럿 붙이는 방식
-- 모델이 생성한 품질·신뢰도 점수
-- 검색 유사도를 사실인 것처럼 제시하는 방식
-- 정확한 위치·버전/날짜·해시 없이 출처 제목만 기록하는 방식
-- 알리지 않은 기본 사실·중립 지표·대체 고득점
-- UI 모의 화면을 구현된 AI·보안 기능처럼 제시하는 방식
-- 기본적인 외부 전송·공개 데이터 접근·원문 로그 기록
-- 제출 준비 자동 검사 없이 내보내기
-- 영문 문체 검사 규칙을 한국어에 일괄 번역해 적용하는 방식
+- multi-agent labels without independently useful state
+- model-generated quality/confidence scores
+- retrieval similarity presented as truth
+- source titles without exact location, version/date, and hash
+- silent default facts, neutral metrics, or fallback high scores
+- UI simulations presented as implemented AI/security
+- external transmission, public data access, or raw logging by default
+- export without deterministic readiness gates
+- wholesale translation of English style-lint rules into Korean
 
-## 라이선스 경계
+## License boundary
 
-- 호환되는 MIT/BSD 개념·코드도 필요한 고지와 함께 재사용한다.
-- 복사할 때 Apache-2.0 LICENSE/NOTICE와 변경 고지를 보존한다.
-- LPPL, CC BY/SA/NC, 혼합 라이선스 Gist, 폰트, 로고, 공식 양식은 각각 따로 판단한다.
-- 라이선스가 없으면 독자적으로 표현한 개념만 참고하며 코드·문장을 복제하지 않는다.
+- Reuse compatible MIT/BSD concepts or code only with required notices.
+- Preserve Apache-2.0 LICENSE/NOTICE and modification notices when copying.
+- Treat LPPL, CC BY/SA/NC, mixed-license Gists, fonts, logos, and official templates separately.
+- When no license is declared, reuse independently expressed concepts only; do not copy code or text.

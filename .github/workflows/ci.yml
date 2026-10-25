@@ -37,17 +37,17 @@ jobs:
           set -e
           GATE=skills/create-best-proposal/scripts/unified_gate.py
           READY=skills/create-best-proposal/fixtures/audit_ready_financial.json
-          # 문서 없이 audit만 → AUDIT-VALID (제출 준비로 승격하지 않는다)
+          # Audit without a document yields AUDIT-VALID, never submission readiness.
           python "$GATE" "$READY" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
-          # 제출 모드인데 문서를 주지 않으면 차단
+          # Block submission mode when no document is supplied.
           if python "$GATE" "$READY" --no-explain; then exit 1; fi
-          # 실제 파일과 해시가 일치할 때만 SUBMISSION-READY
+          # Allow SUBMISSION-READY only when the actual file matches its hash.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
           import ooxml_fixtures as fixtures
           audit_path, tmp = Path(sys.argv[1]), Path(sys.argv[2])
-          # 양성 대조군은 실제 로더가 여는 파일이어야 한다(필수 파트 빠진 ZIP 금지).
+          # Positive controls must open in the real loader; a ZIP missing required parts is invalid.
           doc = tmp / "final.pptx"
           fixtures.submission_pptx(doc,
               "정상 문서 총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원")
@@ -58,10 +58,10 @@ jobs:
           (tmp / "bound.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           python "$GATE" "${RUNNER_TEMP}/bound.json" --doc "${RUNNER_TEMP}/final.pptx" --no-explain | grep -q "STATUS: SUBMISSION-READY"
-          # audit-only는 설명 본문에서도 제출 가능이라고 말하지 않는다
+          # Audit-only explanations must not claim submission readiness.
           python "$GATE" "$READY" --audit-only | grep -q "게이트 결과: AUDIT-VALID"
           if python "$GATE" "$READY" --audit-only | grep -q "제출 가능\."; then exit 1; fi
-          # artifact_required=false로 검증 의무를 끄지 못한다
+          # artifact_required=false cannot disable mandatory verification.
           python - "${RUNNER_TEMP}" <<'PY'
           import json, sys
           from pathlib import Path
@@ -72,13 +72,13 @@ jobs:
           (tmp / "bypass.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           if python "$GATE" "${RUNNER_TEMP}/bypass.json" --doc "${RUNNER_TEMP}/final.pptx" --no-explain; then exit 1; fi
-          # 검토 이후 바뀐 파일에는 과거 판정을 재사용하지 못한다
+          # Do not reuse an earlier verdict for a file changed after review.
           printf 'drift' >> "${RUNNER_TEMP}/final.pptx"
           if python "$GATE" "${RUNNER_TEMP}/bound.json" --doc "${RUNNER_TEMP}/final.pptx" --no-explain; then exit 1; fi
           if python "$GATE" "${RUNNER_TEMP}/bound.json" --stage draft --no-explain; then exit 1; fi
           if python "$GATE" skills/create-best-proposal/fixtures/audit_decision_memo.json --no-explain; then exit 1; fi
           python skills/create-best-proposal/scripts/build_audit_from_meta.py skills/create-best-proposal/fixtures/meta_sample.json -o "${RUNNER_TEMP}/audit.json"
-          # 수치 원장: 틀린 합계는 arithmetic=true 자기선언과 무관하게 차단된다
+          # Numeric ledger: reject a wrong sum despite an arithmetic=true declaration.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import json, sys
           from pathlib import Path
@@ -89,7 +89,7 @@ jobs:
           (tmp / "bad_sum.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           if python "$GATE" "${RUNNER_TEMP}/bad_sum.json" --audit-only --no-explain; then exit 1; fi
-          # 공공 제안: 평가표가 없거나 대응 요구 없는 배점이 있으면 차단된다
+          # Public proposals: block missing evaluation ledgers or unmapped scored items.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import json, sys
           from pathlib import Path
@@ -105,7 +105,7 @@ jobs:
           if python "$GATE" "${RUNNER_TEMP}/public_no_criteria.json" --audit-only --no-explain; then exit 1; fi
           if python "$GATE" "${RUNNER_TEMP}/public_orphan_criterion.json" --audit-only --no-explain; then exit 1; fi
           python "$GATE" "${RUNNER_TEMP}/public_ok.json" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
-          # 원장이 없으면 제출 모드에서 arithmetic 자기선언만으로 통과하지 못한다
+          # Submission mode cannot pass an arithmetic declaration without a ledger.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import json, sys
           from pathlib import Path
@@ -115,7 +115,7 @@ jobs:
           (tmp / "no_ledger.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           if python "$GATE" "${RUNNER_TEMP}/no_ledger.json" --audit-only --no-explain; then exit 1; fi
-          # 원문 기반 평가 규칙: 가격 별책(만점 90)은 통과, 분류 누락·규격 누락·RFI 확약은 차단
+          # Source-based evaluation: separate pricing with maximum 90 passes; missing classification/specifications and RFI commitments fail.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import json, sys
           from pathlib import Path
@@ -139,7 +139,7 @@ jobs:
           for BAD in no_context no_profile rfi_commitment; do
             if python "$GATE" "${RUNNER_TEMP}/$BAD.json" --audit-only --no-explain; then exit 1; fi
           done
-          # 제출 묶음: 익명본 미검사·가격 별책 해시 불일치는 대표 파일이 정상이어도 차단된다
+          # Bundle: unchecked anonymity or a price-volume hash mismatch blocks even when the main file is valid.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
@@ -173,7 +173,7 @@ jobs:
           for BAD in bundle_anon bundle_drift; do
             if python "$GATE" "${RUNNER_TEMP}/$BAD.json" --audit-only --bundle "${RUNNER_TEMP}/bundle" --no-explain; then exit 1; fi
           done
-          # 원장 수치가 장표와 다르면 해시가 맞아도 제출 판정이 아니다(통합 게이트가 직접 대조)
+          # Ledger values must match the slides even with matching hashes; the unified gate compares them.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import hashlib, json, sys
           from pathlib import Path
@@ -195,7 +195,7 @@ jobs:
           python "$GATE" "${RUNNER_TEMP}/numbers_ok.json" --doc "${RUNNER_TEMP}/numbers_ok.pptx" --no-explain | grep -q "STATUS: SUBMISSION-READY"
           if python "$GATE" "${RUNNER_TEMP}/numbers_stale.json" --doc "${RUNNER_TEMP}/numbers_stale.pptx" --no-explain; then exit 1; fi
           if python "$GATE" "${RUNNER_TEMP}/numbers_ok.json" --doc "${RUNNER_TEMP}/numbers_ok.pptx" --skip-numbers --no-explain; then exit 1; fi
-          # 사업 성격 ↔ 목차 뼈대: 유지보수 사업에 구축 목차는 차단, 발주처 지정 근거가 있으면 통과
+          # Engagement versus outline: reject a build outline for maintenance unless buyer-mandated evidence permits it.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import json, sys
           from pathlib import Path
@@ -217,7 +217,7 @@ jobs:
           for OK in outline_explained outline_complete; do
             python "$GATE" "${RUNNER_TEMP}/$OK.json" --audit-only --no-explain | grep -q "STATUS: AUDIT-VALID"
           done
-          # 실제 제안서에서 찾은 구멍: 제조사 의존 확약·시점 주장의 기준일·SLA 표의 관계
+          # Observed proposal gaps: vendor-dependent commitments, dated claims, and SLA relationships.
           python - "$READY" "${RUNNER_TEMP}" <<'PY'
           import json, sys
           from pathlib import Path
@@ -251,7 +251,7 @@ jobs:
           set -e
           python skills/create-proposal-document/scripts/build_deck.py skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json -o "${RUNNER_TEMP}/draft.pptx" --strict
           python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/draft.pptx" --max-pages 40 --exclude-cover-toc --require-req-ids --stage draft
-          # 음성 대조군: 슬라이드가 남은 템플릿과 잘못된 행 분할은 거부한다
+          # Negative controls: reject templates with existing slides and invalid row pagination.
           python - "${RUNNER_TEMP}" <<'PY'
           import json, sys
           from pathlib import Path
@@ -275,14 +275,14 @@ jobs:
           SPEC=skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json
           if python "$BUILD" "$SPEC" -o "${RUNNER_TEMP}/x.pptx" --template "${RUNNER_TEMP}/dirty_template.pptx"; then exit 1; fi
           if python "$BUILD" "${RUNNER_TEMP}/bad_rows.json" -o "${RUNNER_TEMP}/y.pptx"; then exit 1; fi
-          # 산출물 프로파일: 각자 자기 기준으로는 통과, 상세본을 발표 기준으로 재면 차단
+          # Profiles pass their own criteria; a detailed deck fails presentation criteria.
           for P in detailed-submission presentation executive-summary; do
             python "$BUILD" "$SPEC" -o "${RUNNER_TEMP}/deck_$P.pptx" --profile "$P"
             python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/deck_$P.pptx"
           done
           if python skills/create-proposal-document/scripts/deck_check.py \
                "${RUNNER_TEMP}/deck_detailed-submission.pptx" --profile presentation; then exit 1; fi
-          # 원장 수치가 장표에 실제로 있는지 대조한다(골든은 일치, 낡은 값은 차단)
+          # Match ledger values to actual slides: the golden matches; stale values are blocked.
           CHECK=skills/create-proposal-document/scripts/check_numbers.py
           META=skills/create-proposal-document/fixtures/e2e-mini-rfp/meta.json
           python "$CHECK" "${RUNNER_TEMP}/draft.pptx" --audit "$META"
@@ -295,7 +295,7 @@ jobs:
           (tmp / "stale_numbers.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
           PY
           if python "$CHECK" "${RUNNER_TEMP}/draft.pptx" --audit "${RUNNER_TEMP}/stale_numbers.json"; then exit 1; fi
-          # 음성 대조군: 본문 파트나 관계 파트가 깨진 패키지는 검사 대상이 아니다(exit 2)
+          # Negative controls: corrupted main or relationship parts are usage errors (exit 2).
           python - "${RUNNER_TEMP}" <<'PY'
           import io, sys, zipfile
           from pathlib import Path
@@ -347,7 +347,7 @@ jobs:
           test -f "${RUNNER_TEMP}/fakehome/.claude/skills/create-best-proposal/SKILL.md"
           test -f "${RUNNER_TEMP}/fakehome/.claude/skills/create-winning-proposal/scripts/proposal_gate.py"
           python install_skill.py --auto | grep -q "Skip (exists)"   # 재실행 안전
-          # 음성 대조군: 스킬이 아닌 비어 있지 않은 폴더는 지우지 않는다
+          # Negative control: never delete a nonempty directory that is not a skill.
           mkdir -p "${RUNNER_TEMP}/dest/create-best-proposal"
           echo "user data" > "${RUNNER_TEMP}/dest/create-best-proposal/notes.md"
           if python install_skill.py --dest "${RUNNER_TEMP}/dest"; then exit 1; fi

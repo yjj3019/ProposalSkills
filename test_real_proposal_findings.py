@@ -1,10 +1,4 @@
-"""13차 — 실제 제안서를 게이트에 태워 찾은 구멍.
-
-열두 배치는 전부 이 저장소가 만든 픽스처 기준이었다. 실제 공공 제안서(RHEL 표준화,
-9장) 한 건을 제출 모드로 태워 보니 게이트가 잡은 18건은 모두 근거가 있었고 과민 차단은
-없었다. 대신 **잡지 못한 것**이 세 가지 나왔다. 원문은 싣지 않고 규칙만 합성 데이터로
-재현한다(공개 저장소).
-"""
+"""Round 13: gaps discovered with a real proposal. The first twelve batches used repository fixtures. Running a 9-slide public-sector RHEL-standardization proposal in submission mode found 18 justified findings without excessive blocking, but missed three issues. Reproduce rules with synthetic data without including the original in this public repository."""
 from __future__ import annotations
 
 import sys
@@ -20,11 +14,7 @@ from test_proposal_gate import ready_data  # noqa: E402
 
 
 class VendorDependentCommitmentTests(unittest.TestCase):
-    """제조사에 기대는 확약이 자사 확약처럼 통과했다.
-
-    "심각도1 1시간 내 대응"은 제조사 SLA가 그 계약·구독 등급에 적용될 때만 성립한다.
-    제조사 공개 문서를 인용하는 것과, 이 사업에 적용된다는 확약을 받는 것은 다르다.
-    """
+    """Manufacturer-dependent commitments previously passed as bidder commitments. "심각도1 1시간 내 대응" is valid only if the manufacturer SLA applies to the relevant contract/subscription tier. Citing public documentation differs from obtaining applicability confirmation for this engagement."""
 
     def _data(self, **claim_over) -> dict:
         data = ready_data()
@@ -69,7 +59,7 @@ class VendorDependentCommitmentTests(unittest.TestCase):
 
 
 class TimeSensitiveClaimTests(unittest.TestCase):
-    """라이프사이클·EOL·버전 주장은 기준일이 없으면 시간이 지나 거짓이 된다."""
+    """Lifecycle, EOL, and version claims become outdated without reference dates."""
 
     def _claim(self, **over) -> dict:
         data = ready_data()
@@ -98,7 +88,7 @@ class TimeSensitiveClaimTests(unittest.TestCase):
 
 
 class NumberRelationTests(unittest.TestCase):
-    """SLA 표는 값 하나하나가 아니라 값 사이의 관계가 맞아야 한다."""
+    """SLA tables require correct relationships between values, not merely valid individual values."""
 
     SLA = [{"id": "S3F", "label": "심각도3 최초", "value": 4, "unit": "시간", "at_most": "S3C"},
            {"id": "S3C", "label": "심각도3 지속", "value": 8, "unit": "시간"},
@@ -119,7 +109,7 @@ class NumberRelationTests(unittest.TestCase):
         self.assertTrue(any("S3F" in f and "이하" in f for f in failures), failures)
 
     def test_units_are_converted_before_comparing(self):
-        """4시간 → 2일처럼 단위가 바뀌는 자리에서 뒤바뀐 값을 잡는다."""
+        """Detect swapped values where units change, such as 4시간 → 2일."""
         failures = pg.check_numbers(self._rows(S4C={"value": 1, "unit": "분"}))
         self.assertTrue(any("S4C" in f and "이상" in f for f in failures), failures)
 
@@ -142,7 +132,7 @@ class NumberRelationTests(unittest.TestCase):
 
 
 class SuperlativeVocabularyTests(unittest.TestCase):
-    """근거를 붙일 수 없는 최상급 수식어. 사실 명칭인 등급 표기는 제외한다."""
+    """Unsupported superlative modifiers, excluding factual grade names."""
 
     def test_ungrounded_superlatives_are_flagged(self):
         for phrase, word in (("최첨단 보안 기술 적용", "최첨단"), ("압도적 성능", "압도적"),
@@ -153,7 +143,7 @@ class SuperlativeVocabularyTests(unittest.TestCase):
                 self.assertTrue(qg.banned_hits(phrase, word), phrase)
 
     def test_factual_tier_names_are_not_flagged(self):
-        """파트너·인증 등급의 실제 명칭은 사실 서술이다."""
+        """Actual partner/certification grade names are factual descriptions."""
         for phrase in ("Red Hat 최상위 파트너 등급", "최상위 인증 자격 보유",
                        "제조사 최고 등급 인증"):
             with self.subTest(phrase=phrase):

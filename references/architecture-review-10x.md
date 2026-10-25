@@ -1,213 +1,213 @@
-# ProposalSkills 구조 검토 보고서 — 10회
+# Architecture Review Report — ProposalSkills ×10
 
-- 작성 시각: `2026-08-08T06:35:31.569148+09:00`
-- 기준 위치: 저장소 루트
-- 대상 스킬: `create-best-proposal`, `create-proposal-document`, `create-winning-proposal`
-- 방법: 공통 근거 점수에 관점별 가중치와 결정론적 변동을 적용한 10회 구조 검토
+- Generated: `2026-08-08T06:35:31.569148+09:00`
+- Root: repository root
+- Skills: `create-best-proposal`, `create-proposal-document`, `create-winning-proposal`
+- Method: 10 persona-weighted architecture reviews over shared evidence scores + deterministic jitter
 
-## 검토 요약
+## Executive summary
 
-| 지표 | 값 |
+| Metric | Value |
 |---|---:|
-| **전체 평균** | **7.89 / 10** |
-| 중앙값 | 7.91 |
-| 모집단 표준편차 | 0.14 |
-| 최솟값 / 최댓값 | 7.6 / 8.13 |
+| **Mean overall** | **7.89 / 10** |
+| Median | 7.91 |
+| Stdev (population) | 0.14 |
+| Min / Max | 7.6 / 8.13 |
 
-### 항목별 평균(10회)
+### Dimension means (10-run average)
 
-| 항목 | 평균 /10 |
+| Dimension | Mean /10 |
 |---|---:|
-| 계층 분리 | 8.96 |
-| 모듈성 | 8.99 |
-| 결합도 | 4.0 |
-| 결정론적 검사 | 8.71 |
-| 확장성 | 9.52 |
-| 운영성 | 7.66 |
-| 검증 용이성 | 7.98 |
-| 일관성 | 7.66 |
+| layering | 8.96 |
+| modularity | 8.99 |
+| coupling | 4.0 |
+| determinism | 8.71 |
+| extensibility | 9.52 |
+| operability | 7.66 |
+| testability | 7.98 |
+| consistency | 7.66 |
 
-- **가장 높은 항목:** `확장성` (9.52)
-- **가장 낮은 항목:** `결합도` (4.0)
+- **Strongest:** `extensibility` (9.52)
+- **Weakest:** `coupling` (4.0)
 
-## 회차별 결과
+## Per-run scoreboard
 
-| 회차 | 검토 관점 | 종합 | 계층 | 모듈 | 결합 | 결정성 | 확장 | 운영 | 검증 | 일관 |
+| Run | Lens | Overall | layer | modular | couple | determ | extend | operate | test | consist |
 |---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 1 | R01 계층 구조 | **7.88** | 8.8 | 8.9 | 3.7 | 8.9 | 9.5 | 7.5 | 8.1 | 7.5 |
-| 2 | R02 모듈성·단일 책임 | **7.98** | 9.1 | 9.2 | 4.0 | 8.5 | 9.8 | 7.8 | 7.7 | 7.8 |
-| 3 | R03 결합도·배포 구조 | **7.6** | 8.7 | 8.8 | 4.3 | 8.8 | 9.4 | 7.4 | 8.0 | 7.4 |
-| 4 | R04 결정론적 제어 | **7.94** | 9.0 | 9.1 | 3.9 | 8.4 | 9.7 | 7.7 | 8.3 | 7.7 |
-| 5 | R05 확장성·제품 확장 | **8.13** | 9.3 | 8.7 | 4.2 | 8.7 | 9.3 | 8.0 | 7.9 | 8.0 |
-| 6 | R06 스킬 운영성·신뢰성 | **7.82** | 8.9 | 9.0 | 3.8 | 9.0 | 9.6 | 7.6 | 8.2 | 7.6 |
-| 7 | R07 검증 용이성·회귀 | **8.01** | 9.2 | 9.3 | 4.1 | 8.6 | 9.2 | 7.9 | 7.8 | 7.9 |
-| 8 | R08 일관성·용어 | **7.83** | 8.8 | 8.9 | 3.7 | 8.9 | 9.5 | 7.5 | 8.1 | 7.5 |
-| 9 | R09 보안·실패 시 차단 | **7.95** | 9.1 | 9.2 | 4.0 | 8.5 | 9.8 | 7.8 | 7.7 | 7.8 |
-| 10 | R10 에이전트 실행 환경 적합성 | **7.77** | 8.7 | 8.8 | 4.3 | 8.8 | 9.4 | 7.4 | 8.0 | 7.4 |
+| 1 | R01 Layering architect | **7.88** | 8.8 | 8.9 | 3.7 | 8.9 | 9.5 | 7.5 | 8.1 | 7.5 |
+| 2 | R02 Modularity / SRP | **7.98** | 9.1 | 9.2 | 4.0 | 8.5 | 9.8 | 7.8 | 7.7 | 7.8 |
+| 3 | R03 Coupling & deploy topology | **7.6** | 8.7 | 8.8 | 4.3 | 8.8 | 9.4 | 7.4 | 8.0 | 7.4 |
+| 4 | R04 Deterministic control plane | **7.94** | 9.0 | 9.1 | 3.9 | 8.4 | 9.7 | 7.7 | 8.3 | 7.7 |
+| 5 | R05 Extensibility / product growth | **8.13** | 9.3 | 8.7 | 4.2 | 8.7 | 9.3 | 8.0 | 7.9 | 8.0 |
+| 6 | R06 Operability / SRE of skills | **7.82** | 8.9 | 9.0 | 3.8 | 9.0 | 9.6 | 7.6 | 8.2 | 7.6 |
+| 7 | R07 Testability & regression | **8.01** | 9.2 | 9.3 | 4.1 | 8.6 | 9.2 | 7.9 | 7.8 | 7.9 |
+| 8 | R08 Consistency / vocabulary | **7.83** | 8.8 | 8.9 | 3.7 | 8.9 | 9.5 | 7.5 | 8.1 | 7.5 |
+| 9 | R09 Security & fail-closed | **7.95** | 9.1 | 9.2 | 4.0 | 8.5 | 9.8 | 7.8 | 7.7 | 7.8 |
+| 10 | R10 Agent-runtime fit | **7.77** | 8.7 | 8.8 | 4.3 | 8.8 | 9.4 | 7.4 | 8.0 | 7.4 |
 
-## 회차별 검토 내용
+## Run narratives
 
-### 검토 1: R01 계층 구조 — **7.88/10**
+### Run 1: R01 Layering architect — **7.88/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 2: R02 모듈성·단일 책임 — **7.98/10**
+### Run 2: R02 Modularity / SRP — **7.98/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 3: R03 결합도·배포 구조 — **7.6/10**
+### Run 3: R03 Coupling & deploy topology — **7.6/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 4: R04 결정론적 제어 — **7.94/10**
+### Run 4: R04 Deterministic control plane — **7.94/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 5: R05 확장성·제품 확장 — **8.13/10**
+### Run 5: R05 Extensibility / product growth — **8.13/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 6: R06 스킬 운영성·신뢰성 — **7.82/10**
+### Run 6: R06 Operability / SRE of skills — **7.82/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 7: R07 검증 용이성·회귀 — **8.01/10**
+### Run 7: R07 Testability & regression — **8.01/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 8: R08 일관성·용어 — **7.83/10**
+### Run 8: R08 Consistency / vocabulary — **7.83/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 9: R09 보안·실패 시 차단 — **7.95/10**
+### Run 9: R09 Security & fail-closed — **7.95/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-### 검토 10: R10 에이전트 실행 환경 적합성 — **7.77/10**
+### Run 10: R10 Agent-runtime fit — **7.77/10**
 
-**강점**
-- 3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행
-- 낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)
-- 제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정
-- SI-B1/C1 자동 연결(meta→audit, 대량 조견표)
+**Strengths**
+- 3-layer split: content / governance / orchestration
+- Anti-optimism gates (evidence_refs, deadline, eligibility)
+- Dual-axis completeness (readiness vs quality; gate owns status)
+- Automation bridges SI-B1/C1 (meta→audit, bulk matrix)
 
-**위험**
-- P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨
-- P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음
-- P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨
-- P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임
+**Risks**
+- P1: create-best-proposal alone lacks vendored gates → degraded install
+- P1: local proposal_gate missing --explain/remediation vs origin/main
+- P2: heavy ../ sibling markdown coupling for agent context loading
+- P2: install default still create-winning-proposal, not flagship
 
-**개선안:** 내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경
+**Recommendation:** Vendor or package sibling gates with best skill; merge origin explain UX; default install → best
 
-## 당시 근거 원장(공통 입력)
+## Evidence snapshot (shared inputs)
 
 ```json
 {
@@ -243,33 +243,33 @@
 }
 ```
 
-## 종합 지적
+## Consolidated findings
 
-### 검토 당시 구조
+### Architecture shape (as-reviewed)
 
 ```
-에이전트 실행 환경
-  └─ create-best-proposal          (통합 진행 / 경로 선택)
-       ├─ create-proposal-document (콘텐츠 자료 + quality_gate)
-       └─ create-winning-proposal  (감사 스키마 + proposal_gate)
-  score_completeness.py            (루트의 두 축 점수 계산 → 내부 제출 검사기 호출)
-  install_skill.py                 (스킬별 폴더 복사; 당시 기본값=winning)
+Agent runtime
+  └─ create-best-proposal          (orchestration / path selection)
+       ├─ create-proposal-document (content bank + quality_gate)
+       └─ create-winning-proposal  (audit schema + proposal_gate)
+  score_completeness.py            (root dual-axis scorer → imports winning gate)
+  install_skill.py                 (copytree per skill; default=winning)
 ```
 
-### P0 / P1 / P2 개선 목록(10회 검토 종합)
+### P0 / P1 / P2 backlog (from 10-run consensus)
 
-| 우선순위 | 지적 | 감점 이유 | 개선안 |
+| Pri | Finding | Why it scored down | Suggested fix |
 |---|---|---|---|
-| P1 | 부분 설치 취약성 | vendor/ 없이 결합도 문제 발생 | 내부 검사기를 동봉하거나 플러그인 의존 스킬 함께 설치 |
-| P1 | origin/main보다 검사 안내가 뒤처짐 | 결정론적 검사·운영성 | a4cc4a3의 --explain·기준 테스트 반영 |
-| P2 | 상태 용어 불일치 | 일관성 | READY ≡ SUBMISSION-READY 대응표 |
-| P2 | 기본 설치가 통합 진입점이 아님 | 운영성 | DEFAULT_NAME=create-best-proposal 또는 --all 기본값 |
-| P2 | 내부 레이어 경로 결합 | 결합도 | 참고 문서 함께 배포 또는 실행 중 스킬 경로 탐색 |
+| P1 | Partial-install fragility | coupling weak without vendor/ | vendor gates into best or install plugin deps |
+| P1 | Gate UX lag vs origin/main | determinism/operability | merge a4cc4a3 --explain + goldens |
+| P2 | Status vocab drift | consistency | READY ≡ SUBMISSION-READY alias table |
+| P2 | Default install not flagship | operability | DEFAULT_NAME=create-best-proposal or --all default |
+| P2 | Sibling path coupling | coupling | package references or runtime skill resolver |
 
-### 판단
+### Verdict
 
-10개 검토 관점의 구조 점수는 **7.89/10** (범위 7.6–8.13, σ=0.14).
+Across 10 weighted review lenses the recorded architecture score is **7.89/10** (range 7.6–8.13, σ=0.14).
 
-**3개 레이어 구조는 타당**하며 계층 분리·모듈성·확장성 점수가 높은 주된 이유다. 주요 약점은 **배포 구조**(내부 검사기 사본 없이 통합 스킬이 내부 레이어에 의존)와 공개된 origin/main의 설명·수정 안내보다 **제어 단계의 안내가 뒤처진 점**이다.
+The **3-layer model is sound** and is the main source of high layering/modularity/extensibility scores. The main drag is **deploy topology** (best skill depends on siblings without vendoring) and **control-plane UX lag** versus published origin/main explain/remediation work.
 
-**배포 개선안:** 원격 검사기의 상세 검증을 로컬 통합 진행 구조에 결합한다. 두 분기 중 하나만 선택하지 않는다.
+**Ship recommendation:** merge remote gate depth *into* local orchestration breadth — do not choose one side of the fork exclusively.

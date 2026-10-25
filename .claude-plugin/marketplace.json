@@ -8,13 +8,13 @@
     {
       "name": "proposal-skills",
       "source": "./",
-      "description": "제안요청서 분석부터 편집 가능한 제안서 작성·근거 검토·제출 검사까지 지원하는 한국어 IT 제안서 스킬 모음입니다.",
+      "description": "Korean IT proposal workflows for RFP analysis, editable slide decks, evidence review, and submission checks.",
       "homepage": "https://github.com/yjj3019/ProposalSkills",
       "repository": "https://github.com/yjj3019/ProposalSkills",
       "keywords": ["proposal", "rfp", "skills", "governance"]
     }
   ],
   "metadata": {
-    "description": "Claude Code·ChatGPT·Codex 등에서 같은 제안서 스킬 세 개를 설치하는 마켓플레이스입니다."
+    "description": "Install the same three proposal skills in Claude Code, ChatGPT, Codex, and compatible hosts."
   }
 }

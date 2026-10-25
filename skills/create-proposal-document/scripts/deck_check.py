@@ -1,31 +1,19 @@
 #!/usr/bin/env python3
-"""제안서 PPTX 레이아웃 린트 + 렌더 검사 (review-checklist 7·8번 항목의 기계화).
+"""Proposal PPTX layout lint and render checks (automating review-checklist items 7 and 8).
 
-사용법:
+Usage:
     python3 deck_check.py 제안서.pptx [--max-pages 40] [--exclude-cover-toc]
         [--render] [--png-dir out/] [--emit-render render.json] [--min-font PT]
         [--require-req-ids] [--stage draft|submission] [--profile 규격]
 
-레이아웃 린트(python-pptx, 항상 수행):
-  1. 페이지 수 vs --max-pages           5. 본문 최소 폰트 미만 — 캡션·헤더·푸터 제외
-  2. 본문 장표의 리드문(LEAD) 존재·길이  6. 텍스트 과밀(표 셀 포함)
-  3. 본문 장표의 REQ-ID 표기            7. 표 헤더 행 존재, 행 수 초과 표
-  4. 제목(TITLE) 존재                    8. 빈 슬라이드·이미지 전용 슬라이드
-  폰트·밀도·행 수 기준은 산출물 규격(deck_profiles.py)에서 온다. PPTX에 남은 규격 표시를
-  읽어 자동 적용하며, --profile로 덮어쓸 수 있다. 표시가 없거나 모르는 값이면 제출
-  단계에서 차단한다(가장 느슨한 기본값으로 조용히 통과시키지 않는다).
-  build_deck.py 산출물은 도형 이름(TITLE/LEAD/REQID)으로 정확히 검사하고,
-  외부 제작 덱은 위치 휴리스틱(상단 두 번째 텍스트 = 리드문)으로 검사한 뒤 [휴리스틱] 표기.
+Always lint with python-pptx: page limit, body lead presence and length, REQ-IDs, titles, body minimum font excluding captions/headers/footers, text density including tables, table headers and row limits, empty or image-only slides. Font, density, and row limits come from deck_profiles.py. Read the PPTX profile stamp automatically or override with --profile; missing or unknown stamps block submission rather than silently selecting permissive defaults. Generated decks use named shapes; external decks use positional heuristics and are marked [휴리스틱].
 
-렌더 검사(--render, LibreOffice 필요):
-  soffice → PDF 변환 → 페이지 수 대조 → (--png-dir) 장표별 PNG 썸네일.
-  soffice가 없으면 차단하지 않고 "NOT INSPECTED"로 기록한다(통과 추정 금지).
+--render requires LibreOffice: soffice → PDF → page count comparison → optional PNG thumbnails via --png-dir. Missing soffice records NOT INSPECTED; never assume a pass.
 
---emit-render: audit용 render 블록을 JSON으로 기록한다
+--emit-render writes the audit render block:
   {"verified": bool, "artifact_hash": "sha256:…", "tool": "…", "evidence": [...]}
-  verified는 렌더 성공 + 차단 항목 0일 때만 true다.
-
-종료 코드: 0=통과(경고 가능), 1=차단, 2=사용 오류·파일 손상.
+verified is true only after successful rendering with no blockers.
+Exit codes: 0=pass (warnings possible), 1=blocked, 2=usage error or damaged file.
 """
 from __future__ import annotations
 
@@ -51,8 +39,8 @@ except ImportError:  # pragma: no cover
     print("python-pptx가 필요합니다: pip install python-pptx", file=sys.stderr)
     raise SystemExit(2)
 
-# 기본값은 deck_profiles의 기본 프로파일에서 온다. 프로파일별 실제 기준은 lint()에
-# 전달되며, 생성기와 같은 정의를 읽으므로 두 도구의 숫자가 갈리지 않는다.
+# Defaults come from deck_profiles; lint() receives the actual profile criteria.
+# Generator and checker share one definition to prevent numerical drift.
 _DEFAULT = deck_profiles.get(deck_profiles.DEFAULT_PROFILE)
 LEAD_MAX = _DEFAULT["lead_max_chars"]
 DENSITY_MAX = _DEFAULT["density_max"]
@@ -72,11 +60,7 @@ def sha256(path: Path) -> str:
 
 
 def shape_text(shape) -> str:
-    """도형의 보이는 텍스트. 표(GraphicFrame)의 셀까지 읽는다.
-
-    표는 has_text_frame이 False라 셀 텍스트가 밀도 계산에서 통째로 빠졌다 —
-    조견표처럼 가장 빽빽한 장표가 '0자'로 집계돼 밀도 경고가 사실상 동작하지 않았다.
-    """
+    """Visible shape text, including GraphicFrame table cells. Tables lack text frames, so previously their text vanished from density counts and dense matrices appeared empty."""
     if shape.has_text_frame:
         return "\n".join(p.text for p in shape.text_frame.paragraphs).strip()
     if getattr(shape, "has_table", False) and shape.has_table:
@@ -93,11 +77,7 @@ def iter_shapes(shapes):
 
 
 def _group_transform(group) -> tuple[float, float, float, float] | None:
-    """그룹의 (offset_x, offset_y, scale_x, scale_y). 못 읽으면 None.
-
-    그룹 자식의 left/top은 자식 좌표계(chOff/chExt) 값이라 슬라이드 좌표가 아니다.
-    변환 없이 비교하면 화면 안 도형을 '화면 밖'으로 잡거나 그 반대가 된다.
-    """
+    """Return group (offset_x, offset_y, scale_x, scale_y), or None if unreadable. Child left/top use local chOff/chExt coordinates; comparing without transformation misclassifies on-slide and off-slide shapes."""
     try:
         xfrm = group.element.find(
             "{http://schemas.openxmlformats.org/presentationml/2006/main}grpSpPr").find(
@@ -116,14 +96,14 @@ def _group_transform(group) -> tuple[float, float, float, float] | None:
 
 
 def placed_shapes(shapes, transform=(0.0, 0.0, 1.0, 1.0)):
-    """(도형, 슬라이드 좌표 left/top/width/height). 그룹은 변환을 누적한다."""
+    """Yield (shape, slide-coordinate left/top/width/height), accumulating group transforms."""
     ox, oy, sx, sy = transform
     for sh in shapes:
         if sh.shape_type == 6 and hasattr(sh, "shapes"):  # GROUP
             inner = _group_transform(sh)
             if inner is None:
-                # 변환을 못 읽으면 그룹 자체의 상자로만 판단한다(잘못된 좌표로
-                # 자식을 재느니 검사 대상에서 뺀다).
+                # If transforms cannot be read, inspect only the group box instead of measuring
+                # children with incorrect coordinates.
                 continue
             gx, gy, gsx, gsy = inner
             yield from placed_shapes(sh.shapes,
@@ -133,7 +113,7 @@ def placed_shapes(shapes, transform=(0.0, 0.0, 1.0, 1.0)):
             box = (ox + int(sh.left) * sx, oy + int(sh.top) * sy,
                    int(sh.width) * sx, int(sh.height) * sy)
         except (TypeError, ValueError):
-            continue  # 좌표를 못 읽는 도형(플레이스홀더 상속 등)은 건너뛴다
+            continue  # Skip shapes whose coordinates cannot be read, such as inherited placeholders.
         yield sh, box
 
 
@@ -152,19 +132,15 @@ def slide_kind(slide) -> str:
     return "unknown"
 
 
-# 생성기가 넣는 상용구(위치·번호·캡션)만 제외한다. BODY_LEGEND는 구성도의 범례로
-# 작성자가 쓴 내용이므로 폰트·밀도 검사 대상이다(예전엔 제외돼 본문 하한 미만으로 남았다).
+# Exclude only generator boilerplate (locations, numbers, captions). BODY_LEGEND contains
+# author-written diagram content and remains subject to font and density checks.
 META_SHAPES = {"HEADER", "FOOTER", "PAGENO", "CAPTION", "REQID", "STATUS"}
-# 소형 텍스트(범례·간트 라벨)의 정의는 deck_profiles에 있다 — 생성기와 같은 정의를
-# 읽어야 두 도구의 기준이 갈리지 않는다. 검사 대상이되 하한은 표 기준을 쓴다.
+# deck_profiles defines small text (legends, Gantt labels); share that definition with
+# the generator. Inspect it using the table minimum.
 
 
 def _effective_pt(run, paragraph, shape) -> float | None:
-    """실제로 적용되는 글자 크기. run에 없으면 문단, 그 다음 도형 기본값을 본다.
-
-    run.font.size만 보면 문단 수준에서 크기를 준 텍스트가 통째로 '크기 미지정'으로
-    빠져 폰트 하한 검사를 지나쳤다 — 축소한 장표가 그대로 통과하던 경로다.
-    """
+    """Resolve effective font size from run, paragraph, then shape defaults. Checking run.font.size alone skipped paragraph-level sizes and let undersized slides pass."""
     for source in (run.font, paragraph.font,
                    getattr(getattr(shape, "text_frame", None), "_defRPr", None)):
         size = getattr(source, "size", None) if source is not None else None
@@ -174,11 +150,7 @@ def _effective_pt(run, paragraph, shape) -> float | None:
 
 
 def min_font_pt(slide) -> tuple[float | None, float | None]:
-    """(본문 최소 pt, 표 최소 pt). 캡션·헤더·푸터(상용구)는 제외.
-
-    본문과 표는 허용 하한이 다르다(표가 더 작다). 하나로 합치면 표 하한이 본문에도
-    적용돼, 본문을 표 크기까지 줄인 장표가 통과한다.
-    """
+    """Return (minimum body pt, minimum table pt), excluding captions, headers, and footers. Keep distinct minima so body text reduced to table size cannot pass."""
     body: list[float] = []
     table: list[float] = []
     for sh in iter_shapes(slide.shapes):
@@ -203,12 +175,7 @@ def min_font_pt(slide) -> tuple[float | None, float | None]:
 
 
 def out_of_bounds(prs, slide) -> list[str]:
-    """슬라이드 경계를 벗어난 텍스트 도형을 찾는다.
-
-    폰트·글자 수 규칙만 보면 정상인데 상자가 화면 밖에 있어 아무것도 안 보이는 장표가
-    통과했다. 렌더 PDF에도 안 나오므로 페이지 수 대조로도 걸리지 않는다.
-    배경·장식(선·그림)은 의도적으로 걸칠 수 있으므로 텍스트가 있는 도형만 본다.
-    """
+    """Find text shapes outside slide bounds. Font and character limits alone miss invisible off-slide boxes, also absent from rendered PDFs. Inspect text shapes only because backgrounds and decorations may intentionally cross bounds."""
     sw, sh_ = int(prs.slide_width), int(prs.slide_height)
     problems: list[str] = []
     for shape, (left, top, width, height) in placed_shapes(slide.shapes):
@@ -228,11 +195,7 @@ def out_of_bounds(prs, slide) -> list[str]:
 
 
 def detect_profile(prs) -> tuple[str | None, str]:
-    """(프로파일, 표시 상태). build_deck이 core properties에 남긴 표시를 읽는다.
-
-    '표시 없음'과 '모르는 표시'를 구분한다. 둘을 같게 처리하면, 이 검사기가 모르는
-    규격으로 만든 덱이 가장 느슨한 기본값으로 조용히 통과한다(fail-open).
-    """
+    """Return (profile, stamp status) from build_deck core properties. Distinguish missing from unknown stamps so unrecognized specifications cannot silently use permissive defaults."""
     try:
         raw = prs.core_properties.category
     except (AttributeError, ValueError):
@@ -265,9 +228,9 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
     counted = 0
     for idx, slide in enumerate(slides, 1):
         kind = slide_kind(slide)
-        # 도형을 한 번만 순회해 (이름, 텍스트) 쌍을 만든다. 이름 dict와 텍스트 list를
-        # 따로 만들어 zip하면 같은 이름이 둘 이상일 때(간트 마일스톤 2개 이상) 짝이
-        # 밀려 남의 텍스트를 세거나 본문을 통째로 누락했다.
+        # Build (name, text) pairs in one traversal. Separately zipping a name dictionary and
+        # text list shifts pairs when names repeat (multiple Gantt milestones), causing wrong
+        # text counts or complete omission of body text.
         pairs = [(sh.name, shape_text(sh)) for sh in iter_shapes(slide.shapes)]
         names = {name: sh for name, sh in zip((n for n, _ in pairs), iter_shapes(slide.shapes))}
         texts = [t for _, t in pairs]
@@ -291,7 +254,7 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
         heuristic = not ({"TITLE", "LEAD"} <= names.keys())
         tag = " [휴리스틱]" if heuristic else ""
         if heuristic:
-            # 외부 덱: 위치 순으로 상단 텍스트 2개를 제목·리드문으로 간주
+            # External decks: treat the top two text boxes by position as title and lead.
             ordered = sorted((sh for sh in iter_shapes(slide.shapes) if shape_text(sh)),
                              key=lambda sh: (int(sh.top or 0), int(sh.left or 0)))
             title = shape_text(ordered[0]) if ordered else ""
@@ -312,8 +275,8 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
             if not REQ_RE.search(req_text):
                 level = "[차단]" if stage == "submission" else WARN
                 items.append(f"{level} 슬라이드 {idx}: 대응 요구사항 ID(REQ-ID) 없음{tag}")
-        # 밀도에서 제외하는 것과 폰트 검사에서 제외하는 것을 같은 정의(META_SHAPES)로
-        # 맞춘다 — 캡션·REQ-ID는 생성기가 넣는 상용구이지 작성자가 쓴 본문이 아니다.
+        # Use META_SHAPES for both density and font exclusions; captions and REQ-IDs are
+        # generator boilerplate rather than author-written body content.
         body_chars = (sum(len(t) for n, t in pairs if n not in META_SHAPES)
                       if not heuristic else len(all_text))
         if body_chars > density_max:
@@ -344,7 +307,7 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
 
 
 def render(pptx: Path, png_dir: Path | None) -> tuple[list[str], dict]:
-    """soffice로 PDF 변환, 페이지 수 대조, 선택적으로 PNG 썸네일. (items, evidence)"""
+    """Convert with soffice to PDF, compare page counts, optionally produce PNG thumbnails; return (items, evidence)."""
     items: list[str] = []
     evidence: dict = {"tool": "", "pdf_pages": None, "png": []}
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
@@ -452,52 +415,52 @@ def main(argv: list[str] | None = None) -> int:
             pass
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("pptx", type=Path)
-    ap.add_argument("--max-pages", type=int, help="페이지 제한(RFP)")
-    ap.add_argument("--exclude-cover-toc", action="store_true", help="표지·목차·마무리를 제한 산정에서 제외")
+    ap.add_argument("--max-pages", type=int, help="Page limit (RFP)")
+    ap.add_argument("--exclude-cover-toc", action="store_true", help="Exclude cover, contents, and closing slides from the page limit")
     ap.add_argument("--min-font", type=float,
-                    help="본문 최소 폰트(pt). 기본값은 프로파일에서 유도한다. 캡션·헤더·푸터는 제외")
+                    help="Minimum body font (pt), derived from the profile by default; excludes captions, headers, and footers")
     ap.add_argument("--profile", choices=sorted(deck_profiles.PROFILES),
                     help="시각 규격을 명시한다. 생략하면 PPTX에 남은 표시를 읽고, "
                          f"표시가 없으면 {deck_profiles.DEFAULT_PROFILE}")
-    ap.add_argument("--require-req-ids", action="store_true", help="본문 장표 REQ-ID 표기 필수(공공·금융 A/B)")
+    ap.add_argument("--require-req-ids", action="store_true", help="Require REQ-ID labels on body slides (public/financial A/B)")
     ap.add_argument("--stage", choices=["draft", "submission"], default="submission")
-    ap.add_argument("--render", action="store_true", help="LibreOffice로 PDF 렌더·페이지 대조")
-    ap.add_argument("--png-dir", type=Path, help="렌더 썸네일 저장 폴더(--render 필요)")
-    ap.add_argument("--emit-render", type=Path, help="audit용 render 블록 JSON 출력 경로")
+    ap.add_argument("--render", action="store_true", help="Render PDF with LibreOffice and compare page counts")
+    ap.add_argument("--png-dir", type=Path, help="Directory for render thumbnails (requires --render)")
+    ap.add_argument("--emit-render", type=Path, help="Output JSON path for the audit render block")
     a = ap.parse_args(argv)
     if not a.pptx.is_file():
         print(f"파일 없음: {a.pptx}", file=sys.stderr)
         return 2
     try:
         prs = Presentation(str(a.pptx))
-    except Exception as exc:  # pptx 패키지 손상 등
+    except Exception as exc:  # Damaged PPTX packages and similar failures.
         print(f"검사 불가(파일 손상·형식): {exc}", file=sys.stderr)
         return 2
     stamped, stamp_state = detect_profile(prs)
     profile = a.profile or stamped or deck_profiles.DEFAULT_PROFILE
-    # 발주처 지정 규격 표시를 읽는다. 생성기와 같은 함수로 해석한다.
+    # Read buyer specification stamps with the same resolver as the generator.
     try:
         raw_keywords = prs.core_properties.keywords
     except (AttributeError, ValueError):
         raw_keywords = None
     try:
         spec, spec_state = deck_profiles.read_spec_stamp(raw_keywords, profile)
-    except ValueError:  # 모르는 --profile 등
+    except ValueError:  # Unknown --profile and similar values.
         spec, spec_state = {}, "invalid"
     style = deck_profiles.effective_style(profile, spec)
-    # 최소 폰트는 프로파일에서 유도한다 — 상수로 고정하면 발표본(18pt)을 상세본
-    # 기준(9pt)으로 재거나, 그 반대로 정상 산출물을 차단한다.
+    # Derive font minima from profiles; fixed constants measure presentations (18pt) using
+    # detailed criteria (9pt), or incorrectly block valid output in the opposite direction.
     min_font = a.min_font if a.min_font is not None else style["sizes"]["body"] - 1
     min_table_font = (min(a.min_font, style["sizes"]["table"] - 1)
                       if a.min_font is not None else style["sizes"]["table"] - 1)
-    # 공고 하한은 인자로 낮출 수 없다(RFP 지정값 > 내부 규격 > 인자 편의).
+    # Arguments cannot lower buyer minima (RFP values > internal profiles > argument convenience).
     floor = spec.get("font_min_pt")
     if floor:
         min_font, min_table_font = max(min_font, floor), max(min_table_font, floor)
     max_pages = a.max_pages
     if spec.get("page_limit") is not None:
         max_pages = spec["page_limit"] if max_pages is None else min(max_pages, spec["page_limit"])
-    # 실제 로더로 한 번 열어본다 — 구조 검사가 놓치는 관계·스키마 결함은 여기서 걸린다.
+    # Open once with the actual loader to catch relationship/schema defects missed by structural checks.
     load_problem = quality_gate.load_check(a.pptx)
     if load_problem:
         print(f"검사 불가: {load_problem}", file=sys.stderr)
@@ -509,8 +472,8 @@ def main(argv: list[str] | None = None) -> int:
         items.append(f"{WARN} 지정한 규격({a.profile})이 파일에 남은 표시({stamped})와 다르다 — "
                      "다른 규격으로 만든 파일을 검사하고 있는지 확인한다")
     if not a.profile and stamp_state != "known":
-        # 표시가 없거나 모르는 값이면 가장 느슨한 기본값으로 재게 된다. 제출 단계에서는
-        # 추정으로 통과시키지 않는다(미검사 ≠ 통과).
+        # Missing or unknown stamps would select permissive defaults; submission must not pass
+        # on an assumption (not inspected ≠ passed).
         detail = ("규격 표시가 없다" if stamp_state == "missing"
                   else f"이 검사기가 모르는 규격 표시({raw_stamp(prs)})다")
         level = "[차단]" if stage_is_submission(a.stage) else WARN
@@ -547,8 +510,8 @@ def main(argv: list[str] | None = None) -> int:
     if a.emit_render:
         block = {
             "verified": rendered and not blockers,
-            # 렌더 성공(기계)과 육안 승인(사람)은 다른 사실이다. PDF 변환이 됐다는 것이
-            # 장표를 사람이 보고 승인했다는 뜻은 아니므로 따로 기록한다.
+            # Successful rendering is a machine fact; visual approval is a separate human fact.
+            # PDF conversion alone does not mean a person reviewed and approved the slides.
             "render_succeeded": rendered,
             "layout_checked": True,
             "visual_review_approved": False,

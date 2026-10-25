@@ -1,73 +1,48 @@
-# 검토와 산출물
+# Review and output
 
-## 통합 검토
+## Integrated review
 
-자격/제출 → 원자 요구 대응 → 근거/최신성 → 범위/일정/단위/산술/가격/버전/책임 →
-기술/보안/개인정보/법무 실현 가능성 → 가정/의존성/제외 → 가독성/접근성/렌더 순서로 검토한다.
+Run one pass: eligibility/submission → atomic coverage → evidence/freshness → scope/schedule/units/arithmetic/price/version/responsibility → technical/security/privacy/legal feasibility → assumptions/dependencies/exclusions → readability/accessibility/rendering.
 
-장표형 제안서는 페이지별 메시지 맵도 확인한다. 모든 배점 질문에 응답 위치가 있고,
-각 페이지는 근거로 방어할 수 있는 결론 하나를 가지며, 모든 시각 요소가 그 결론을 증명해야 한다.
-반복 도식의 용어·경계·단위·버전을 일치시킨다.
+For page-based proposals, also review the page-message map: every scored evaluator question has a response location; every page has one defensible conclusion; every visual proves that conclusion; repeated diagrams use consistent terms, boundaries, units, and versions.
 
-- **Critical(치명):** 실격 사유, 필수 요구 누락, 근거 없는 중대 주장, 미승인 확약,
-  자격·필수 목표·범위·가격·인력·보안·일정에 영향을 주는 모순
-- **Major(중대):** 중요한 누락. 필수 요구 누락이나 확약으로 이어지는 값의 누락은 Critical로 올린다.
-- **Minor(경미):** 국소적인 명확성·용어·구조·서식 문제
-- **Note(참고):** 선택적 개선
+- **Critical**: disqualifier, mandatory miss, unsupported high-impact claim, unapproved commitment, or contradiction affecting eligibility, mandatory targets, scope, price, staffing, security, or schedule
+- **Major**: important gap; a missing value becomes Critical when it creates a mandatory miss or commitment
+- **Minor**: local clarity, terminology, structure, or formatting issue
+- **Note**: optional improvement
 
-검토 결정은 다음 의미로 일관되게 사용한다.
+Use review decisions consistently:
 
-- **NO-GO(진행 불가):** Critical 결함 또는 미결 차단 입력이 있다. 제출 단계로 올리거나
-  제출하지 않는다. 담당자가 배정된 수정 작업은 계속할 수 있다.
-- **FIX-AND-RECHECK(수정 후 재검사):** Critical·차단 입력은 없지만 Major가 남았다.
-  내부 수정만 계속하며 외부 제출은 금지한다. 수락된 조건부 참여를 뜻하는 검사 상태
-  `CONDITIONAL-GO`와 혼동하지 않는다.
-- **GO WITH MINOR(경미 결함 수용 후 진행):** Minor만 남았다. 책임 승인자가 잔여 위험을
-  수락한 뒤에만 제출한다.
-- **GO(진행 가능):** 필수 내용·제작·패키지·제출 검사를 모두 통과하고 제출 권한자가 승인했다.
+- **NO-GO**: a Critical defect or open blocking input exists; do not advance the gate or submit, though assigned correction work may continue.
+- **FIX-AND-RECHECK**: no Critical/blocking item remains, but a Major defect is open; internal correction may continue, external submission is prohibited. (Not to be confused with the gate label `CONDITIONAL-GO`, which means an accepted conditional-bid.)
+- **GO WITH MINOR**: only Minor defects remain; submit only after the accountable approver accepts the residual risk.
+- **GO**: all mandatory content, production, package, and submission gates passed and the submission authority approved.
 
-자동 검사 상태와의 대응: NO-GO / FIX-AND-RECHECK는 `BLOCKED`,
-GO WITH MINOR / GO는 `READY`에 대응한다. Minor는 자동 검사를 차단하지 않는다.
+Mapping to deterministic gate labels: NO-GO / FIX-AND-RECHECK ≙ `BLOCKED`; GO WITH MINOR / GO ≙ `READY` (Minor defects do not block the gate).
 
-최소 수정안마다 바꿀 사실·담당자/역할·결정 기한·승인·함께 갱신할 계산/절을 적는다.
+Every minimal correction should name the changed fact, owner/role, decision deadline, approval, and downstream calculations/sections to update.
 
-## 최종화 검사
+## Deterministic finalization gates
 
-미해결 Critical/Major, 차단 입력, 미해결 참여 조건·필수 요구, 미지원 중대 주장·미승인 확약,
-잔여 입력 표식·미해결 주석/충돌, 첨부/서명/양식/파일명 미비, 일관성/산술/제출 검사 실패,
-필수 렌더 검증 실패, 원본 패키지 미검사,
-리허설 증적 또는 접수 증적 확보 계획 누락이 있으면 제출 준비 상태를 차단한다.
-수정할 때마다 영향 요구·계산·페이지·패키지 내용을 다시 확인하고 해결 근거를 기록한다.
+Block submission-ready status for open Critical/Major defects, blocking inputs, unresolved bid conditions, mandatory items, material claims, commitments, tokens/comments/conflicts, attachments/signatures/forms/filenames, consistency/arithmetic/submission checks, required render verification, uninspected package content, or missing rehearsal evidence or receipt-capture plan. Recheck affected requirements, calculations, pages, and package contents after every fix; record closure evidence.
 
-렌더 산출물을 요청받았을 때만 렌더 검증을 적용한다. 분석 전용·Markdown 검토 작업은
-`artifact_required: false`로 선언한다.
+Apply render verification only when a rendered artifact is requested. Analysis-only and Markdown review tasks declare `artifact_required: false`.
 
-가격 검토는 일회성 항목 + 반복 항목 × 기간 → 소계 → 할인 기준/금액 → 세금 기준/금액 →
-최종 합계를 표시한다. 세금 포함 여부를 추정하지 않는다.
+For price review, show: one-time items + recurring item × term → subtotal → named discount base/amount → tax basis/amount → final total. Never infer tax inclusion.
 
-엄격한 제출은 마감/시간대·정확한 파일명·첨부명·장수 산정·서명/직인 유형과 권한·요청된
-PDF/A 규격과 검사 도구를 확인한다. 검증 근거 없이 PDF/A 준수를 주장하지 않는다.
+For strict submissions, verify deadline/timezone, exact filename, attachment names, page-count semantics, signature/seal type and authority, and requested PDF/A profile/validator. Do not claim PDF/A compliance without validation evidence.
 
-시각 검토와 원본 패키지 검사는 구분한다. 렌더는 잘림·겹침·대체·페이지 구분을 보여 주지만
-노트·주석·숨김 내용·문서 속성·포함 파일·외부 링크·매크로·이전 가격/고객 자료를 확인해 주지 않는다.
-불가능한 검사는 `NOT INSPECTED`로 기록한다. 가격 자료를 분리해야 할 때 기술 제출물에
-가격·원가가 남아 있으면 Critical이다.
+Separate visual inspection from package inspection. A render can reveal clipping, overlap, substitution, and pagination, but cannot clear notes, comments, hidden content, metadata, embedded files, external links, macros, or stale price/customer data. Mark unavailable checks `NOT INSPECTED`. When commercial content must be separate, any price or cost data in the technical package is Critical.
 
-내용 승인과 제출 허가는 별도 검사다. 복구 시간을 확보해 업로드/열기·실물 제작을 리허설하고
-접수번호·확인 화면/메일 또는 동등한 증적을 보존한다. 내용이 `GO`여도 패키지와 접수 처리
-준비가 끝나지 않았으면 `SUBMISSION NOT CLEARED`다.
+Treat content approval and submission clearance as separate gates. Rehearse upload/opening or physical production early enough to recover, and preserve a receipt number, confirmation screen/email, or equivalent proof. Content `GO` without cleared packaging and receipt handling is `SUBMISSION NOT CLEARED`.
 
-`scripts/proposal_gate.py audit.json`을 사용한다. 사실·설득력·법적 수용성·시각 품질은
-여전히 사람이 검토한다.
+Use `scripts/proposal_gate.py audit.json`; human review still decides truth, persuasiveness, legal acceptability, and visual quality.
 
-## 산출물 묶음
+## Output bundle
 
-다음 두 결과를 따로 보고하고 평균으로 합쳐 하나의 제출 가능성처럼 표현하지 않는다.
+Report two results separately; never average them into one readiness claim:
 
-- **제안 품질(Proposal Quality):** 요구 추적성·근거 통제·설득 구조·수행 구체성·시각화·보안
-- **제출 준비도(Submission Readiness):** 필수 입력·승인·근거·렌더/패키지 검사·파일 규칙·
-  리허설·접수 계획
+- **Proposal Quality**: requirement traceability, evidence control, persuasive structure, execution specificity, visualization, and security.
+- **Submission Readiness**: mandatory inputs, approvals, evidence, render/package inspection, file rules, rehearsal, and receipt plan.
 
-제안서·요구 원장·근거 목록·검토 이력·가정/의존성/제외·두 점수·검사 보고서·해당 렌더 결과를
-제공한다. 제안 품질 점수가 높아도 `NO-GO`를 무시할 수 없다. 검토만 요청받으면 원본을
-보존하고 표적 수정안과 검증 한계를 명시한다.
+Provide the proposal, requirement ledger, evidence manifest, review events, assumptions/dependencies/exclusions, both scores, gate report, and applicable render result. A high Proposal Quality score never overrides a `NO-GO`. For review-only work, keep the original intact and provide targeted corrections plus explicit verification limits.

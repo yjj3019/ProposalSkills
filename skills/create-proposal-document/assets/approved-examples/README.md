@@ -1,17 +1,19 @@
-# 승인 제안서 보관 위치 (approved-examples)
+# Approved proposal references (approved-examples)
 
-사용 조직의 **승인(수주) 제안서 원본을 두는 자리**다. 스킬 배포본에는 의도적으로
-비어 있다 — 원본 제안서에는 고객사명·시스템 구성·수치 등 민감 정보가 포함되므로
-스킬에 동봉하지 않는다.
+This placeholder is intentionally empty in the distributed skill. Organization-approved proposal
+originals can contain customer names, system details, prices, and other sensitive information.
+Keep those originals in a separate private working directory or the organization's document repository;
+do not place them in this public repository or an installed skill/plugin directory.
 
-## 사용법
+## Use
 
-1. 새 제안 작업 시 같은 유형(A.구축 / B.유지보수 / C.기술답변서)·같은 산업군의
-   승인 제안서를 이 폴더(또는 조직의 문서 저장소)에서 참조한다.
-2. 페이지·표를 재사용할 때는 반드시 `references/intake-and-requirements.md` §4
-   반입 검사를 거친다: 고객명·시스템명 치환, 제품 버전·EOL 최신화, 인력·실적 기준일 갱신.
-3. 반복 검증된 목차·표 형식은 원본을 복사하는 대신 `references/`의 일반화 규칙으로
-   승격해 누적한다(민감 정보 없는 패턴만).
+1. For new proposal work, consult an approved proposal of the same type (A: build, B: maintenance,
+   C: technical response) and industry from that private source.
+2. Before reusing a page or table, follow the intake checks in
+   `references/intake-and-requirements.md` §4 at the skill root: replace customer/system names,
+   refresh product versions and EOL status, and update staffing/experience reference dates.
+3. Turn repeatedly verified outlines and table structures into generalized `references/` guidance
+   instead of copying originals. Retain patterns without sensitive information.
 
-분석에 사용된 샘플 제안서들의 노하우는 이미 `references/`에 일반화되어
-반영되어 있으며, 특정 회사를 식별할 수 있는 정보는 포함하지 않는다.
+The supplied sample proposals have already informed generalized guidance under `references/`.
+That guidance does not include information identifying a particular company.

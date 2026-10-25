@@ -129,7 +129,7 @@ if __name__ == "__main__":
 
 
 class AutoInstallTests(unittest.TestCase):
-    """--auto: 호스트 감지 → 각 스킬 디렉터리에 설치 (경로를 되묻지 않는다)."""
+    """--auto: detect hosts and install into each skill directory without asking for paths again."""
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -217,7 +217,7 @@ class AutoInstallTests(unittest.TestCase):
             self.assertIn("install_skill.py --auto", (repo / doc).read_text(encoding="utf-8"), doc)
 
     def test_cp949_console_does_not_crash(self):
-        """한글·em dash 출력이 기본 코드페이지에서 UnicodeEncodeError로 죽지 않는다."""
+        """Korean and em-dash output must not raise UnicodeEncodeError on the default code page."""
         env = {k: v for k, v in os.environ.items() if k not in {"AI_SKILLS_DIR", "CODEX_HOME"}}
         env.update(HOME=str(self.home), USERPROFILE=str(self.home), PYTHONIOENCODING="cp949")
         env.pop("PYTHONUTF8", None)

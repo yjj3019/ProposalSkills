@@ -109,7 +109,7 @@ class UnifiedGateTests(unittest.TestCase):
         return run_script(SCRIPT_DIR / "unified_gate.py", audit, *extra)
 
     def test_financial_ready_fixture(self):
-        # 문서 없이 제출 판정을 받을 수 없다 — audit만 볼 때는 AUDIT-VALID다.
+        # Submission readiness requires a document; audit-only validation yields AUDIT-VALID.
         proc = self._run_unified(FIXTURES / "audit_ready_financial.json", "--audit-only")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("STATUS: AUDIT-VALID", proc.stdout)
@@ -122,12 +122,12 @@ class UnifiedGateTests(unittest.TestCase):
             proc.stdout)
 
     def test_submission_ready_needs_the_bound_document(self):
-        """SUBMISSION-READY는 실제 파일과 해시가 일치할 때만 나온다."""
+        """SUBMISSION-READY requires the actual file to match its hash."""
         import hashlib
         data = json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as tmp:
-            # 통합 게이트가 원장 수치를 문서와 대조하므로, 양성 대조군은 audit 원장과
-            # 같은 금액을 담아야 한다 — 원장과 어긋난 문서를 '정상'이라 부르면 대조가 무의미하다.
+            # The unified gate compares document values with the audit ledger, so positive controls must
+            # contain matching amounts; a mismatched positive control would defeat the comparison.
             ledger = "총 사업비 37억원 · 구축비 25억원 · 유지보수비(3년) 12억원"
             doc = ooxml_fixtures.submission_pptx(Path(tmp) / "final.pptx", f"정상 문서 {ledger}")
             data["attachments"] = []

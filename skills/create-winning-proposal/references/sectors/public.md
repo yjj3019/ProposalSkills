@@ -1,49 +1,51 @@
-# 공공 (public)
+# Public sector (public)
 
-국가·지자체·공공기관 발주. 이 저장소의 기본 가정이며, 다른 업종 지침은 여기서 갈라져 나온다.
+National/local government and public-institution procurement.
+This is the repository's default assumption; other-sector guidance branches from it.
 
-## 추가로 물어야 할 것
+## Additional questions
 
-| 항목 | 왜 |
+| Item | Why |
 |---|---|
-| 평가표(배점)와 정성·정량 구분 | 목차 우선순위와 분량 배분의 유일한 근거 |
-| 자격요건(실적·인증·재무) | 미달이면 내용과 무관하게 실격 |
-| 제출 형식·부수·페이지 제한 | 초과는 감점 또는 실격 |
-| 수정공고·질의응답 회신 | 원공고와 충돌하면 나중 것이 우선 |
-| 발표(PT) 유무와 시간 | 발표본을 별도 규격으로 만들지 결정 |
-| 감점·실격 조건 | 명시된 것은 조견표에 그대로 옮긴다 |
-| 요구의 강도(필수/권장/조건부) | 권장 분량 초과와 필수 위반은 같은 무게가 아니다. 원문의 표현을 `strength`로 옮긴다 |
-| 문서 종류(RFP/RFI/RFQ) | RFI는 입찰이 아니다 — 확약 대신 추정 범위·대안·확인 질문으로 답한다 |
+| Evaluation table/weights and qualitative/quantitative split | Sole basis for outline priorities and space allocation |
+| Qualifications (track record/certifications/finance) | Shortfalls disqualify regardless of content |
+| Submission format/copies/page limit | Excess causes deductions or disqualification |
+| Amendments/Q&A replies | Later material prevails when conflicting with the original notice |
+| Presentation (PT) and duration | Determines whether a separately specified presentation is needed |
+| Deduction/disqualification conditions | Copy explicit conditions into the compliance matrix |
+| Requirement strength (mandatory/recommended/conditional) | Exceeding recommendations differs from mandatory violations; map source wording into `strength` |
+| Document type (RFP/RFI/RFQ) | RFI is not a bid; respond with estimates, alternatives, clarification questions rather than commitments |
 
-## 제안서가 입증해야 할 것
+## What the proposal must prove
 
-- 요구별 대응(조견표)과 응답 위치. 필수 요구는 하나도 빠지면 안 된다.
-- 자격요건 충족 근거(실적증명·인증서). 미달이면 조건부 입찰 또는 불참 결정.
-- 수행 가능성 — 투입 인력의 등급·경력, 유사 실적, 일정의 현실성.
-- 검수 기준과 책임 소재. 산출물 목록과 검수 시점을 명시한다.
+- Requirement-by-requirement matrix responses and locations; no mandatory requirement may be omitted.
+- Qualification evidence (delivery certificates/certifications); shortfalls require conditional-bid or no-bid decisions.
+- Deliverability: staff grades/experience, similar records, realistic schedule.
+- Acceptance criteria/responsibility, deliverable list, acceptance timing.
 
-## 주의할 주장
+## Claims requiring care
 
-- 타 기관 사례를 근거로 쓸 때 **고객 동의 범위**를 확인한다. 이전 고객명 잔존은 즉시 탈락 사유다.
-- "100%", "무중단" 같은 표현은 RFP 원문 인용이라도 제안자의 약속으로 읽힌다.
-- 법령·인증 적용 여부를 기관 유형만 보고 단정하지 않는다. 공고에 명시된 것만 쓴다.
+- For other-institution examples, confirm **customer-consent scope**. Residual previous-customer names cause immediate rejection.
+- Preserved Korean exaggeration inputs "100%", "무중단" may be read as proposer promises even when quoting the RFP.
+- Never infer applicable laws/certifications solely from institution type; use only those explicit in the notice.
 
-## 기계가 검사하는 것
+## Machine checks
 
-`context.buyer_types`에 `public`이 있고 제출 단계이면 게이트가 요구한다.
+For `context.buyer_types` including `public` in submission stages, gates require:
 
-- `evaluation_criteria[]` 원장 필수 — 최상위 항목의 합이 `evaluation_total`(기본 100)과 같고,
-  하위 항목의 합이 상위 배점과 같아야 한다. 가격 별책·단계별 평가·배점 미공개·과락은 원문대로
-  옮긴다([audit-schema.md](../audit-schema.md) 평가표 항목). **협상적격 기준의 85%는 기술
-  배점한도 대비 비율**이지 총점 85가 아니며, 기술 90:가격 10도 원칙과 예외가 있는 규정이므로
-  공고 원문에서 확인해 `minimum_ratio`·`weight`로 적는다 — 게이트에 상수로 두지 않는다.
-- 각 말단 배점 항목에 대응하는 요구가 최소 1건(`requirements[].criterion_ids`). 대응이 없는 배점은
-  목차가 통째로 빠졌다는 뜻이다.
-- `context.rfx_type`이 `rfi`이면 평가표를 요구하지 않는다(정보 요청은 입찰이 아니다). 대신 확약
-  (`kind: commitment`)을 차단한다.
-- `eligibility[]` 원장(제출 모드 공통) — 미달+치유불가면 `bid` 금지.
-- `context.constraints`에 `sensitive-data`가 있으면 패키지 검사 `metadata`·`hidden-content`·
-  `stale-customer-data`가 모두 `pass`여야 한다.
+- `evaluation_criteria[]`: top-level weights sum to `evaluation_total` (default 100);
+  children sum to parent weights. Preserve separate pricing, multi-stage evaluation, undisclosed weights,
+  cutoffs as given ([audit-schema.md](../audit-schema.md), evaluation-table item).
+  **Negotiation eligibility's 85% means a ratio of the technical allocated maximum**, not total score 85.
+  Technical 90:price 10 also has regulatory principles/exceptions; confirm the notice and record
+  `minimum_ratio`/`weight`, never hard-code them into gates.
+- Each leaf criterion has at least 1 requirement (`requirements[].criterion_ids`).
+  A criterion without responses signals an omitted chapter.
+- With `context.rfx_type: rfi`, no evaluation table is required (information requests are not bids);
+  instead block commitments (`kind: commitment`).
+- `eligibility[]` (common submission requirement): unmet/unremediable qualifications prohibit `bid`.
+- With `sensitive-data` in `context.constraints`, package `metadata`, `hidden-content`,
+  `stale-customer-data` must all `pass`.
 
-검사하지 않는 것: 배점 배분이 전략적으로 옳은지, 실적이 실제로 유사한지, 일정이 현실적인지.
-이건 사람이 판단한다.
+Not machine-checked: strategic weight allocation, actual similarity of track records, schedule realism.
+Humans judge these.

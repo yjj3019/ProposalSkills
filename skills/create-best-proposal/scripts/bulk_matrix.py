@@ -18,8 +18,8 @@ from typing import Any
 
 
 SUPPORT_CODES = {"O", "부분", "조건부", "X", "N/A", "확인필요", ""}
-# 입력 표기 정규화(대소문자·동의어). 목록 밖 코드는 오류로 거절한다 — 'o'/'Y' 같은
-# 미정규화 값이 '미기입'으로 분류돼 위험 행에서 빠지던 fail-open 방지.
+# Normalize input case and aliases; reject unknown codes so values such as 'o'/'Y'
+# cannot become missing entries and disappear from risk rows (fail-open).
 SUPPORT_ALIASES = {
     "O": "O", "0": "O", "○": "O", "Y": "O", "YES": "O", "지원": "O", "수용": "O", "FULL": "O",
     "부분": "부분", "PARTIAL": "부분", "P": "부분", "◐": "부분", "△": "부분", "부분지원": "부분", "부분수용": "부분",
@@ -27,9 +27,9 @@ SUPPORT_ALIASES = {
     "X": "X", "×": "X", "N": "X", "NO": "X", "미지원": "X", "불가": "X",
     "N/A": "N/A", "NA": "N/A", "해당없음": "N/A", "-": "N/A",
     "확인필요": "확인필요", "TBD": "확인필요", "?": "확인필요", "검토": "확인필요",
-    # 표시형 한글 라벨(bid-and-submission.md XLSX 준수 수준)
+    # Display-form Korean labels (bid-and-submission.md XLSX compliance levels).
     "준수": "O", "부분준수": "부분", "조건부준수": "조건부", "미지원": "X", "해당없음": "N/A",
-    # 조견표 표기 관례("O 수용", "△ 조건부")
+    # Matrix notation conventions ("O 수용", "△ 조건부").
     "O 수용": "O", "수용": "O", "△ 조건부": "조건부", "△ 부분": "부분", "X 미수용": "X", "미수용": "X",
     "": "",
 }
@@ -45,7 +45,7 @@ def normalize_support(value: Any, rid: str) -> str:
 
 
 def normalize_mandatory(value: Any) -> bool:
-    """미기입·공란은 필수(True)로 취급한다(fail-closed)."""
+    """Treat missing or blank values as mandatory (True), failing closed."""
     if isinstance(value, bool):
         return value
     text = str(value if value is not None else "").strip().lower()
@@ -66,8 +66,7 @@ STRENGTH_WORDS = {
 
 
 def normalize_strength(value: Any, mandatory: bool, fallback: Any = None) -> str:
-    """요구 강도. 강도 열이 없으면 필수 열의 낱말(권장·참고 등)을, 그것도 없으면 필수
-    여부에서 유도한다(필수 → required, 아니면 optional)."""
+    """Requirement strength: if absent, use terms such as 권장·참고 in the mandatory column; otherwise derive from mandatory status (필수 → required, otherwise optional)."""
     text = str(value if value is not None else "").strip().lower()
     if not text:
         fb = str(fallback if fallback is not None else "").strip().lower()
@@ -95,7 +94,7 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
                 raise ValueError(f"row {i} must be an object")
             rows.append(item)
         return rows
-    # CSV — 따옴표 안 줄바꿈(다중행 셀)을 보존하기 위해 splitlines 대신 io.StringIO 사용
+    # CSV: use io.StringIO instead of splitlines to preserve quoted multiline cells.
     import io
     reader = csv.DictReader(io.StringIO(text, newline=""))
     if not reader.fieldnames:
@@ -219,8 +218,8 @@ def to_audit_requirements(rows: list[dict[str, str]]) -> list[dict]:
             "state": state,
             "text": r["text"] or r["item"],
             "support": r["support"],
-            # 응답 위치(어디에 썼는지)는 근거(무엇으로 뒷받침하는지)가 아니다. 같은
-            # 필드에 넣으면 승격할 때 'slide:99'가 사실의 증거로 오인된다.
+            # Response locations describe where content was written, not what supports it. Combining them
+            # in one field can promote 'slide:99' into factual evidence.
             "response_refs": [r["response_loc"]] if r["response_loc"] else [],
             "evidence_refs": [],
             "rationale": r["note"],

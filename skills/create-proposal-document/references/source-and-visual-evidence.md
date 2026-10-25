@@ -1,152 +1,160 @@
-# 원문 추출·수정공고·시각 회귀의 선택형 도구
+# Optional source extraction, amendment, and visual regression tools
 
-모든 출력은 고객 작업 폴더에 보관한다. 원문·JSON·페이지 이미지·diff에는 민감한 내용이
-포함될 수 있으므로 공개 저장소나 설치된 스킬 폴더에 쓰지 않는다. 기존 생성·제출 게이트는
-그대로 사용한다. 아래 sidecar는 audit JSON이 아니며 승인 필드를 자동으로 갱신하지 않는다.
-예시 경로는 사용자가 선택한 작업 폴더의 상대 경로이고 실행 스크립트는 설치 위치에서 찾는다.
+Store every output in the customer's work folder. Sources, JSON, page images, and diffs may contain sensitive content:
+never write them into public repositories or installed skill folders.
+Continue using existing generation/submission gates. These sidecars are not audit JSON and never update approvals automatically.
+Example paths are relative to the user-selected work folder; locate scripts in their installed location.
 
-## 1. RFP 구조 추출
+## 1. Structured RFP extraction
 
-`scripts/extract_rfp.py`는 PDF/DOCX와 DoclingDocument JSON을 연결한다. Docling이 없는 환경도
-기존 JSON을 가져올 수 있다. 원문 full SHA-256과 JSON hash를 각각 기록하며, 가져온 JSON과
-원문이 실제로 대응하는지는 사람이 확인한다. Docling 내부 origin hash를 SHA-256으로 쓰지 않는다.
+`scripts/extract_rfp.py` connects PDF/DOCX with DoclingDocument JSON. Existing JSON can be imported without Docling.
+Record source full SHA-256 and JSON hash separately; a human confirms that imported JSON actually matches the source.
+Do not use Docling's internal origin hash as SHA-256.
 
 ```bash
 python scripts/extract_rfp.py input.pdf --import-json docling.json --output extraction-run
 ```
 
-직접 변환은 별도 선택 환경의 `docling`이 필요하다. 자동 설치·다운로드는 수행하지 않는다.
-PDF는 미리 준비한 모델과 manifest를 요구한다. manifest는 `revision` 문자열과
-`files` 객체(모델 폴더 기준 상대 경로 → full SHA-256)를 포함한다. 실제 사용 모델의 revision,
-본체/모델 라이선스와 빠진 모델이 없는지 확인한다. manifest 검증은 나열된 파일에만 적용되며
-실제 사용 모델 전체의 완전성을 자동 증명하지 않는다. OCR 사용 시 `artifacts/easyocr`에
-한국어·영어 EasyOCR 모델을 준비한다. `--ocr`가 없으면 OCR은 꺼져 있다.
+Direct conversion requires `docling` in a separately selected environment. No automatic installation/download.
+PDF requires prepared models and a manifest with a `revision` string and `files` object
+(model-folder-relative paths → full SHA-256). Check the actual model revision, tool/model licenses, and missing models.
+Manifest verification covers only listed files; it does not prove completeness of all actually used models.
+For OCR, prepare Korean/English EasyOCR models in `artifacts/easyocr`.
+OCR is disabled without `--ocr`.
 
 ```bash
 python scripts/extract_rfp.py input.pdf --artifacts models --model-manifest models.json --ocr --output extraction-run
 ```
 
-`--ocr`는 한국어·영어 EasyOCR의 저신뢰 후보를 버리지 않도록 confidence threshold=0,
-OCR scale=3(216 DPI)으로 실행하고 `converter.ocr_settings`에 기록한다. 출력 이미지의 DPI와
-OCR 내부 렌더 DPI는 다르다. 저신뢰 문장 보존은 필터에 의한 누락을 줄일 수 있지만 잡음도 늘 수 있다.
-해상도를 높이면 숫자·시간 인식이 항상 개선되는 것은 아니므로 일괄 상향하지 않는다.
+`--ocr` uses Korean/English EasyOCR with confidence threshold=0 and OCR scale=3 (216 DPI),
+preserving low-confidence candidates and recording settings in `converter.ocr_settings`.
+Output-image DPI differs from internal OCR render DPI.
+Preserving low-confidence text can reduce filter omissions but increase noise.
+Higher resolution does not consistently improve numeric/time recognition; do not increase it indiscriminately.
 
-OCR 사용 시 `ocr_review.candidates`는 sidecar 전체 기준 JSON Pointer와 검토 사유를 제공한다.
-숫자 포함 문단·표 셀과 `O9.00~1800` 같은 시간 형식 의심 구간을 찾는 보조 목록이다.
-`time_format_review`는 오류 판정이 아니며 원문의 `0900~1800`도 대조 대상일 수 있다.
-정상 형식의 숫자도 원문과 대조한다. 문장 누락·숫자가 아닌 오인식 등을 모두 탐지하지는
-않으며 빈 목록도 정확성을 뜻하지 않는다. 각 항목의 실제 OCR 출처를 인증하지 않고,
-원문 내용·숫자·시간을 자동 수정하거나 승인하지 않는다. JSON 가져오기는 OCR 설정 미확인이다.
+With OCR, `ocr_review.candidates` supplies sidecar-wide JSON Pointers and review reasons.
+It assists review of numeric paragraphs/table cells and suspicious time formats such as `O9.00~1800`.
+`time_format_review` is not an error determination; even source `0900~1800` may require checking.
+Compare well-formed numbers with the original too. It cannot detect all omissions or nonnumeric misrecognitions;
+an empty list does not establish accuracy. It does not authenticate each item's actual OCR provenance,
+automatically correct source content/numbers/times, or approve them. Imported JSON has unverified OCR settings.
 
-2026-10-24 실변환 비교(Docling 2.142.1/EasyOCR 1.7.2 CPU): 깨끗한 합성 문서 2종을 각각
-150/300 DPI 이미지 PDF로 만들었다. 기존 표본에서 설정을 선택한 뒤 고정하고, 다른 시간·
-금액·수량의 추가 표본은 검증에만 사용했다. CER는 NFKC·공백 제거 후 구두점/숫자를 보존한
-편집거리/정답 문자 수다. 표 셀은 행·열 순서로 비교하며 문장 누락도 오류에 포함한다.
+Actual conversion comparison on 2026-10-24 (Docling 2.142.1/EasyOCR 1.7.2 CPU):
+two clean synthetic documents were converted to 150/300 DPI image PDFs.
+Settings were selected on the existing sample and frozen; an additional sample with different times/amounts/quantities
+was used only for validation. CER = edit distance/reference character count after NFKC/whitespace removal,
+preserving punctuation/numbers. Table cells were compared in row/column order, counting omitted sentences as errors.
 
-| 합성 표본 | 입력 DPI | 이전 CER(threshold 0.5) | 변경 후 CER(threshold 0) |
+| Synthetic sample | Input DPI | Previous CER (threshold 0.5) | Updated CER (threshold 0) |
 |---|---:|---:|---:|
-| 기존 문서(정답 95문자) | 150 | 22.11% | 9.47% |
-| 기존 문서 | 300 | 18.95% | 10.53% |
-| 추가 문서(정답 103문자) | 150 | 35.92% | 9.71% |
-| 추가 문서 | 300 | 47.57% | 10.68% |
+| Existing document (95 reference characters) | 150 | 22.11% | 9.47% |
+| Existing document | 300 | 18.95% | 10.53% |
+| Additional document (103 reference characters) | 150 | 35.92% | 9.71% |
+| Additional document | 300 | 47.57% | 10.68% |
 
-누락된 SLA·제목과 추가 표본의 수량 문장이 복구됐고, 기존 표의 6개 셀 텍스트·위치는 유지됐다.
-추가 표본에서 누락됐던 수량은 2/2 복구됐으며 금액은 계속 정확히 보존됐다. 그러나 시간대
-문자열은 변경 후에도 0/6 정확 일치로, 콜론·점 및 숫자 오인식이 남았다. 해당 문단은
-`time_format_review`로 표시된다. 표시 자체는 인식 정확성 개선이 아니다. 300/432 DPI 내부
-렌더 실험은 일관된 개선이 없어 채택하지 않았고, 텍스트 PDF 대조군 CER는 0%를 유지했다.
-이는 작은 합성 표본의 누락 완화 증거이며 실제 한국어 RFP 정확도 보증이 아니다.
-설정 의미는 [Docling 공식 옵션](https://docling-project.github.io/docling/reference/pipeline_options/)을 확인한다.
+Missing SLA/title text and the additional sample's quantity sentence were recovered;
+text/positions of the existing table's 6 cells were preserved.
+The additional sample recovered 2/2 omitted quantities; amounts remained accurate.
+Time strings still had 0/6 exact matches after the change: colons, periods, digit errors remained.
+These paragraphs receive `time_format_review`; the flag itself does not improve recognition accuracy.
+Internal-render experiments at 300/432 DPI showed no consistent improvement and were not adopted.
+The text-PDF control retained CER 0%.
+This is omission-mitigation evidence from small synthetic samples, not an accuracy guarantee for real Korean RFPs.
+See [official Docling options](https://docling-project.github.io/docling/reference/pipeline_options/) for configuration semantics.
 
-### 스캔 시간대: 선택형 RapidOCR 비교
+### Scanned time ranges: optional RapidOCR comparison
 
-기본 EasyOCR는 유지한다. 똑바로 놓인 한국어 스캔 PDF에는 다음 선택 프로필을 사용할 수 있다.
-자동 회전 분류를 끄고 전체 페이지를 OCR한다. 디지털 텍스트도 OCR로 대체할 수 있으므로
-디지털·혼합 PDF에 일괄 적용하지 않는다. 회전·기울기·잡음이 있는 실제 RFP는 별도 검증한다.
+Keep EasyOCR as default. For upright Korean scanned PDFs, an optional profile disables automatic rotation classification
+and OCRs full pages. It may replace digital text too; never apply it indiscriminately to digital/mixed PDFs.
+Validate real RFPs with rotation/skew/noise separately.
 
 ```bash
 python scripts/extract_rfp.py scan.pdf --artifacts models --model-manifest models-rapid.json --ocr --ocr-engine rapidocr --output extraction-run
 ```
 
-별도 환경에서 검증한 조합은 Docling 2.142.1, RapidOCR 3.10.0, ONNX Runtime 1.31.0,
-CPU 2개 스레드다. 이 선택 프로필은 실행 장치·스레드도 해당 설정으로 고정한다.
-기본 requirements에는 추가하지 않는다. 모델은 사전 준비하며 변환 중 다운로드·다른 엔진으로
-자동 대체하지 않는다. [Docling 모델 준비](https://docling-project.github.io/docling/usage/advanced_options/)의
-`RapidOcrModel.download_models(backend="onnxruntime", lang="iso:ko", model_size="small", local_dir=...)`로
-준비한 아래 파일 모두를 모델 폴더에 놓고 manifest에 full SHA-256과 revision을 기록한다.
-`small`이라는 옵션 이름과 별개로 이 조합의 한국어 인식기는 PP-OCRv5 mobile이다.
+The separately validated combination is Docling 2.142.1, RapidOCR 3.10.0, ONNX Runtime 1.31.0,
+CPU with 2 threads. The optional profile fixes device/threads to these settings.
+Do not add it to default requirements. Prepare models beforehand; no downloads or automatic engine substitutions during conversion.
+Use [Docling model preparation](https://docling-project.github.io/docling/usage/advanced_options/)
+`RapidOcrModel.download_models(backend="onnxruntime", lang="iso:ko", model_size="small", local_dir=...)`.
+Place all files below in the model folder and record full SHA-256/revision in the manifest.
+Despite the `small` option name, this combination's Korean recognizer is PP-OCRv5 mobile.
 
 - `RapidOcr/ch_PP-OCRv5_det_mobile.onnx`
-- `RapidOcr/ch_ppocr_mobile_v2.0_cls_mobile.onnx` (분류를 꺼도 엔진 초기화에 필요)
+- `RapidOcr/ch_ppocr_mobile_v2.0_cls_mobile.onnx` (required for initialization even with classification disabled)
 - `RapidOcr/korean_PP-OCRv5_rec_mobile.onnx`
 
-프로필은 `lang=["iso:ko"], backend="onnxruntime", model_size="small", text_score=0,
-scale=3, use_cls=false, force_full_page_ocr=true`다. 실제 모델 경로를 명시하고 세 파일의
-manifest 포함·hash를 검사한다. `converter`에 엔진·설정·패키지 버전·manifest를 기록한다.
-문자열 교정이나 다수결 병합은 하지 않는다.
+Profile: `lang=["iso:ko"], backend="onnxruntime", model_size="small", text_score=0,
+scale=3, use_cls=false, force_full_page_ocr=true`.
+Explicitly supply actual model paths and verify all three manifest entries/hashes.
+Record engine, settings, package versions, manifest in `converter`.
+No string correction or majority-vote merging.
 
-같은 합성 표본의 비교 결과(2026-10-24):
+Comparison on the same synthetic samples (2026-10-24):
 
-| 엔진·방식 | 시간대 정확 일치 | 함께 확인한 한계·채택 판단 |
+| Engine/method | Exact time-range matches | Observed limitations/adoption |
 |---|---:|---|
-| 기본 EasyOCR | 0/6 | 기존 누락 완화 설정 유지 |
-| EasyOCR 회색조·Otsu·적응 이진화 | 각 0/2 | 기존 문서의 두 DPI 단독 OCR; 개선 없어 미채택 |
-| Tesseract 5.5.3 / tesserocr 2.12.0 / tessdata_best kor+eng, 원본 PSM 3·6 | 각 2/2 | 단독 OCR; CER 71.58% 또는 32.63~33.68%, 표 내용 누락으로 미채택 |
-| RapidOCR 자동 줄 회전 분류 | 0/6 | 전체 변환에서 한국어·시간 문자열 역전, 미채택 |
-| RapidOCR 회전 분류 끔·영역 OCR | 6/6 | 전체 변환 제목 훼손; backend·300 DPI 변경도 해결 못해 미채택 |
-| RapidOCR 회전 분류 끔·전체 페이지 | 6/6 | 선택형으로 채택; 한국어 제목 내용·표 셀 6개와 위치·금액·수량 보존 |
+| Default EasyOCR | 0/6 | Keep existing omission-mitigation settings |
+| EasyOCR grayscale/Otsu/adaptive binarization | Each 0/2 | Standalone OCR of existing document at two DPIs; no improvement, rejected |
+| Tesseract 5.5.3 / tesserocr 2.12.0 / tessdata_best kor+eng, original PSM 3/6 | Each 2/2 | Standalone OCR; CER 71.58% or 32.63~33.68%; table omissions, rejected |
+| RapidOCR automatic line rotation classification | 0/6 | Korean/time strings reversed in full conversion; rejected |
+| RapidOCR classification off, region OCR | 6/6 | Full-conversion title damage persisted with backend/300 DPI changes; rejected |
+| RapidOCR classification off, full page | 6/6 | Adopted as optional; Korean title content, 6 table cells/positions, amounts, quantities preserved |
 
-마지막 프로필의 CER는 기존 150/300 DPI 모두 2.11%, 추가 문서는 모두 0%다.
-제품 추출 경로의 worker CLI로 네 스캔과 디지털 PDF 대조군을 다시 변환해 확인했다.
-디지털 대조군은 OCR을 끈 기존 CER 0%에서 이 프로필 적용 시 2.11%로 악화되어,
-텍스트가 있는 PDF에는 기본 비OCR 경로를 우선한다.
-기존 제목의 `○○→OO` 두 문자 오류는 남아 제목 전체 정확 일치로 계산하지 않았다.
-단독 RapidOCR에서도 회색조·Otsu·적응 이진화는 원본 대비 개선이 없어 추가하지 않았다.
-엔진 비교는 [공식 RapidOCR 모델](https://rapidai.github.io/RapidOCRDocs/main/model_list/)과
-[Tesseract best 모델](https://github.com/tesseract-ocr/tessdata_best)의 로컬 변환으로 수행했다.
-단독 OCR의 2건과 전체 Docling 변환의 6건은 다른 분모이며, 깨끗한 합성 문서 2종의
-DPI 변형일 뿐 독립적인 실제 RFP 6건이 아니다. 정확한 형식의 시간도 원문 대조 대상이며
-추출은 계속 UNREVIEWED다. UI는 검증 범위에서 제외했다.
+The final profile's CER is 2.11% at both 150/300 DPI for the existing document and 0% for both additional documents.
+Reconverted four scans and the digital PDF control through the product extraction worker CLI.
+The digital control worsened from non-OCR CER 0% to 2.11% with this profile: prefer the default non-OCR route for text PDFs.
+Two errors in the existing title (`○○→OO`) remained, so the full title was not counted as an exact match.
+Standalone RapidOCR grayscale/Otsu/adaptive binarization also showed no improvement and were not added.
+Engine comparisons used local conversion with [official RapidOCR models](https://rapidai.github.io/RapidOCRDocs/main/model_list/)
+and [Tesseract best models](https://github.com/tesseract-ocr/tessdata_best).
+Standalone OCR's 2 cases and full Docling conversion's 6 have different denominators.
+They are DPI variants of two clean synthetic documents, not six independent real RFPs.
+Even well-formed times need source comparison; extraction remains UNREVIEWED. UI was outside validation scope.
 
-원격 서비스·외부 플러그인을 끄고 HF/Transformers offline 플래그와 EasyOCR 다운로드 금지를
-설정한다. 이 설정은 OS 네트워크 격리가 아니다. 모델/backend 버전에 따라 별도 통신 경로가
-있을 수 있어 기밀 자료는 허용된 격리 환경에서 먼저 합성 표본으로 검증한다. 부족한 모델,
-의존성, timeout, 부분 변환은 오류이며 다운로드로 자동 복구하지 않는다. `--timeout`은 1~1800초다.
+Disable remote services/external plugins, set HF/Transformers offline flags and prohibit EasyOCR downloads.
+This is not OS network isolation. Model/backend versions may have other communication paths:
+first validate synthetic samples in an approved isolated environment before confidential material.
+Missing models/dependencies, timeout, partial conversion are errors; do not auto-recover by downloading.
+`--timeout` accepts 1~1800 seconds.
 
-`extraction.json`은 `UNREVIEWED`와 `submission_approval: false`를 유지한다. native 구조 JSON의
-셀/span·페이지·bbox를 보존한다. `capabilities`의 available은 일부 항목에 관측됐다는 뜻으로,
-전 항목 위치 coverage가 아니다. DOCX의 없는 페이지·좌표를 가짜 값으로 채우지 않는다.
-문단/표 셀/JSON pointer는 위치 정보이지 개정 간 stable ID가 아니다.
+`extraction.json` retains `UNREVIEWED` and `submission_approval: false`.
+Preserve native JSON cells/spans/pages/bboxes. In `capabilities`, available means observed for some items,
+not complete location coverage. Do not fabricate missing DOCX pages/coordinates.
+Paragraph/table-cell/JSON-pointer locations are not stable IDs across revisions.
 
-사람은 원문과 후보를 대조해 승인한 내용만 기존 원장 형식의 `exact_text/source/evidence_refs`
-등으로 옮긴다. 추출 성공·confidence는 사실 정확도나 승인 확률이 아니다. 한국어 골든셋은
-디지털/스캔 PDF·DOCX·병합 셀·페이지 넘김 표로 나누고, 금액·기한·자격의 exact match,
-누락/중복·표 구조·위치 coverage와 시간/메모리를 기록한다. 실측 전 정확도를 약속하지 않는다.
+Humans compare source/candidates, moving only approved content into existing register fields such as
+`exact_text/source/evidence_refs`. Successful extraction/confidence is not factual accuracy or approval probability.
+Divide Korean gold sets into digital/scanned PDF, DOCX, merged cells, cross-page tables.
+Record exact matches for amounts/deadlines/qualifications, omissions/duplicates, table structure/location coverage,
+time/memory. Do not promise accuracy before measurement.
 
-## 2. 수정공고 대조
+## 2. Amendment comparison
 
-거버넌스 레이어의 `compare_requirements.py`는 사람이 동일 ID로 매칭한 개정본만 비교한다.
-입력은 `{"requirements": [{"id": "REQ-001", "text": "가상의 요구", "source_clause_label": "1.1"}]}`
-형식이다. ID는 내부의 안정 식별자이며 source_clause_label은 개정별 원문 번호다.
+Governance `compare_requirements.py` compares only revisions matched by a human under the same IDs.
+Input: `{"requirements": [{"id": "REQ-001", "text": "가상의 요구", "source_clause_label": "1.1"}]}`.
+The Korean text is an example input. IDs are stable internal identifiers; source_clause_label is revision-specific numbering.
 
 ```bash
 python compare_requirements.py before.json after.json --output amendment-diff.json
 ```
 
-추가/폐지/본문 변경/참조 변경과 전후 값·텍스트 diff를 남긴다. 자동 유사 매칭을 하지 않는다.
-재번호는 같은 ID를 유지하고 분할·병합·반복 문구의 모호한 매칭은 사람이 관계를 기록한다.
-변경이 없는 diff라도 원문의 요구 누락·잘못된 ID 매칭 부재를 증명하지 않는다. 변경 항목의
-응답·증빙·수치·페이지 참조를 다시 검토하고, 폐지된 값은 stale sweep으로 찾는다.
+Record additions/removals/text/reference changes, before/after values, text diffs. No automatic similarity matching.
+Keep the same ID for renumbering; a human records split/merge/ambiguous repeated-text relationships.
+An unchanged diff does not prove the absence of missing requirements or mismatched IDs.
+Re-review changed responses, evidence, figures, page references; stale-sweep removed values.
 
-## 3. PDF 시각 비교
+## 3. PDF visual comparison
 
-`scripts/visual_compare.py`는 Poppler의 `pdftoppm`/`pdfinfo`와 Pillow를 사용한다. Pillow는
-PPTX 환경에 흔히 함께 있지만 존재를 확인하며 자동 설치하지 않는다. diff-pdf-visually의
-페이지 단위 회귀 원칙을 참고한 독립 구현으로, ImageMagick/추가 비교 패키지는 요구하지 않는다.
+`scripts/visual_compare.py` uses Poppler `pdftoppm`/`pdfinfo` and Pillow.
+Pillow is common in PPTX environments, but verify its presence; no automatic installation.
+This independent implementation draws on diff-pdf-visually's page-level regression principle;
+it requires neither ImageMagick nor extra comparison packages.
 
-실제 렌더러의 버전과 글꼴 파일 집합을 확인해 환경 JSON을 작성한다. `renderer`,
-`renderer_version`, `font_profile`은 비어 있지 않은 문자열이다. font_profile에는 글꼴 파일들의
-hash 목록을 외부에서 관리하는 식별자를 권장한다. 선언값을 실제 글꼴 탐지 증거로 오인하지 않는다.
+Create environment JSON after checking actual renderer versions and font files.
+`renderer`, `renderer_version`, `font_profile` are nonempty strings.
+Prefer a font_profile identifier pointing to an externally maintained list of font-file hashes.
+Declarations are not actual font-detection evidence.
 
 ```bash
 python scripts/visual_compare.py snapshot approved.pdf --source approved.pptx --environment env.json --reviewer reviewer-role --output baseline
@@ -154,29 +162,34 @@ python scripts/visual_compare.py snapshot candidate.pdf --source candidate.pptx 
 python scripts/visual_compare.py compare baseline candidate --max-changed-ratio 0 --output comparison-run
 ```
 
-기준본은 실제 PDF를 검토한 뒤 reviewer를 기록한다. reviewer 문자열은 인증된 전자승인이
-아니며 제출 audit의 사람 승인을 대신하지 않는다. 각 snapshot은 PDF 복사·원문/PDF hash·
-환경을 남긴다. baseline과 candidate의 원문 hash는 서로 달라도 정상이며 각 자기 파일의
-무결성을 검사한다. PDF와 원문 간 변환 충실성까지 hash가 증명하지는 않는다.
+Record a baseline reviewer after actual PDF review. The reviewer string is not authenticated electronic approval
+and does not replace audit human approval.
+Each snapshot keeps a PDF copy, source/PDF hashes, environment.
+Baseline/candidate source hashes may legitimately differ; verify each against its own file.
+Hashes do not establish PDF-to-source conversion fidelity.
 
-기본 DPI=150, channel_delta=8이며 기록된 RGB 채널 차이가 delta를 **초과**한 픽셀을 센다.
-각 페이지의 changed_ratio가 명시한 `--max-changed-ratio`를 **초과**하면 DIFFERENT다.
-어느 한 페이지라도 다르면 전체 DIFFERENT이며 페이지 수·크기 차이도 동일하다. 전체 페이지
-평균으로 작은 중요 변경을 숨기지 않는다. bbox와 diff PNG를 확인하고 작은 숫자·선·한글 누락
-표본으로 오차/DPI를 보정한다. threshold는 인쇄 품질 인증값이 아니다.
+Defaults: DPI=150, channel_delta=8. Count pixels whose recorded RGB channel difference **exceeds** delta.
+A page is DIFFERENT when changed_ratio **exceeds** explicit `--max-changed-ratio`.
+Any different page makes the whole result DIFFERENT, as do page-count/size differences.
+Never hide small significant changes in an all-page average.
+Review bboxes/diff PNGs and calibrate tolerance/DPI using small-number/line/Korean-omission samples.
+Thresholds are not print-quality certification.
 
-종료 코드는 SAME=0, DIFFERENT=1, ERROR/사용오류=2, INCOMPARABLE=3이다. 렌더러·글꼴·OS
-환경이 다르면 INCOMPARABLE이며 같은 엔진끼리 먼저 비교한다. PowerPoint↔LibreOffice는
-별도 기준과 수동 검토가 필요하다. 실행 실패·불완전 페이지를 SAME으로 처리하지 않는다.
-before/after/diff/result.json은 새 run 폴더에만 저장한다. 기존 폴더·기준본은 덮어쓰지 않고,
-자동 삭제·기준본 갱신도 하지 않는다. 사용자는 보존 정책에 따라 자기 run만 정리한다.
+Exit codes: SAME=0, DIFFERENT=1, ERROR/usage error=2, INCOMPARABLE=3.
+Different renderer/font/OS environments mean INCOMPARABLE; compare like engines first.
+PowerPoint↔LibreOffice requires separate baselines/manual review.
+Execution failures/incomplete pages must not count as SAME.
+Write before/after/diff/result.json only to a new run folder.
+Never overwrite existing folders/baselines or automatically delete/update them.
+Users clean only their own runs according to retention policy.
 
-SAME은 그 설정에서의 변화 검사 결과다. 원문 충실성·사실·설득력·표 넘침 부재를 인증하지
-않고 `visual_review_approved`는 항상 false다. 기존 `deck_check.py --render`와 전 장 검토,
-최종 PowerPoint 폰트 확인·통합 게이트를 계속 수행한다. PDF 보관을 원하면 승인된 렌더러의
-PDF를 별도로 내보내 snapshot에 넘긴다. 기존 renderer의 임시 PDF 수명이나 audit 스키마는 바꾸지 않는다.
+SAME is a change-detection result at those settings; it does not certify source fidelity, facts, persuasion,
+or absence of table overflow. `visual_review_approved` always stays false.
+Continue existing `deck_check.py --render`, all-page review, final PowerPoint font checks, integrated gates.
+To retain PDF, separately export from the approved renderer and pass it to snapshot.
+Do not change the existing renderer's temporary-PDF lifetime or audit schema.
 
-설계 참고: [Agent Skills](https://agentskills.io/specification),
+Design references: [Agent Skills](https://agentskills.io/specification),
 [diff-pdf-visually](https://github.com/bgeron/diff-pdf-visually),
-[Docling 오프라인 설정](https://github.com/docling-project/docling/blob/main/docs/usage/advanced_options.md).
-외부 코드·템플릿은 복제하지 않았다. 선택 패키지·모델은 실제 채택 revision의 조건을 별도 확인한다.
+[Docling offline configuration](https://github.com/docling-project/docling/blob/main/docs/usage/advanced_options.md).
+No external code/templates were copied. Separately check terms for actual adopted revisions of optional packages/models.

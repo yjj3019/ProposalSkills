@@ -1,9 +1,4 @@
-"""9차 — 발주 문서에서 읽어낸 규칙이 게이트를 바꾼다(공개 RFx 검토 반영).
-
-공고마다 평가 방식·요구 강도·문서 종류가 다르다. 그 차이를 "합계 100"·"필수 불리언"·
-"RFP 하나"로 환원하면 실제 공고를 원장에 옮길 수 없거나, 옮기면 잘못 차단된다.
-각 테스트는 공개 사례에서 확인한 규칙을 합성 데이터로 재현한다(원문은 싣지 않는다).
-"""
+"""Round 9: procurement-document rules change gate behavior (public RFx review). Evaluation methods, requirement strength, and document kinds vary; reducing them to total 100, a mandatory bool, and one RFP prevents faithful ledgers or falsely blocks them. Reproduce public-case rules with synthetic data, excluding originals."""
 from __future__ import annotations
 
 import json
@@ -34,17 +29,17 @@ def _criteria(entries, req_map, **extra):
 
 
 class EvaluationLedgerTests(unittest.TestCase):
-    """평가 방식은 기관 분류가 아니라 원문에서 온다."""
+    """Evaluation methods come from source documents, not institution classifications."""
 
     def test_technical_with_separate_price_volume_uses_declared_total(self):
-        """기술 부문 90점만 원장에 있고 가격은 별책 — 100으로 고치라고 하면 안 된다."""
+        """A ledger may contain only technical 90 points with price separately bound; do not require changing it to 100."""
         self.assertTrue(any("sum to 90, not 100" in f for f in
                             _criteria([{"id": "T", "label": "기술", "weight": 90}], [["T"]])))
         self.assertEqual(_criteria([{"id": "T", "label": "기술", "weight": 90}], [["T"]],
                                    evaluation_total=90), [])
 
     def test_sub_criteria_must_sum_to_their_parent_not_to_100(self):
-        """1단계 기술평가 100 = 정량 20 + 정성 80. 상·하위를 한 번에 더하면 200이 된다."""
+        """Stage-1 technical 100 = quantitative 20 + qualitative 80; adding parents and children yields 200."""
         entries = [{"id": "T", "label": "기술", "weight": 100, "stage": "1단계"},
                    {"id": "T1", "label": "정량", "weight": 20, "parent": "T"},
                    {"id": "T2", "label": "정성", "weight": 80, "parent": "T"}]
@@ -53,12 +48,12 @@ class EvaluationLedgerTests(unittest.TestCase):
         self.assertTrue(any("sub-criteria sum to 110" in f for f in _criteria(entries, [["T1"], ["T2"]])))
 
     def test_cutoff_is_preserved_not_computed(self):
-        """부문 과락(기술 배점한도의 85%)은 기록만 한다 — 게이트는 심사 점수를 예측하지 않는다."""
+        """Record sectional cutoffs (85% of technical maximum) without predicting evaluation scores."""
         entries = [{"id": "T", "label": "기술", "weight": 90, "minimum_ratio": 0.85,
                     "source": "공고 §5 협상적격 기준"},
                    {"id": "P", "label": "가격", "weight": 10}]
         self.assertEqual(_criteria(entries, [["T"], ["P"]]), [])
-        entries[0]["minimum_ratio"] = 85  # 퍼센트를 그대로 적은 실수
+        entries[0]["minimum_ratio"] = 85  # Mistakenly recording the percentage directly.
         self.assertTrue(any("minimum_ratio must be in (0, 1]" in f for f in _criteria(entries, [["T"], ["P"]])))
 
     def test_undisclosed_weights_are_recorded_not_invented(self):
@@ -72,7 +67,7 @@ class EvaluationLedgerTests(unittest.TestCase):
         entries = [{"id": "T", "label": "기술", "weight": 100},
                    {"id": "T1", "label": "정량", "weight": 20, "parent": "T"},
                    {"id": "T2", "label": "정성", "weight": 80, "parent": "T"}]
-        failures = _criteria(entries, [["T1"]])  # T2만 미대응
+        failures = _criteria(entries, [["T1"]])  # Only T2 is unmapped.
         self.assertTrue(any("no requirement mapped: ['T2']" in f for f in failures), failures)
 
     def test_structural_errors(self):
@@ -104,7 +99,7 @@ class EvaluationLedgerTests(unittest.TestCase):
 
 
 class RequirementStrengthTests(unittest.TestCase):
-    """필수/권장/선택/조건부/참고 — 권장 분량 초과와 필수 위반은 같은 무게가 아니다."""
+    """Required/recommended/optional/conditional/reference: recommended-length overruns differ from mandatory violations."""
 
     def test_strength_is_derived_from_mandatory_when_absent(self):
         self.assertEqual(pg.requirement_strength({"mandatory": True}), "required")
@@ -115,7 +110,7 @@ class RequirementStrengthTests(unittest.TestCase):
         data = ready_data()
         data["requirements"][0]["strength"] = "nice-to-have"
         self.assertTrue(any("unsupported strength" in f for f in pg.validate_schema(data)))
-        data["requirements"][0]["strength"] = "optional"  # mandatory:true와 모순
+        data["requirements"][0]["strength"] = "optional"  # Contradicts mandatory:true.
         self.assertTrue(any("contradicts mandatory=True" in f for f in pg.validate_schema(data)))
 
     def test_conditional_needs_its_condition(self):
@@ -125,7 +120,7 @@ class RequirementStrengthTests(unittest.TestCase):
         self.assertTrue(any("lacks a condition" in f for f in pg.validate_schema(data)))
         data["requirements"][0]["condition"] = "클라우드 구간을 제안하는 경우"
         self.assertEqual(pg.validate_schema(data), [])
-        # 조건부는 필수로 센다 — 미승인이면 차단
+        # Conditional requirements count as mandatory and block if unapproved.
         data["requirements"][0].update(state="drafted")
         self.assertTrue(any("R1 is not approved" in f for f in pg.evaluate(data)))
 
@@ -164,7 +159,7 @@ class RequirementStrengthTests(unittest.TestCase):
 
 
 class RfxTypeTests(unittest.TestCase):
-    """문서 종류는 구매 단계와 다른 축이다. RFI라서 검사를 끄는 게 아니라 무엇이 다른지 명시한다."""
+    """Document kind and procurement stage are separate axes; specify RFI differences instead of disabling checks."""
 
     def test_rfx_type_is_validated(self):
         self.assertEqual(pg.validate_context({"rfx_type": "rfi"}), [])
@@ -173,20 +168,20 @@ class RfxTypeTests(unittest.TestCase):
     def test_rfi_response_does_not_require_a_public_scoring_ledger(self):
         data = ready_data()
         data["context"] = {"buyer_types": ["public"], "stage": "explore", "rfx_type": "rfi"}
-        data["claims"] = []  # 확약 없음
+        data["claims"] = []  # No commitments.
         self.assertFalse(any("evaluation_criteria ledger" in f for f in pg.evaluate(data)))
         data["context"]["rfx_type"] = "rfp"
         self.assertTrue(any("evaluation_criteria ledger" in f for f in pg.evaluate(data)))
 
     def test_rfi_response_must_not_carry_commitments(self):
-        """RFI의 추정치를 확정 계약 약속으로 승격하지 않는다."""
+        """Do not promote RFI estimates to definite contractual commitments."""
         data = ready_data()
         data["context"] = {"buyer_types": ["private"], "stage": "explore", "rfx_type": "rfi"}
-        failures = pg.evaluate(data)  # ready_data의 C1은 commitment
+        failures = pg.evaluate(data)  # C1 in ready_data is a commitment.
         self.assertTrue(any("commitment in an RFI response" in f for f in failures), failures)
 
     def test_rfi_keeps_eligibility_and_format_checks(self):
-        """한일병원형 RFI: 참여자격·제출 형식 요구는 그대로 검사한다."""
+        """Hanil Hospital-style RFI: qualification and submission-format requirements still apply."""
         data = ready_data()
         data["context"] = {"buyer_types": ["healthcare"], "stage": "explore", "rfx_type": "rfi"}
         data["claims"] = []

@@ -1,9 +1,11 @@
-# Meta → Audit 빌더 (SI-B1)
+# Meta → Audit builder (SI-B1)
 
-작성 초안의 슬라이드/요구 메타데이터를 거버넌스 audit JSON으로 옮긴다.
-수동 이중 기입을 줄여 readiness 공백(시뮬 평균 ~64)을 줄이는 것이 목적이다.
+Transfers draft slide/requirement metadata into governance audit JSON.
+The goal is to reduce duplicate manual entry and the readiness gap (simulation average ~64).
 
-## 입력 meta 스키마 (최소)
+## Minimum input meta schema
+
+Korean example values and filenames are preserved verbatim.
 
 ```json
 {
@@ -53,38 +55,39 @@
 }
 ```
 
-## 빌더 동작
+## Builder behavior
 
-작성용 `proposal_type`의 A/B/C와 감사용 `proposal_archetype`을 혼동하지 않는다.
-감사 값은 각각 `build`/`maintenance`/`technical-response`다. `mode: draft`와
-`context.stage: internal-review`도 서로 다른 분류이며, 읽기 조건은 `context.reading_mode`에
-예를 들어 `screen-presentation`으로 적는다. 합성 여부는 `artifact_mode: simulation-only`에
-기록하고 임의의 context 제약값을 만들지 않는다. 평가 항목 이름은 `evaluation_criteria[].label`,
-미제공 필수 입력은 `inputs[].class: blocking`·`status: open`으로 기록한다.
-전체 허용값은 [audit-schema.md](../../create-winning-proposal/references/audit-schema.md)를 따른다.
-변환 성공은 감사 유효성이나 승인 확보를 뜻하지 않는다. 변환 후 통합 게이트로 검사하고,
-메타 작성 오류를 고치기 위해 실제 미결 입력·사람 승인을 완료로 바꾸지 않는다.
+Do not confuse authoring `proposal_type` A/B/C with audit `proposal_archetype`:
+its values are `build`/`maintenance`/`technical-response`. `mode: draft` and
+`context.stage: internal-review` are also separate classifications; record reading conditions in
+`context.reading_mode`, e.g. `screen-presentation`. Record synthetic status as
+`artifact_mode: simulation-only`; do not invent context constraint values.
+Evaluation labels use `evaluation_criteria[].label`; missing mandatory inputs use
+`inputs[].class: blocking`/`status: open`. See
+[audit-schema.md](../../create-winning-proposal/references/audit-schema.md) for all allowed values.
+Successful conversion does not establish audit validity or approval. Run the unified gate afterward.
+Never mark actually open inputs or human approvals complete merely to fix metadata errors.
 
 ```bash
 python scripts/build_audit_from_meta.py meta.json -o audit.json
 python scripts/build_audit_from_meta.py meta.json --strict
 ```
 
-- 필수 top-level 필드를 audit-schema 형태로 채움
-- requirement.state=approved 인데 evidence_refs 비면 `--strict`에서 실패, 기본은 경고 필드
-- slides[].req_ids ↔ requirements 양방향 불일치 시 `source_conflicts`에 기록
-- render/package가 미검증이면 그대로 두어 게이트가 NO-GO (거짓 READY 방지)
-- `artifact_required`·`package.required`는 **mode=submission일 때만 기본 true**. draft/review는 기본 false이므로
-  리드문 맵 단계 audit이 `DRAFT-READY`에 도달할 수 있다(명시하면 그 값을 따른다).
+- Populate required top-level fields in audit-schema form.
+- requirement.state=approved with empty evidence_refs fails under `--strict`; otherwise produces a warning field.
+- Record bidirectional slides[].req_ids ↔ requirements mismatches in `source_conflicts`.
+- Leave unverified render/package state intact so the gate returns NO-GO (prevent false READY).
+- `artifact_required`/`package.required` **default true only for mode=submission**. Draft/review default false,
+  allowing lead-map audits to reach `DRAFT-READY` (explicit values take precedence).
 
-## 사용 시점
+## When to use
 
-1. 리드문 맵·조견표 초안 직후 → draft audit (mode=draft). **Pink 체크포인트 레시피**:
-   요구 원장은 `state: drafted`가 아니라 검수 완료된 항목만 `approved`로 두면 "not approved"가 나온다 —
-   Pink 단계는 `mode: "draft"`, 필수 요구 전부 `state: "approved"`가 아니어도 되도록 `bid_decision`·
-   `eligibility`·`checks`만 채우고, 게이트의 "requirement … is not approved" 목록을 **작업 목록**으로 읽는다.
-   DRAFT-READY는 본문 1차 완료(2단계) 후 evidence_refs를 채웠을 때 도달하는 것이 정상이다.
-2. 본문 1차 완료 후 → evidence_refs 보강
-3. 렌더·패키지 검사 후 → verified/inspected 갱신 → unified_gate
+1. Immediately after lead-map/matrix draft → draft audit (mode=draft). **Pink checkpoint recipe**:
+   requirements are not `state: drafted`; only reviewed items become `approved`, so "not approved" appears.
+   For Pink, use `mode: "draft"`; fill `bid_decision`/`eligibility`/`checks` without requiring all mandatory
+   requirements to be `state: "approved"`. Read the gate's "requirement … is not approved" list as a **work list**.
+   DRAFT-READY normally follows first body completion (step 2) once evidence_refs are populated.
+2. After first body completion → strengthen evidence_refs.
+3. After render/package inspection → update verified/inspected → unified_gate.
 
-예제: `fixtures/meta_sample.json`
+Example: `fixtures/meta_sample.json`.

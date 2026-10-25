@@ -1,54 +1,51 @@
-# 근거와 주장 (evidence-and-claims)
+# Evidence and claims (evidence-and-claims)
 
-제안서의 모든 주장은 "평가위원이 검증 요청할 수 있다"는 전제로 쓴다.
-탈락 사유 1순위는 디자인이 아니라 **근거 없는 주장과 문서 내 불일치**다.
+Write every proposal claim on the assumption that an evaluator may request verification.
+The leading reasons for rejection are **unsupported claims and internal inconsistencies**, rather than design.
 
-## 1. 주장 유형별 필수 근거
+## 1. Required evidence by claim type
 
-| 주장 유형 | 필수 병기 항목 | 형식 |
+| Claim type | Required accompanying information | Format |
 |---|---|---|
-| 실적 (수행 사례) | 사업명·발주처·기간·범위(제품/규모) | 실적표. 증빙(수행확인서) 별첨 가능 여부 표기 |
-| 인증·자격 | 인증명·발급기관·유효기간·보유 수량 | 표 + 사본 별첨. 만료 인증 사용 금지 |
-| 파트너 등급 | 벤더명·등급·확인 기준일 | 파트너 확약서/인증서 별첨 (분석 샘플 공통 관례) |
-| 성능 수치 | 측정 환경·조건·측정일·출처 | "동일 조건 보장 아님" 범위 한정. BMT 결과는 구성 명세 병기 |
-| 제품 기능 | 제품명·**버전**·지원 여부(GA/TP/로드맵) | 벤더 공식 문서 기준. Tech Preview는 반드시 구분 표기 |
-| EOL·지원기간 | 제품·버전·지원 종료일·라이프사이클 정책 | **웹에서 최신 확인 필수** (재사용 자료의 EOL은 대부분 낡음) |
-| 시장 지위 | 조사기관·보고서명·연도 | "OO 기준 점유율 N%(가트너, 2025)" 형식 |
-| SLA·응답시간 | 심각도 정의·측정 기준·적용 범위 | SLA 표. 벤더 SLA와 당사 SLA를 구분해 표기 |
-| 기대효과(정량) | 산식·전제조건·비교 기준 | 각주로 산식 명시. 전제 없는 절감률 금지 |
+| Track record (delivery examples) | Project, buyer, period, scope (product/scale) | Track-record table; state whether delivery certificates can be attached |
+| Certifications and qualifications | Name, issuer, validity, quantity held | Table + attached copies; expired certifications prohibited |
+| Partner tier | Vendor, tier, verification date | Attach partner commitment/certificate (common practice in analyzed samples) |
+| Performance figures | Measurement environment, conditions, date, source | Limit scope with the Korean example "동일 조건 보장 아님"; include configuration specifications for BMT results |
+| Product capabilities | Product, **version**, availability (GA/TP/roadmap) | Use official vendor documentation; explicitly distinguish Tech Preview |
+| EOL and support period | Product, version, support end date, lifecycle policy | **Current web verification required** (EOL in reused material is usually outdated) |
+| Market position | Research organization, report, year | Korean example: "OO 기준 점유율 N%(가트너, 2025)" |
+| SLA and response time | Severity definitions, measurement criteria, scope | SLA table; distinguish vendor SLA from the proposer's SLA |
+| Expected benefits (quantitative) | Formula, assumptions, comparison baseline | Footnote the formula; savings percentages without assumptions prohibited |
 
-## 2. 검증 불가 주장 처리 절차
+## 2. Handling unverifiable claims
 
-근거 슬롯을 채우지 못한 주장은:
+For a claim whose evidence slots cannot be filled:
 
-1. 본문에 넣지 않는다 (약하게 순화해서 넣는 것도 금지 — 순화해도 주장은 주장).
-2. `[unverified]` 태그를 붙여 별도 목록으로 모은다.
-3. 산출물 전달 시 사용자에게 목록을 보고한다:
+1. Exclude it from the body (softening it is also prohibited: a softened claim is still a claim).
+2. Collect it separately with the `[unverified]` tag.
+3. Report the list to the user when delivering the artifact. Korean report example:
    "다음 N건은 근거 자료가 없어 본문에서 제외했습니다. 자료를 주시면 반영합니다."
-4. 사용자가 근거를 제공하면 해당 페이지에 근거와 함께 삽입한다.
+4. Once the user supplies evidence, insert the claim and its evidence on the relevant page.
 
-## 3. 문서 내 일관성 (교차 검증 대상)
+## 3. Internal consistency (cross-check targets)
 
-같은 수치가 여러 페이지에 등장하면 반드시 일치해야 한다. 최종 게이트에서 전수 대조:
+Figures repeated on multiple pages must agree. Compare all occurrences at the final gate:
 
-- 투입 인력 수: 요약 ↔ 수행조직도 ↔ 인력 프로필 ↔ 투입공수표(M/M)
-- 일정: 추진전략 로드맵 ↔ 간트차트 ↔ 마일스톤 표
-- 제품 버전: 제품 소개 ↔ 구성도 ↔ 장비/SW 명세 ↔ 라이선스 내역
-- 실적 건수: 회사 소개("N개사") ↔ 실적표 행 수
-- SLA 수치: 요약 페이지 ↔ SLA 상세 표 ↔ 조견표 답변
+- Staffing: summary ↔ delivery organization ↔ staff profiles ↔ effort table (M/M).
+- Schedule: strategy roadmap ↔ Gantt chart ↔ milestone table.
+- Product versions: product introduction ↔ architecture ↔ equipment/SW specifications ↔ licenses.
+- Track-record counts: company introduction (Korean example: "N개사") ↔ track-record row count.
+- SLA figures: summary ↔ detailed SLA table ↔ compliance-matrix response.
 
-## 4. 법적·계약적 주의 표현
+## 4. Legal and contractual wording
 
-- 약속 문장("보장합니다", "책임집니다")은 계약 조항이 된다. 범위·전제 없이 쓰지 않는다.
-- 제3자 책임 영역(벤더 지원 정책, 제조사 로드맵)은 출처를 명시하고
-  "제조사 정책에 따름"으로 책임 경계를 표기한다(표준제품 답변서 관례).
-- 타사·경쟁사 비방 금지. 비교는 공개된 객관 지표로만, 출처 병기.
-- 고객 기밀·이전 고객 데이터(구성도·수치)를 재사용하지 않는다. 익명화해도
-  식별 가능하면 금지.
+- Commitment phrases (Korean examples: "보장합니다", "책임집니다") become contractual terms. Do not use them without scope and assumptions.
+- Identify sources for third-party responsibilities (vendor support policy, manufacturer roadmap) and mark the responsibility boundary with the Korean example "제조사 정책에 따름" (standard-product response practice).
+- Do not disparage other companies or competitors. Compare only public, objective metrics with sources.
+- Do not reuse customer confidential information or previous customer data (architecture, figures). Even anonymized material is prohibited if identification remains possible.
 
-## 5. 접근성 관련 표현 주의
+## 5. Accessibility wording
 
-WCAG 2.2 명암비 기준(일반 4.5:1, 큰 텍스트 3:1)은 **보수적 설계 참조값**으로만 사용한다.
-WCAG는 웹 콘텐츠 표준이므로 인쇄물·DOCX·PDF 산출물에 "WCAG 준수/적합" 같은
-법적 적합성 문구를 자동으로 쓰지 않는다. 제안서에 접근성 준수를 주장하려면
-발주처가 요구한 기준(예: KWCAG, 장차법)과 검증 방법을 확인한 뒤에만 기재한다.
+Use WCAG 2.2 contrast thresholds (4.5:1 normal text, 3:1 large text) only as **conservative design reference values**.
+WCAG is a web-content standard: do not automatically claim legal conformance such as the Korean example "WCAG 준수/적합" for print, DOCX, or PDF artifacts.
+Claim accessibility compliance in a proposal only after confirming the buyer's required standard (e.g., KWCAG, Korean disability discrimination legislation) and verification method.

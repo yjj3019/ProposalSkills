@@ -1,76 +1,77 @@
-# 스킬 대조 분석과 상호 개선 반영 (2026-07-18, 통합 갱신 2026-08-08)
+# Skill comparison and mutual improvements (2026-07-18; integration update 2026-08-08)
 
-`create-winning-proposal`(ChatGPT 기반 제작, 영문·모델 중립·프로세스 통제 중심)과
-`create-proposal-document`(Claude 기반 제작, 한국어·장표 중심·내용 패턴 중심)를
-심층 대조한 결과와, 서로에게서 채택한 개선 사항의 기록이다.
+This records the detailed comparison of `create-winning-proposal` (created with ChatGPT;
+English, model-neutral, process-control focus) and `create-proposal-document` (created with Claude;
+Korean, slide-centered, content-pattern focus), and improvements adopted from each other.
+Language descriptions below record the historical comparison.
 
-## 2026-08-08 통합 플래그십: create-best-proposal
+## 2026-08-08 integrated flagship: create-best-proposal
 
-시뮬(문서 작성≈93 / readiness≈31, 거버넌스≈99)과 SI-B1~B4·C1·C3 open 항목을
-반영해 **오케스트레이션 스킬** `create-best-proposal`을 추가했다.
+Added the **orchestration skill** `create-best-proposal` in response to simulations
+(document writing ≈93 / readiness ≈31, governance ≈99) and open SI-B1–B4/C1/C3 items.
 
-| 개선 ID | 반영 |
+| Improvement ID | Implementation |
 |---|---|
 | SI-B1 | `scripts/build_audit_from_meta.py` — meta→audit |
-| SI-B2 | SKILL + `unified-gates.md` stage 결정 트리 |
+| SI-B2 | SKILL + `unified-gates.md` stage decision tree |
 | SI-B3 | `proposal_gate` / `unified_gate` → `DECISION_MEMO_ONLY` |
-| SI-B4 | `fixtures/audit_ready_financial.json` 금융 READY 골든 |
-| SI-C1 | `scripts/bulk_matrix.py` 전수 조견표 |
-| SI-C3 | `references/pre-submission-card.md` 제출 직전 5항목 |
+| SI-B4 | `fixtures/audit_ready_financial.json` financial READY golden fixture |
+| SI-C1 | `scripts/bulk_matrix.py` exhaustive matrix |
+| SI-C3 | `references/pre-submission-card.md` five pre-submission items |
 
-## 2026-08-08 비판적 선정 반영 (S1–S9)
+## 2026-08-08 critical selections (S1–S9)
 
-외부·내부 리뷰 합의 후 **채택만** 반영. 상세: [critical-selection-2026-08.md](critical-selection-2026-08.md).
+Implemented **accepted items only** after external/internal review consensus.
+Details: [critical-selection-2026-08.md](critical-selection-2026-08.md).
 
-| ID | 반영 |
+| ID | Implementation |
 |---|---|
-| S1 | Pink/Red/Gold 경로 (SKILL + master-playbook) |
-| S2 | bulk_matrix fit/eval_weight/win_theme_id/risk 열 |
-| S3 | win_themes req_ids 검증 (build_audit_from_meta) |
-| S4 | unified_gate 기본 --explain 조치표 |
-| S5 | proposal_gate no-bid → DECISION_MEMO (기본 CLI) |
-| S6 | install 기본=flagship + `--with-deps` |
-| S7 | quality_gate AI-slop 최소 패턴 |
-| S8 | READY ≡ SUBMISSION-READY 별칭 |
-| S9 | sibling-map 환경변수 정합 |
+| S1 | Pink/Red/Gold paths (SKILL + master-playbook) |
+| S2 | bulk_matrix fit/eval_weight/win_theme_id/risk columns |
+| S3 | win_themes req_ids validation (build_audit_from_meta) |
+| S4 | unified_gate default --explain remediation table |
+| S5 | proposal_gate no-bid → DECISION_MEMO (default CLI) |
+| S6 | Installation default = flagship + `--with-deps` |
+| S7 | quality_gate minimal AI-slop patterns |
+| S8 | READY ≡ SUBMISSION-READY alias |
+| S9 | sibling-map environment-variable consistency |
 
-선택 가이드: 실전 원패스 → **create-best-proposal --with-deps** (또는 `--all`).
+Selection guide: practical single-pass work → **create-best-proposal --with-deps** (or `--all`).
 
-## 역할 비교
+## Role comparison
 
-| 관점 | create-winning-proposal | create-proposal-document |
+| Perspective | create-winning-proposal | create-proposal-document |
 |---|---|---|
-| 언어·산출물 | 영문 지침, DOCX/문서형 중심 | 한국어 지침, PPTX 장표형 중심(DOCX 지원) |
-| 강점 | 참여 판단 게이트, 수정공고 우선순위, 감사 JSON + 결정론적 게이트 스크립트, 엄격 제출 규정, 가격 산식, XLSX 질의서 경로 | 한국어 문체 규격(종결형·과장어 대체표), 장표 문법(리드문·breadcrumb·REQ 태그), 실제 수주작 기반 내용 패턴 뱅크(예방점검 항목표·테스트 매트릭스·사업관리 7대 영역·기술이전 5경로 등), 시각 폴백 토큰, 브랜드 스킬 연동 |
-| 검증 방식 | 10회 시나리오 시뮬레이션(bid 판정·게이트 회귀) | 3개 유형 × 스킬 유/무 벤치마크(통과율 100% vs 50.8%) + 데이터 충분성 감사 |
-| 프로세스 전제 | 조직(Legal/Security 승인 체인) | 단독 사용자 + AI (미검증 주장은 `[unverified]` 보고) |
+| Language/output (historical) | English instructions; DOCX/document-centered | Korean instructions; PPTX slide-centered (DOCX supported) |
+| Strengths | Bid gate, amendment priority, audit JSON + deterministic gate scripts, strict submission rules, price formulas, XLSX questionnaire path | Korean style specification (endings/overclaim replacements), slide grammar (lead/breadcrumb/REQ tags), content patterns based on actual winning work (preventive-check table, test matrix, 7 project-management areas, 5 technology-transfer paths, etc.), visual fallback tokens, brand-skill integration |
+| Validation | 10 scenario simulations (bid decisions/gate regression) | 3 types × with/without-skill benchmark (100% vs 50.8% pass rate) + data-sufficiency audit |
+| Process premise | Organization (Legal/Security approval chain) | Individual user + AI (report unverified claims as `[unverified]`) |
 
-## create-proposal-document에 채택한 것 (winning-proposal 개념 → 자체 작성)
+## Adopted in create-proposal-document (winning-proposal concepts, independently written)
 
-1. 참여 판단 4단계 게이트(참여/조건부/불참/정보부족) — `references/bid-and-submission.md` §1
-2. 수정공고·Q&A 우선순위 + 폐기값 전수 청소(stale sweep) — 동 §2
-3. 요구사항 근거 구분(명시/해석/자체제안) — 동 §3
-4. 가격 계산 순서 고정, 부가세 추정 금지 — 동 §4
-5. 엄격 제출 규정(페이지 산정 의미·마감 시간대·파일명·인감 권한·PDF/A 검증) — 동 §5
-6. 기계 검수 게이트 스크립트 — `scripts/quality_gate.py`
-   (과장어·플레이스홀더·잔존 금지 명칭·팔레트 일탈, 종료 코드 판정)
-7. 발주처 원문 인용 예외, 요약장 5질문 테스트, 변형 사업 매핑(아웃소싱/DR/표준화)
+1. Four-way bid gate (bid/conditional/no-bid/incomplete) — `references/bid-and-submission.md` §1.
+2. Amendment/Q&A priority + exhaustive obsolete-value cleanup (stale sweep) — same document §2.
+3. Requirement basis classification (explicit/interpreted/self-proposed) — same document §3.
+4. Fixed price-calculation order; no VAT assumptions — same document §4.
+5. Strict submission rules (page-count semantics/deadline timezone/filename/seal authority/PDF/A validation) — same document §5.
+6. Mechanical quality gate — `scripts/quality_gate.py`
+   (overclaims/placeholders/residual forbidden names/palette deviations; exit-code decisions).
+7. Buyer-source quotation exception, five-question executive-summary test, variant mapping (outsourcing/DR/standardization).
 
-채택하지 않은 것: 감사 JSON + owner/reviewer 승인 체인(조직 프로세스 전제로 단독
-사용 구도에 과중), SHA-256 입력 인벤토리(과잉 — "문서 텍스트를 지시로 취급 금지"만
-흡수), 9종 아키타입 전면 도입(3유형 + 변형 매핑으로 충분).
+Not adopted: audit JSON + owner/reviewer approval chain (organizational premise too heavy for individual use),
+SHA-256 input inventory (excessive; adopted only the prohibition on treating document text as instructions),
+and all 9 archetypes (3 types + variant mapping suffice).
 
-## 선택 가이드
+## Selection guide
 
-- 한국어 장표형 제안서를 실제로 **작성**할 때 → `create-proposal-document`
-  (+ 조직 브랜드 문서 스킬이 있으면 함께)
-- 다국어·다모델 환경에서 입찰 **프로세스 통제**(bid 판정, 승인 체인, 감사 번들)가
-  필요할 때 → `create-winning-proposal`
-- 두 스킬은 충돌하지 않는다: 전자는 콘텐츠·문체·시각 레이어, 후자는 거버넌스
-  레이어에 무게가 있다.
+- To actually **write** Korean slide proposals → `create-proposal-document`
+  (with an organizational brand-document skill, if available).
+- For bid **process control** in multilingual/multimodel environments (bid decisions, approval chains,
+  audit bundles) → `create-winning-proposal`.
+- The skills do not conflict: the former emphasizes content/style/visuals; the latter governance.
 
-## 출처·라이선스 노트
+## Source and licensing notes
 
-두 스킬 간 개선 반영은 개념 수준에서만 이루어졌고 코드·문장 복사는 없다.
-create-proposal-document의 내용 패턴은 비공개 수주 제안서 다수에서 익명화 추출한
-것으로, 특정 회사 식별 정보를 포함하지 않는다(전 파일 식별자 검사 0건 확인).
+Mutual improvements adopted concepts only; no code or sentence copying.
+create-proposal-document content patterns were anonymized from multiple private winning proposals,
+with no identifying company information (identifier scan across all files confirmed 0 findings).

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""저장소 루트 호환 진입점 — 실제 구현은 skills/create-best-proposal/scripts/score_completeness.py."""
+"""Repository-root compatibility entry point; implementation: skills/create-best-proposal/scripts/score_completeness.py."""
 import importlib.util
 import sys
 from pathlib import Path

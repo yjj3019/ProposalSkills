@@ -1,42 +1,44 @@
-# 제안서 구조 (유형별 표준 목차)
+# Proposal structure (standard outlines by type)
 
-실제 수주 제안서 다수에서 추출해 일반화한 골격이다. RFP가 목차를 지정하면 RFP가 우선한다.
-지정이 없으면 아래 표준을 쓰되, 평가표 배점이 큰 항목을 앞·두껍게 배치한다.
+Generalized from multiple winning proposals. An RFP-prescribed outline overrides these standards.
+Otherwise use the standards below, placing high-weight evaluation topics earlier and giving them more space.
 
-## 사업 성격 → 뼈대
+## Engagement → skeleton
 
-`context.engagement`가 뼈대를 정하고, audit의 `proposal_archetype`에 무엇을 썼는지 남긴다.
-게이트가 둘을 대조하므로 유지보수 사업에 구축 목차를 쓰면 차단된다(발주처 지정이면
-`archetype_rationale`에 근거를 적는다).
+`context.engagement` determines the skeleton; record the chosen one in audit `proposal_archetype`.
+The gate compares them, blocking a build outline for maintenance work unless the buyer prescribed it
+(record the basis in `archetype_rationale`).
 
-| engagement | 뼈대 | 게이트가 요구하는 절 |
+| engagement | Skeleton | Required sections |
 |---|---|---|
-| `build`, `migrate` | 유형 A 구축 | 사업 범위 · 구축 방안 · 추진 일정 · 시험/검수 · 이행 조직 |
-| `operate`, `service-improvement` | 유형 B 유지보수 | 지원 범위·대상 · 지원 체계 · SLA · 장애 대응 |
-| `product-selection` | 유형 C 기술답변서 | 요구 대응표 · 제품·규격 · 근거·증빙 |
-| `education`, `consulting`, `policy` | **없음** | — |
+| `build`, `migrate` | Type A build | Project scope · build approach · schedule · testing/acceptance · delivery organization |
+| `operate`, `service-improvement` | Type B maintenance | Support scope/targets · support organization · SLA · incident response |
+| `product-selection` | Type C technical response | Requirements response · products/specifications · evidence |
+| `education`, `consulting`, `policy` | **None** | — |
 
-마지막 줄이 비어 있는 이유는 업종 프로파일을 하나만 두는 이유와 같다 — 이 저장소에 교육·
-컨설팅·정책 제안의 목차 근거가 없다. 지어내는 것보다 없다고 적는 편이 낫다. 그런 사업에
-IT 구축 목차를 그대로 쓰면 게이트가 이유를 묻는다.
+The last row is intentionally empty for the same reason this repository has only one sector profile:
+there is no evidence here for education, consulting, or policy proposal outlines. State the absence rather than inventing one.
+The gate asks for a rationale if an IT-build outline is reused for those engagements.
 
-절 이름은 키워드로 느슨하게 대조한다("시험 및 검수", "테스트 방안" 모두 시험/검수로 인정).
-`sections[]`를 적지 않으면 절 검사는 하지 않는다.
+Section names are loosely matched by keyword (Korean examples "시험 및 검수" and "테스트 방안" both count as testing/acceptance).
+Without `sections[]`, section checks do not run.
 
-## 유형 A. 구축 제안 (시스템/플랫폼/데이터센터)
+## Type A. Build proposal (system/platform/data center)
+
+Korean proposal outline example (retain the proposal-language input):
 
 ```
 (조견표 — 공공·금융이면 목차 직후)
 Ⅰ. 제안 개요
-   1. 사업의 목적 및 배경      ← 고객 환경 변화 → 과제 → 본 사업 목적 (3단 논리)
-   2. 사업 범위                ← 수행영역/관리·지원영역 2분할 표
-   3. 사업 추진 전략           ← 환경 이해 → 고려요소 → 핵심성공요소 → 전략 N개
-   4. 제안의 특징 및 장점      ← 솔루션/수행/제안사 3측면
-   5. 기대효과                 ← 정성/정량 분리. 정량엔 산식·전제 명시
+   1. 사업의 목적 및 배경      ← Customer environmental change → challenge → project purpose (three-part logic)
+   2. 사업 범위                ← Two-part table: delivery scope / management-support scope
+   3. 사업 추진 전략           ← Environment → considerations → critical success factors → N strategies
+   4. 제안의 특징 및 장점      ← Three perspectives: solution / delivery / proposer
+   5. 기대효과                 ← Separate qualitative/quantitative benefits; quantify with formulas/assumptions
 Ⅱ. 제안 업체 현황
    1. 일반 현황(연혁·재무·신용등급)  2. 조직 및 인원(기술등급·자격증)
    3. 유사사업 수행 실적(표: 사업명/발주처/기간/제품/범위)
-Ⅲ. 제안 기술 부문 (본문의 60% 이상)
+Ⅲ. 제안 기술 부문 (at least 60% of body)
    1. 상세 추진전략(제품 소개·특장점·단계별 로드맵: 1단계→2단계→3단계)
    2. 상세 구축방안(전체 구성도 → 영역별 구성: 관리풀/컴퓨팅/스토리지/네트워크
       → 장비 명세 → 보안 → 가용성/HA → 백업·복구)
@@ -52,7 +54,9 @@ IT 구축 목차를 그대로 쓰면 게이트가 이유를 묻는다.
 별첨: 견적서, 인증서, 약어표
 ```
 
-## 유형 B. 유지보수·기술지원 제안
+## Type B. Maintenance and technical support proposal
+
+Korean proposal outline example:
 
 ```
 조견표 (제안요건 → 수용여부 → 제안내용 → 페이지)
@@ -73,84 +77,84 @@ IT 구축 목차를 그대로 쓰면 게이트가 이유를 묻는다.
 Ⅶ. 별첨: 입찰가격서, 자격증 사본, 약어표
 ```
 
-## 유형 C. 기술 답변서 / 표준제품 선정
+## Type C. Technical response / standard-product selection
 
-- 문서 구조 = RFP 항목 번호 체계. 임의 재배열 금지.
-- 공통부문(제품소개/로드맵/기술지원 수준/장애대응/레퍼런스/제품정보) →
-  기술부문(기본기능: 아키텍처·개발·운영관리·성능 / 특화기능 / 경쟁우위) 순서가 전형.
-- **모든 장표 모서리에 대응 항목 번호와 상태를 표기**한다:
-  `(완료) 26. 플랫폼에서 수집·제공하는 Log의 범위` 형식.
-- 답할 수 없는 항목은 공란이 아니라 "미지원 + 대안/로드맵"으로 답한다
-  (실제 사례: "DR 구축 사례 없음" 명기, 상용 SW는 "제조사 Support 정책에 따름").
-- 질의가 표 형식이면 **질의응답표**로 응답한다(표준제품 선정 답변서 관례):
-  `번호 | 구분 | 항목 | 내용 | 지원여부(O/X) | 제품명 | 추가설명` — 한 항목에 세부
-  질의가 여러 개면 지원여부를 줄 단위로 각각 표기하고, 제약 조건(예: "HA 구성 시
-  Fencing 권장 → IPMI 장치 필요")은 추가설명에 숨기지 않고 명시한다.
+- Document structure = RFP item numbering. No arbitrary reordering.
+- Typical order: common topics (product introduction/roadmap/support level/incident response/references/product information) →
+  technical topics (basic capabilities: architecture/development/operations/performance; specialized capabilities; competitive advantages).
+- **Show the corresponding item number and status in every slide corner**.
+  Korean example: `(완료) 26. 플랫폼에서 수집·제공하는 Log의 범위`.
+- Answer unsupported items with unsupported + alternative/roadmap, never blanks.
+  Korean examples: "미지원 + 대안/로드맵", "DR 구축 사례 없음", "제조사 Support 정책에 따름" for commercial software.
+- Respond to tabular questions with a **question/answer table** (standard-product response practice):
+  `Number | Category | Item | Content | Supported (O/X) | Product | Additional explanation`.
+  If an item has multiple detailed questions, give support status for each line.
+  State constraints explicitly in Additional explanation (Korean example: "HA 구성 시 Fencing 권장 → IPMI 장치 필요").
 
-## 변형 사업 매핑 (3유형에 없는 사업이 오면)
+## Mapping variant engagements (outside the three types)
 
-| 사업 성격 | 기반 유형 | 조정 포인트 |
+| Engagement | Base type | Adjustments |
 |---|---|---|
-| 아웃소싱·운영 위탁(DCO 등) | B 변형 | 서비스 경계·책임분담표(R&R)·전환(인수) 계획·종료(Exit) 계획 장 추가 |
-| 인력 파견·상주 운영 | B 변형 | content-patterns §7의 상주 인력 하위 패턴 적용: 개인 역량·근무 경계·대체/인수인계·1인 의존 위험·개인 실적 증빙 |
-| 마이그레이션·현대화(U2L 등) | A 변형 | Ⅲ장을 content-patterns §4 전환 방법론으로 교체(Wave·게이트·롤백) |
-| DR/BCP·복원력 설계 | A 변형 | 장애 가정→복구 목표(RTO/RPO)→보호 패턴→검증 시험 순으로 Ⅲ장 구성 |
-| 표준화·정책 결정 지원 | C 변형 | 선정 기준→후보 비교→권고안→거버넌스·전환 로드맵 순. 비교표는 동일 기준·출처 명시 |
+| Outsourcing/managed operations (DCO etc.) | B variant | Add service boundaries, R&R, transition/takeover, Exit |
+| Staff dispatch/resident operations | B variant | Apply content-patterns §7: individual capability, work boundaries, replacement/handover, single-person dependency, individual delivery evidence |
+| Migration/modernization (U2L etc.) | A variant | Replace chapter Ⅲ with content-patterns §4 methodology (Waves/gates/rollback) |
+| DR/BCP/resilience design | A variant | Chapter Ⅲ: failure assumptions → recovery objectives (RTO/RPO) → protection patterns → validation |
+| Standardization/policy decision support | C variant | Selection criteria → candidate comparison → recommendation → governance/transition roadmap; same comparison criteria and sources |
 
-### 비RFP 공동사업·사전제안
+### Non-RFP joint initiatives/proactive proposals
 
-아직 구매요건이 확정되지 않았다면 제출용 입찰서처럼 꾸미지 말고 **발견·의사결정 초안**으로
-표시한다. 최소 흐름은 `결정할 사안 → 공동 기회와 검증할 가설 → 대상 사용자·업무 → 양측
-보유자산과 공동가치 → 파일럿 범위·성공기준 → Give/Get·RACI → 경제성 시나리오 →
-IP·데이터·브랜드·독점 조건 → 위험·중단/종료 조건 → 다음 결정과 책임자`다. 사실, 가설,
-질문, 결정, 약속을 시각적으로 구분하고 승인 전 가설을 계약 조건이나 확정 효과로 표현하지 않는다.
+Without settled purchasing requirements, label the artifact a **discovery/decision draft**, not a submission bid.
+Minimum flow: `Decision needed → shared opportunity/hypotheses → target users/work →
+both parties' assets/shared value → pilot scope/success criteria → Give/Get/RACI → economic scenarios →
+IP/data/brand/exclusivity → risks/stop/Exit conditions → next decision/owner`.
+Visually distinguish facts, hypotheses, questions, decisions, commitments.
+Before approval, do not represent hypotheses as contractual terms or confirmed benefits.
 
-## 페이지(분량) 배분 가이드
+## Page allocation
 
-절대 기준은 **평가표 배점 비율**이다: 배점이 큰 장에 페이지를 비례 배분하고, 고배점·
-고위험 장부터 지면을 예약한다. 평가표가 없을 때의 관례 범위(분석 샘플 기준):
+The overriding basis is **evaluation weight**: allocate proportionally, reserving space for high-weight/high-risk sections first.
+Conventional ranges when no evaluation table exists (analyzed samples):
 
-| 장 | 유형 A(구축) | 유형 B(유지보수) |
+| Chapter | Type A (build) | Type B (maintenance) |
 |---|---|---|
-| 제안 개요(Ⅰ) | 8~12% | 10~15% |
-| 업체 현황·실적(Ⅱ) | 8~12% | 10~15% |
-| 기술/지원 부문(Ⅲ) | **55~65%** | **45~55%** |
-| 사업관리·품질(Ⅳ) | 10~15% | 10~15% |
-| 지원·교육·기타(Ⅴ~Ⅶ) | 8~12% | 15~20% |
+| Proposal overview (Ⅰ) | 8~12% | 10~15% |
+| Company/track record (Ⅱ) | 8~12% | 10~15% |
+| Technical/support (Ⅲ) | **55~65%** | **45~55%** |
+| Management/quality (Ⅳ) | 10~15% | 10~15% |
+| Support/training/other (Ⅴ~Ⅶ) | 8~12% | 15~20% |
 
-- 조견표는 별도 2~5p(요구사항 수에 비례). 표지·목차·간지는 배분에서 제외하되
-  페이지 제한 산정 포함 여부는 bid-and-submission.md §5로 확인.
-- 페이지 제한 초과 시 저배점 장을 병합·별첨 이관으로 줄인다. 폰트 축소 금지.
-- 총 분량 가늠자(제한 없을 때): 장표형 구축 60~120p, 유지보수 40~90p,
-  기술답변서는 질의 수 × 1~2p. 근거 없는 분량 확대는 감점 요인 — 리드문 테스트에서
-  삭제·병합이 먼저다.
+- Compliance matrix: separate 2~5p proportional to requirement count. Exclude cover/contents/dividers from allocation,
+  but check whether they count toward limits in bid-and-submission.md §5.
+- If over the limit, merge low-weight chapters or move detail to appendices. Do not shrink fonts.
+- Total-length guide when unrestricted: build slides 60~120p, maintenance 40~90p,
+  technical responses question count × 1~2p. Unsupported expansion causes deductions:
+  delete/merge first based on the lead-statement test.
 
-## 발표 요약본 (PT덱) — 본제안서에서 추출할 때
+## Presentation summary (PT deck) — extracting from the main proposal
 
-요약본은 축소 복사본이 아니라 **평가위원의 질문 순서로 재구성한 별도 문서**다.
+The summary is a **separate document reorganized in evaluator-question order**, not a shrunken copy.
 
-- **장수 = 발표 시간**: 1장당 40~60초 기준(10분 발표 ≈ 10~15장, 표지·목차 제외).
-  질의응답용 백업 슬라이드는 본편 뒤에 부록으로 분리(발표에 세지 않음).
-- **표준 흐름**: 결론(왜 우리인가 1장) → 사업 이해·핵심 과제 → 제안 핵심(차별점 2~3)
-  → 수행·일정·체계 → 위험·품질 → 약속 요약(조견표 축약 1장) → 마무리.
-- **1장 1메시지 강화판**: 본제안서보다 텍스트를 더 줄인다. 리드문 + 도식/표 1개.
-  본문 여러 페이지를 합칠 때는 근거 표를 축약하되 출처·기준일은 유지.
-- **본제안서 동기화**: 요약본의 모든 수치·약속은 본제안서와 일치해야 하며(교차 대조
-  필수), 요약본에만 있는 신규 주장 금지. 각 장에 본제안서 대응 페이지를 각주로 표기.
-- 검수는 8대 게이트 중 2(리드문 스토리)·3(과장어)·4(수치 일관 — 본제안서 대조)·
-  7(시각)·8(렌더)을 적용한다.
+- **Slide count = presentation time**: 40~60 seconds per slide (10 minutes ≈ 10~15 slides, excluding cover/contents).
+  Put Q&A backup slides in an appendix after the main presentation; they do not count as presentation content.
+- **Standard flow**: conclusion (why us, 1 slide) → understanding/key problems → proposal core (2~3 differentiators) →
+  execution/schedule/organization → risk/quality → commitment summary (1 condensed matrix slide) → closing.
+- **Stricter one-slide/one-message**: less text than the main proposal; lead + one diagram/table.
+  When consolidating body pages, condense evidence tables but retain source/reference dates.
+- **Synchronize with the main proposal**: all summary figures/promises must match (cross-check required).
+  No new summary-only claims. Footnote each slide's corresponding main-proposal page.
+- Apply review gates 2 (lead story), 3 (exaggerations), 4 (numeric consistency against main proposal), 7 (visual), 8 (render).
 
-## 페이지(장표) 단위 구성 규칙 — 전 유형 공통
+## Page (slide) composition — all types
 
-모든 장표는 위→아래로 다음 순서다. 메시지 우선순위가 시각 순서와 일치해야 한다.
+Every slide follows this top-to-bottom order; message priority must match visual order.
 
-1. **헤더**: 문서명 + 목차 경로(breadcrumb). 예: `Ⅲ. 제안기술 부문 > 1. 상세 추진전략`
-2. **페이지 제목**: 명사형. 예: "네트워크 구성 방안"
-3. **리드문(거버닝 메시지)**: 1~3줄. 이 페이지의 결론을 완결 문장으로.
-   좋은 예: "관리 노드 3중화와 로드밸런서 이중화로 단일 장애점 없는 서비스를 제공합니다."
-   나쁜 예: "네트워크 구성에 대해 설명합니다." (내용 없음)
-4. **본문 근거**: 도식 1개 또는 표 1~2개. 텍스트 나열보다 구조화 우선.
-5. **캡션/출처/요구사항 번호**: 수치·인용에는 출처와 기준일, 대응 REQ ID.
+1. **Header**: document name + outline breadcrumb. Korean example: `Ⅲ. 제안기술 부문 > 1. 상세 추진전략`.
+2. **Page title**: noun form. Korean example: "네트워크 구성 방안".
+3. **Lead (governing message)**: 1~3 lines; complete sentence expressing the page's conclusion.
+   Good Korean example: "관리 노드 3중화와 로드밸런서 이중화로 단일 장애점 없는 서비스를 제공합니다."
+   Bad Korean example: "네트워크 구성에 대해 설명합니다." (no substantive content).
+4. **Body evidence**: one diagram or 1~2 tables; favor structure over text lists.
+5. **Caption/source/requirement number**: sources/reference dates for figures/quotations, corresponding REQ ID.
 
-리드문 테스트: 전체 장표의 리드문만 모아 읽었을 때 제안 스토리가 성립하는가?
-성립하지 않으면 페이지 삭제·병합·순서 조정을 먼저 한다. 페이지 수 늘리기로 해결하지 않는다.
+Lead-statement test: does reading only all slide leads establish the proposal story?
+If not, delete/merge/reorder first. Do not solve it by increasing page count.

@@ -1,106 +1,106 @@
-# 시각 규격 (visual-style)
+# Visual specifications (visual-style)
 
-**브랜드 토큰(색·폰트·레이아웃)의 단일 출처는 조직의 브랜드 문서 스킬이다(설치 시).**
-브랜드 스킬이 있으면 그 토큰을 그대로 쓰고, 이 파일은 그 위에 얹는 "제안서 특화"
-규격만 적용한다. 브랜드 스킬이 없으면 아래 §0 중립 기본값을 쓴다.
+**The organization's brand-document skill, when installed, is the single source for brand tokens (colors, fonts, layout).**
+Use those tokens unchanged; apply this file only for proposal-specific rules on top.
+Without a brand skill, use the neutral defaults in §0.
 
-## 0. 중립 기본값 (브랜드 스킬이 없을 때만)
+## 0. Neutral defaults (only without a brand skill)
 
-- **주조색 1개**를 정해 문서 전체에 일관 사용(엔터프라이즈 톤의 짙은 단색 계열).
-  강조·표 헤더·구분 요소는 주조색과 그 명도 단계(진한/중간/옅은 틴트)로만 구성한다.
-- 본문 텍스트는 짙은 회색(#202020 수준), 배경은 밝은색 기본. 다크 배경 페이지 금지.
-- 의미색은 2개만: 경고·감소(적색 계열), 달성·증가(녹색 계열). 데이터 맥락에서만, 일관되게.
-- 네온·무지개 팔레트 금지. 폰트는 발주처 요구 폰트 → 없으면 시스템 표준 한글 고딕 계열
-  1종으로 통일(제목은 굵기 차이로 위계).
-- 사용자가 기존 템플릿을 제공하면 그 양식이 이 기본값보다 우선한다.
+- Choose **one primary color**, a dark solid enterprise tone, and use it consistently throughout.
+  Emphasis, table headers, and dividers use only the primary color and its dark/medium/light tints.
+- Use dark gray body text (around #202020) and light backgrounds. Dark-background pages prohibited.
+- Only two semantic colors: warning/decrease (red), achievement/increase (green), consistently in data contexts only.
+- No neon/rainbow palettes. Use the buyer's required font; otherwise one system-standard Korean sans-serif
+  family throughout, differentiating heading hierarchy by weight.
+- A user-provided template overrides these defaults.
 
-**폴백 토큰 1세트** (브랜드 스킬·사용자 템플릿 모두 없을 때 이 값을 그대로 사용 —
-실행마다 재발명하면 산출물 간 일관성이 깨진다):
+**One fallback token set** (use unchanged when neither a brand skill nor a user template exists;
+reinventing it each run breaks consistency):
 
-| 토큰 | 값 | 용도 |
+| Token | Value | Use |
 |---|---|---|
-| 주조색 | `#1F3864` | 표 헤더·제목·강조 |
-| 틴트 | `#8FAADC` / `#D6E0F0` / `#EDF1F8` | 보조 요소 / zebra / 옅은 박스 |
-| 본문 | `#202020`, 보조 `#595959` | 텍스트 |
-| 경고/긍정 | `#C00000` / `#1F7A3D` | 의미색(데이터 맥락만) |
-| 폰트 | 맑은 고딕(폴백: 시스템 한글 고딕) | 전체 |
-| 크기 | 제목 22~24pt · 리드문 12~13pt(굵게) · 본문 10~11pt · 표 9~10pt · 캡션 8~9pt | 위계 |
+| Primary | `#1F3864` | Table headers, titles, emphasis |
+| Tints | `#8FAADC` / `#D6E0F0` / `#EDF1F8` | Secondary elements / zebra / light boxes |
+| Body | `#202020`, secondary `#595959` | Text |
+| Warning/positive | `#C00000` / `#1F7A3D` | Semantic colors (data contexts only) |
+| Font | 맑은 고딕 (fallback: system Korean sans-serif) | Throughout |
+| Sizes | Title 22~24pt · lead 12~13pt (bold) · body 10~11pt · table 9~10pt · caption 8~9pt | Hierarchy |
 
-> 위 사다리는 **평가용 상세본** 기준이다. 발표본은 본문 18pt 이상, 임원 요약본은 14pt를
-> 쓴다 — 산출물 종류별 규격은 `scripts/deck_profiles.py`에 정의돼 있고 `--profile`로 고른다.
-> 인쇄해서 채점하는 문서와 스크린에 띄우는 발표본에 같은 크기를 강제하지 않는다.
+> This ladder is for **detailed evaluation submissions**. Presentations use body text of at least 18pt;
+> executive summaries use 14pt. Specifications by artifact type live in `scripts/deck_profiles.py`,
+> selected with `--profile`. Do not force the same size on printed scoring documents and screen presentations.
 
-**우선순위 규칙**: 이 스킬의 시각 규격(다크 배경 금지, 메시지 우선 레이아웃 등)은
-출력 형식 스킬(pptx/docx)의 일반 디자인 지침과 충돌하면 **이 스킬이 우선**한다.
-전체 우선순위: 발주처 RFP 규정 > 사용자 제공 템플릿 > 브랜드 스킬 토큰 > 이 파일.
+**Precedence**: this skill's visual rules (no dark backgrounds, message-first layout, etc.) **override**
+generic design guidance from format skills (pptx/docx) when they conflict.
+Overall: buyer RFP rules > user template > brand skill tokens > this file.
 
-## 1. 접근성 하한 (보수적 설계 참조값)
+## 1. Accessibility floor (conservative design reference)
 
-- 일반 텍스트 명암비 **4.5:1 이상**, 큰 텍스트(18pt+ 또는 14pt Bold+) **3:1 이상**
-  (WCAG 2.2 참조값 — 웹 표준이므로 인쇄물 법적 적합성 주장에는 쓰지 않는다).
-- **색상만으로 상태를 구분하지 않는다**: 수용 여부, 진행 상태, 위험도에는
-  색 + 레이블/기호를 병행한다. 예: O/부분/X, ●/◐/○, ↑/↓, "완료/진행/지연" 텍스트.
-- 주조색 텍스트는 큰 텍스트·제목에만 사용(본문 크기 텍스트는 짙은 회색).
-- 도식·차트의 그림에는 캡션을 달고, 파일 산출 시 대체 텍스트(alt text)를 넣는다.
-  캡션은 "그림 N. 설명" 형식으로 번호를 매긴다.
+- Normal text contrast **at least 4.5:1**; large text (18pt+ or 14pt Bold+) **at least 3:1**
+  (WCAG 2.2 reference: a web standard, not grounds for print legal-conformance claims).
+- **Never encode status by color alone**: pair color with labels/symbols for acceptance, progress, and risk.
+  Preserved Korean/symbol examples: O/부분/X, ●/◐/○, ↑/↓, "완료/진행/지연".
+- Primary-color text is for large text/headings only; body-size text is dark gray.
+- Caption diagrams/charts and include alt text in output files.
+  Korean caption format example: "그림 N. 설명".
 
-## 2. 페이지(장표) 레이아웃 — 메시지 우선순위 순서
+## 2. Page (slide) layout — message priority
 
-위→아래 시각 순서 = 메시지 중요도 순서 (proposal-structure.md §페이지 구성과 동일):
+Top-to-bottom visual order = message importance (same as proposal-structure.md's page composition rules).
+
+Korean layout example:
 
 ```
 [헤더] 문서명 | Ⅲ. 제안기술 부문 > 1. 상세 추진전략     (breadcrumb, 9~10pt)
-[제목] 네트워크 구성 방안                               (주조색 계열, 위계 최상)
-[리드문] 이 페이지의 결론 1~3줄                          (본문보다 크게 또는 굵게)
-[본문] 도식 1개 또는 표 1~2개                            (텍스트 나열 최소화)
-[캡션/출처/REQ-ID] 기준일·출처·대응 요구사항 번호        (보조 회색, 소형)
+[제목] 네트워크 구성 방안                               (primary-color family, highest hierarchy)
+[리드문] 이 페이지의 결론 1~3줄                          (larger or bolder than body)
+[본문] 도식 1개 또는 표 1~2개                            (minimize text lists)
+[캡션/출처/REQ-ID] 기준일·출처·대응 요구사항 번호        (small secondary gray)
 [푸터] 제안사 로고/워드마크 + 페이지 번호
 ```
 
-- 위계는 스타일로만: DOCX는 제목1/제목2/본문 스타일, PPTX는 마스터 레이아웃.
-  수작업 굵게·크기 조정으로 위계를 흉내 내지 않는다(목차 자동 생성·일괄 수정 가능해야 함).
-- 유형 C(기술답변서)는 우상단 모서리에 항목 번호·상태 태그: `(완료) 26. …`
+- Use styles for hierarchy: Heading 1/Heading 2/Body in DOCX, master layouts in PPTX.
+  Do not imitate hierarchy with manual bold/size changes (automatic contents and bulk edits must remain possible).
+- Type C (technical responses) shows item number/status in the top-right corner. Korean example: `(완료) 26. …`.
 
-## 3. 제안서 특화 컴포넌트 규격
+## 3. Proposal-specific components
 
-### 조견표 (요구사항 대응표)
-- 열: 제안요건 | 수용여부 | 제안내용 | 페이지 | 비고
-- 헤더 행: 주조색 배경 + 흰 글자. 데이터 행: 흰색/옅은 주조색 틴트 zebra.
-- 수용여부는 기호+텍스트 병행(O/부분/X). 색만으로 구분 금지.
+### Compliance matrix (requirements response)
+- Columns: Requirement | Acceptance | Proposal response | Page | Notes.
+- Header: primary background + white text. Data: white/light primary-tint zebra rows.
+- Pair acceptance symbols with text (preserved codes: O/부분/X). No color-only distinction.
 
-### SLA 표
-- 행: 심각도 1~4(정의 문구 포함), 열: 응답시간·조치 목표·에스컬레이션 단계.
-- 심각도 1 행만 강조 허용(굵게). 적색 배경 남용 금지 — 경고색은 텍스트/아이콘만.
+### SLA table
+- Rows: severity 1~4 with definitions. Columns: response time, action target, escalation level.
+- Only severity 1 may be emphasized (bold). Avoid red backgrounds: warning color is for text/icons only.
 
-### 인력 프로필
-- 카드 또는 표: 성명(마스킹 정책 확인) | 등급/직급 | 경력 년수 | 보유 자격 | 투입률(M/M).
-- 사진은 발주처 요구 시에만. 자격증명은 정식 명칭으로 표기.
+### Staff profiles
+- Card/table: Name (check masking policy) | Grade/position | Experience years | Qualifications | Allocation (M/M).
+- Photos only if required by the buyer. Use official qualification names.
 
-### 실적표
-- 열: 사업명 | 발주처 | 기간 | 주요 제품/기술 | 규모(범위). 최신순 정렬.
-- 3페이지 초과 시 본문엔 대표 실적 요약표, 전체는 별첨.
-- **타 고객사 식별 정보 주의**: 공개 가능 여부를 확인하고, 비공개 실적은 익명화
-  ("금융권 A사")하되 익명 표기임을 명시한다.
+### Track-record table
+- Columns: Project | Buyer | Period | Main products/technologies | Scale (scope). Most recent first.
+- If over 3 pages, put representative records in the body and the full list in an appendix.
+- **Protect other customers' identifying information**: confirm permission to disclose; anonymize nonpublic records
+  (Korean example: "금융권 A사") and state that the name is anonymized.
 
-### 추진일정 간트
-- 월 단위 컬럼, 단계(Phase) 행 그룹. 마일스톤은 ◆ 기호 + 라벨.
-- 막대 색: 단계 구분은 주조색 명도 단계 내에서만. 지연·위험 표시만 경고색.
+### Schedule Gantt
+- Monthly columns, phase row groups. Milestones use ◆ plus a label.
+- Distinguish phases only with primary-color tints. Warning color only for delay/risk.
 
-### 구성도 (아키텍처 다이어그램)
-- 영역(zone) 구분: 옅은 배경 박스 + 영역명 라벨(색만으로 영역 구분 금지).
-- 계층 흐름 위→아래 또는 좌→우 한 방향 통일. 범례 필수(선 종류·아이콘 의미).
-- 제품 로고 사용 시 해당 제조사 로고 가이드 준수, 임의 변형 금지.
+### Architecture diagrams
+- Zones: light background boxes + zone labels (never distinguish zones by color alone).
+- Keep hierarchy flow consistently top-to-bottom or left-to-right. Legend required (line types, icon meanings).
+- Follow manufacturer logo guidelines; no arbitrary changes.
 
-## 4. 표 공통 규칙
+## 4. Common table rules
 
-- 모든 표: 헤더 행 명시(병합 최소화), 단위는 헤더 또는 각주에, 출처·기준일은 표 하단.
-- 숫자 열은 우측 정렬 + 단위 통일. 텍스트 열은 좌측 정렬.
-- 한 표가 한 페이지를 넘으면 분할하고 "계속" 표기 + 헤더 행 반복.
+- Every table: explicit header row (minimal merging), units in headers/footnotes, source/reference date below.
+- Right-align numeric columns with consistent units; left-align text.
+- Split tables across pages with repeated headers and the Korean continuation label "계속".
 
-## 5. DOCX(문서형) 전환 시
+## 5. Converting to DOCX
 
-- 발주처가 A4 문서형 요구 시: 동일 구조·리드문 규칙 유지, 브랜드 스킬의 DOCX
-  규격(있으면)을 적용한다.
-- 제목1=장(Ⅰ·Ⅱ), 제목2=절, 제목3=항. 목차는 스타일 기반 자동 생성.
-- 본문 폰트 크기·행간 일관 유지(임의 축소로 페이지 제한을 회피하지 않는다 —
-  페이지 제한은 내용 압축으로 해결).
+- When the buyer requires A4 documents, keep the same structure/lead rules and apply the brand skill's DOCX specifications if available.
+- Heading 1 = chapter (Ⅰ·Ⅱ); Heading 2 = section; Heading 3 = subsection. Generate contents automatically from styles.
+- Keep body font size/line spacing consistent. Do not evade page limits by shrinking text; condense content instead.

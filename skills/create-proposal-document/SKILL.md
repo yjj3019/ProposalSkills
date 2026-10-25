@@ -1,134 +1,135 @@
 ---
 name: create-proposal-document
-description: "create-best-proposal이 로드하는 콘텐츠·문체·시각 레이어. 한국어 IT 제안서의 유형별 목차, 리드문·조견표·내용 패턴, 시각 규격, slides.json 기반 PPTX 생성기(build_deck.py)·레이아웃 린트(deck_check.py)·텍스트 검수(quality_gate.py)를 담는다. 사용자가 명시적으로 문체·구조·장표 레이아웃만 다루자고 할 때, 또는 create-best-proposal이 없을 때만 직접 사용한다."
+description: "Content, writing, and visual layer loaded by create-best-proposal. Provides type-specific outlines, leads, compliance matrices, content patterns, visual specifications, the slides.json-based PPTX generator (build_deck.py), layout lint (deck_check.py), and text review (quality_gate.py) for Korean IT proposals. Use directly only when the user explicitly requests writing, structure, or slide layout alone, or when create-best-proposal is unavailable."
 disable-model-invocation: true
 ---
 
-# 표준 제안서 작성 스킬 (create-proposal-document)
+# Standard proposal authoring skill (create-proposal-document)
 
-수주 이력이 있는 실제 IT 제안서 다수(구축·유지보수·기술답변서 유형)에서 노하우를
-추출해 일반화한 **제안서 콘텐츠·구조·품질 레이어**다. 특정 회사에 종속되지 않는다.
-역할 분담은 다음과 같다.
+A **proposal content, structure, and quality layer** generalized from multiple actual winning IT proposals
+(build, maintenance, technical-response types), independent of any company.
+Responsibilities:
 
-- **이 스킬**: 무엇을(구조·문장·근거·검수) — 목차, 조견표, 문장 패턴, 품질 게이트
-- **브랜드 문서 스킬(설치 시)**: 어떻게 보일지 — 색·폰트·레이아웃 토큰의 단일 출처.
-  없으면 `references/visual-style.md`의 중립 기본값을 쓴다.
-- **호스트의 문서 도구 또는 설치된 pptx / docx 스킬**: 실제 생성·편집. 특정 이름의 스킬은 필수가 아니다.
+- **This skill**: what to write (structure, sentences, evidence, review): outlines, matrices, sentence patterns, quality gates.
+- **Brand-document skill, when installed**: appearance; single source for color/font/layout tokens.
+  Otherwise use neutral defaults in `references/visual-style.md`.
+- **Host document tools or installed pptx/docx skills**: actual creation/editing. No specifically named skill is required.
 
-Claude·ChatGPT·Codex에 같은 구조·근거·검수 규칙을 적용한다. 파일·Python·렌더·이미지 확인은
-현재 세션에서 가능한 도구로 수행하고, 불가능한 검사는 `NOT INSPECTED`로 남긴다.
-통합 설치에서는 create-best-proposal의 `host-portability.md`에서 환경별 실행 방법을 확인한다.
-단독 설치에서 이 가이드가 없어도 내용 검토는 진행하며 실행하지 않은 검사를 통과로 간주하지 않는다.
+Apply the same structure, evidence, and review rules in Claude, ChatGPT, and Codex. Use tools available in the
+current session for files, Python, rendering, and image inspection; leave unavailable checks `NOT INSPECTED`.
+For integrated installation, see create-best-proposal's `host-portability.md` for host-specific execution.
+Standalone content review proceeds without that guide, but unexecuted checks never count as passed.
 
-산출 기본 형식은 **PPTX 장표형**이다. 발주처가 A4 문서형을 요구하면 DOCX로 전환하되
-동일한 구조·문장 규칙을 적용한다(스타일 계층은 `references/visual-style.md` 참조).
+Default artifact: **PPTX slide deck**. Switch to DOCX when the buyer requires an A4 document,
+keeping the same structure/sentence rules (style hierarchy: `references/visual-style.md`).
 
-## 경로 선택
+## Route selection
 
-- **새 제안서 작성**: 아래 작업 순서를 전부 수행한다.
-- **기존 제안서 검토·수정만**(review-only): 원본을 통째로 다시 쓰지 말고
-  `references/review-checklist.md`의 "검수 전용 요청" 절대로 진단한다 —
-  심각도(Critical/Major/Minor)순 지적 + 최소 수정안 + 검토 범위·한계만 산출.
-- **영문 제안**: 문장 규칙은 언어 무관이다. 과장어 통제는 writing-style.md의
-  영문 금지어 사전을 적용하고, 기계 검사는 `quality_gate.py --lang en`(이중언어는 both).
-- **발표 요약본(PT덱)**: 본제안서 축소 복사가 아니라 평가위원 질문 순서로 재구성 —
-  `references/proposal-structure.md`의 "발표 요약본" 절(장수=발표시간, 본문 동기화 대조).
+- **New proposal**: follow the entire sequence below.
+- **Review/revise existing proposal only** (review-only): do not rewrite it wholesale.
+  Diagnose using the review-only section in `references/review-checklist.md`;
+  output severity-sorted (Critical/Major/Minor) findings, minimum fixes, scope, and limitations only.
+- **English proposal**: sentence rules are language-independent. Use writing-style.md's English
+  banned-word dictionary and `quality_gate.py --lang en` (both for bilingual output).
+- **Presentation summary (PT deck)**: reorganize in evaluator-question order instead of shrinking the proposal;
+  see the presentation-summary section in `references/proposal-structure.md` (slides versus time, main-proposal synchronization).
 
-## 작업 순서 (반드시 이 순서)
+## Workflow (mandatory order)
 
-### 0. 리서치 먼저
-출력 형식 도구·스킬을 선택하기 전에, 제안에 들어갈 **사실**부터 확보한다:
-RFP 원문, 고객 현황, 제품 버전·EOL·로드맵, 실적·인증. 최신성이 필요한 정보
-(제품 버전, 지원 종료일, 가격 정책)는 웹 검색으로 검증한다.
+### 0. Research first
+Before choosing output tools/skills, secure the **facts**:
+original RFP, customer state, product versions/EOL/roadmaps, track records, certifications.
+Verify time-sensitive information (versions, support end dates, pricing policy) through web research.
 
-### 1. 접수(Intake) — `references/intake-and-requirements.md` 읽기
-- **참여 판단 먼저**: 자격·마감·필수 증빙·독소 조항 확인 → 참여/조건부/불참/정보부족
-  4단계 판정 (`references/bid-and-submission.md` §1). 불참 권고면 작성을 시작하지 않는다.
-- 제안 유형 판별: **A.구축 / B.유지보수·기술지원 / C.기술답변서** (아래 표)
-- RFP 요구사항을 ID 붙여 전수 추출 → **조견표(요구사항 대응표)** 뼈대 생성.
-  수정공고·Q&A가 있으면 우선순위 규칙과 폐기값 청소를 적용한다(bid-and-submission.md §2)
-- 제출일 역산 일정, 구조·내용·최종 검토 게이트, 담당·검토·승인자, 내부 마감,
-  파일 생성 리허설과 접수 증적 계획을 확정한다(bid-and-submission.md §8).
-- 빠진 정보는 제공된 자료에서 먼저 확인하고, 자격·평가방식·마감·필수 규격을 결정할 수 없으면
-  필요 입력으로 남긴다. 무인 실행에서도 공고의 분량·마감·배점을 추정하지 않는다.
-  되돌릴 수 있는 내부 초안 구성은 가정을 명시하고 진행한다.
+### 1. Intake — read `references/intake-and-requirements.md`
+- **Bid decision first**: qualifications/deadline/mandatory evidence/unacceptable clauses →
+  bid/conditional/no-bid/insufficient information (`references/bid-and-submission.md` §1).
+  Do not start drafting after a no-bid recommendation.
+- Classify proposal: **A. Build / B. Maintenance and technical support / C. Technical response** (table below).
+- Extract all RFP requirements with IDs → **compliance-matrix skeleton**.
+  For amendments/Q&A, apply precedence and stale-value cleanup (bid-and-submission.md §2).
+- Confirm backward-planned schedule, structure/content/final gates, owners/reviewers/approvers,
+  internal deadlines, file-generation rehearsal, and receipt-evidence plan (bid-and-submission.md §8).
+- First seek missing information in supplied material. If qualifications, evaluation, deadline, or mandatory
+  specifications cannot be determined, retain required inputs. Never infer official length/deadline/weights,
+  even unattended. Reversible internal draft organization may proceed with explicit assumptions.
 
-| 유형 | 신호 |
+| Type | Signals |
 |---|---|
-| A. 구축 제안 | 시스템 구축, 데이터센터, 플랫폼 도입, 마이그레이션 |
-| B. 유지보수·기술지원 | 유지보수, 기술지원, SLA, 정기점검, 서브스크립션 갱신 |
-| C. 기술답변서 | 표준제품 선정, 항목별 답변, 조견표 번호 응답, BMT |
+| A. Build | System construction, data center, platform adoption, migration |
+| B. Maintenance/technical support | Maintenance, support, SLA, regular inspection, subscription renewal |
+| C. Technical response | Standard-product selection, item responses, matrix-number answers, BMT |
 
-### 2. 골격 설계 — `references/proposal-structure.md` 읽기
-유형별 표준 목차를 가져와 RFP 목차 지정이 있으면 그것을 우선한다.
-목차 확정 후 **각 페이지(장표)마다 한 줄 리드문(거버닝 메시지)** 을 먼저 쓴다.
-리드문만 이어 읽어도 제안 전체 논리가 성립해야 한다. 성립하지 않으면 목차를 고친다.
-공식 평가기준과 승인된 근거로 3개 이하의 Win Theme을 만들고 고배점 페이지에 연결한다
-(bid-and-submission.md §3). 확인되지 않은 경쟁사 정보나 비방은 사용하지 않는다.
+### 2. Skeleton — read `references/proposal-structure.md`
+Use the type-specific outline unless the RFP prescribes one.
+After fixing the outline, first write **a one-line lead (governing message) for each page/slide**.
+Reading leads alone must establish the entire argument; otherwise revise the outline.
+Create at most 3 Win Themes from official evaluation criteria and approved evidence, linking high-weight pages
+(bid-and-submission.md §3). No unverified competitor information or disparagement.
 
-### 3. 본문 작성 — `references/writing-style.md` + `references/phrase-library.md` 읽기
-   (사업관리·예방점검·테스트·마이그레이션·기술이전·차별화 장을 쓸 때는
-   `references/content-patterns.md`의 검증된 내용 뼈대를 함께 참조)
-- 페이지 구성: **리드문(1~3줄) → 근거(도식·표) → 캡션/출처** 순. 1페이지 1메시지.
-- 문구는 phrase-library의 패턴에 **사실을 채워** 쓴다. 완성문 복붙 금지.
-- 인증·실적·성능·SLA 주장은 `references/evidence-and-claims.md` 규칙(출처·버전·기준일·범위)을 따른다.
-  근거를 못 채운 주장은 본문에 넣지 말고 `[unverified]` 태그로 별도 목록화해 사용자에게 보고한다.
-- 공공·금융 제안(유형 A·B)은 각 페이지에 대응 요구사항 ID를 표기하고 조견표와 양방향 일치시킨다.
+### 3. Draft — read `references/writing-style.md` + `references/phrase-library.md`
+   (For management, inspection, testing, migration, knowledge transfer, differentiation chapters,
+   also consult the validated skeletons in `references/content-patterns.md`.)
+- Page sequence: **lead (1~3 lines) → evidence (diagram/table) → caption/source**. One message per page.
+- **Fill patterns with facts**; never copy complete phrase-library sentences unchanged.
+- Certification/track-record/performance/SLA claims follow `references/evidence-and-claims.md`
+  (source, version, reference date, scope). Exclude unsupported claims from the body;
+  collect them separately with `[unverified]` and report to the user.
+- Public/financial proposals (types A/B): show requirement IDs on each page and reconcile bidirectionally with the matrix.
 
-### 4. 장표 생산 — `references/deck-production.md` 읽기 (규격 원문은 `visual-style.md`)
-- 장표 계획을 `slides.json`으로 쓰고 `scripts/build_deck.py`로 생성한다. 좌표·색·폰트·위계는
-  스크립트가 고정하고, 모델은 리드문·표 데이터·도식 요소만 채운다. 임의 색·폰트 금지.
-- `deck-production.md`의 관계→레이아웃 선택표와 스토리 검토를 적용한다. 스타일 후보는
-  독자·매체·브랜드로 좁히고, 기존 요구가 충분하면 추가 승인 질문 없이 진행한다.
-- 브랜드 토큰이 있으면 `meta.palette`·`--template 사내양식.pptx`로 넘긴다. 없으면 폴백 토큰.
-- 조견표·SLA 표·인력·실적·간트·구성도는 대응 type(`matrix/table/staff/gantt/zones`)을 쓴다.
-  도식은 편집 가능한 네이티브 도형으로 생성된다(이미지 삽입은 선 연결 토폴로지에 한정).
-- `scripts/deck_check.py`로 리드문·REQ-ID·페이지 수·최소 폰트·밀도·표 헤더·화면 밖 배치를
-  린트하고, LibreOffice 렌더로 페이지 대조·PNG 썸네일을 만든다. 썸네일 육안 확인은 사람이 한다.
-- `scripts/check_numbers.py`로 audit의 `numbers[]` 원장 수치가 장표에 실제로 있는지 대조한다
-  (`37억`/`3,700,000,000` 표기 변형 인식). 원장과 장표 중 하나가 낡으면 차단된다.
-- 접근성 하한: 일반 텍스트 명암비 4.5:1, 큰 텍스트 3:1. 색상만으로 상태를 구분하지 않는다.
-  생성기·검사기는 RGB 단색 대비를 검사하며, 테마·투명도·이미지 배경은 미검사로 남긴다.
-- 발표자 `notes`는 표지·목차·간지·마무리·분할 조견표에도 보존한다. 장표의 목적·보충 설명·
-  다음 장으로의 전환을 넣고, 분할 조견표는 생성 후 각 장의 설명을 확인한다.
+### 4. Produce slides — read `references/deck-production.md` (specification source: `visual-style.md`)
+- Write `slides.json` and generate using `scripts/build_deck.py`. Scripts fix coordinates/colors/fonts/hierarchy;
+  the model fills only leads/table data/diagram elements. No arbitrary colors/fonts.
+- Apply deck-production.md's relationship→layout table and story review. Narrow style options by audience/medium/brand;
+  proceed without extra approval questions if existing requirements suffice.
+- Pass brand tokens through `meta.palette` and `--template 사내양식.pptx`; otherwise use fallback tokens.
+- Use corresponding types (`matrix/table/staff/gantt/zones`) for matrices, SLAs, staffing, track records, Gantt, architecture.
+  Diagrams are editable native shapes (images only for line-connection topologies).
+- Run `scripts/deck_check.py` for leads, REQ-IDs, page count, minimum fonts, density, table headers, off-slide placement;
+  render with LibreOffice for page comparison/PNG thumbnails. A human visually inspects thumbnails.
+- Use `scripts/check_numbers.py` to reconcile audit `numbers[]` values with slides
+  (recognizes variants such as `37억`/`3,700,000,000`). A stale register or slide blocks.
+- Accessibility floor: normal contrast 4.5:1, large text 3:1. No color-only statuses.
+  Generator/checker inspect solid RGB contrast; theme/transparency/image backgrounds remain uninspected.
+- Preserve presenter `notes` on covers, contents, dividers, closing, and split matrices.
+  Include purpose, supplementary explanation, transition; verify each split matrix page after generation.
 
-### 5. 품질 게이트 — `references/review-checklist.md` 읽기
-내용·장표 품질은 [quality-first-authoring.md](references/quality-first-authoring.md)에 따라
-평가 질문·수행 방식·근거·검증 방법을 연결하고 실제 전 장을 검토한다.
-필요한 경우 [source-and-visual-evidence.md](references/source-and-visual-evidence.md)의
-선택형 원문 추출·수정공고·시각 비교 도구를 사용한다. 결과는 미검토 sidecar로 보존하며
-기존 제출 게이트나 사람 승인을 자동 갱신하지 않는다.
-제출 전 통합 검수 1회. 체크리스트 8개 항목 전부 통과해야 완료 선언.
-특히: 조견표 전수 매핑, 수치·버전·일정의 문서 내 일관성, PDF 변환 후 렌더 확인.
-기계 검사 가능한 항목은 `scripts/quality_gate.py`로 실행한다(금지어·플레이스홀더·
-잔존 고객명·팔레트 일탈). 실제 제출 건은 엄격 제출 규정(bid-and-submission.md §5)도 적용.
-원본 PPTX 패키지와 렌더를 분리 검사하고, 미검사 영역은 통과로 추정하지 않는다.
-Critical·Major·BLOCKING INPUT이 닫히고 제출 리허설·접수 증적 계획이 확인되어야 제출 가능하다.
+### 5. Quality gates — read `references/review-checklist.md`
+For content/slide quality, follow [quality-first-authoring.md](references/quality-first-authoring.md):
+connect evaluation questions, execution, evidence, verification, and actually review every slide.
+When needed, use optional extraction/amendment/visual-comparison tools in
+[source-and-visual-evidence.md](references/source-and-visual-evidence.md).
+Keep outputs as unreviewed sidecars; they never automatically update submission gates or human approvals.
+Perform one integrated pre-submission review. All 8 checklist items must pass before completion.
+Priorities: exhaustive matrix mapping, consistent numbers/versions/schedules, rendered inspection after PDF conversion.
+Run machine-checkable items with `scripts/quality_gate.py` (banned words, placeholders, residual customer names,
+palette deviations); actual submissions also apply strict rules (bid-and-submission.md §5).
+Inspect the original PPTX package separately from renders; never infer a pass for unseen areas.
+Submission requires closed Critical/Major/BLOCKING INPUT plus confirmed rehearsal/receipt-evidence planning.
 
-## 반복 규칙 (본문 어디서든 적용)
+## Recurring rules (apply everywhere)
 
-1. **과장어 금지**: "최고", "완벽", "혁신적", "100%", "무중단", "위험 제로"는
-   객관적 근거와 적용 범위를 같은 페이지에 명시할 수 없으면 쓰지 않는다.
-   (실제 수주 제안서들은 "최적화된", "검증된", "안정적인" + 근거 표 조합을 쓴다.)
-2. **가정·제외 명시**: 일정·비용·성능 약속에는 전제 조건을 함께 적는다.
-   숨긴 가정은 계약 후 분쟁이 된다.
-3. **고객명 정확성**: 발주처 명칭·시스템명·요구사항 번호를 RFP 표기 그대로 쓴다.
-   다른 고객사 이름이 잔존하면 즉시 탈락 사유다(재사용 자료 유입 주의).
-4. **민감정보 금지**: 시크릿·자격증명·타 고객사 식별 정보(사명·시스템 구성·수치)를
-   산출물에 넣지 않는다. 재사용 자료는 반입 전 익명화·치환 검사를 거친다.
+1. **No exaggerations**: preserved Korean banned examples "최고", "완벽", "혁신적", "100%", "무중단", "위험 제로"
+   require objective evidence and scope on the same page.
+   Actual winning proposals pair Korean examples "최적화된", "검증된", "안정적인" with evidence tables.
+2. **State assumptions/exclusions** alongside schedule/cost/performance commitments.
+   Hidden assumptions become post-contract disputes.
+3. **Exact customer names**: preserve buyer/system names and requirement numbers as written in the RFP.
+   Residual other-customer names are immediate rejection grounds; inspect reused material.
+4. **No sensitive information**: exclude secrets, credentials, other-customer identifying information
+   (company names, system architecture, figures). Anonymize and run substitution checks before importing reused material.
 
-## 자료 위치
+## Material locations
 
-- `references/` — 단계별 상세 가이드(구조·문장·근거·시각·검수 + 내용 패턴 뱅크)
-- `assets/approved-examples/` — 사용 조직의 승인(수주) 제안서를 두는 자리.
-  스킬 배포본에는 비어 있다(민감 정보 비포함 원칙).
-- `assets/brand-assets/` — 사용 조직의 브랜드 자산(로고·템플릿)을 두는 자리.
-  브랜드 문서 스킬이 있으면 그 토큰이 단일 출처다.
-- `scripts/build_deck.py` — slides.json → PPTX 생성기(레이아웃 12종, 도형 역할명 부여).
-- `scripts/deck_check.py` — 레이아웃 린트 + 렌더 검사 + audit용 render 블록 출력.
-- `fixtures/e2e-mini-rfp/` — 미니 RFP → slides.json → meta.json 골든(파이프라인 전 구간 예제).
-- `scripts/quality_gate.py` — 기계 검수(과장어·플레이스홀더·잔존 명칭·팔레트). PPTX/DOCX/XLSX의
-  본문뿐 아니라 노트·레이아웃·마스터·차트·머리말/바닥글·각주·주석·문서속성까지 검사한다
-  (렌더에 안 보이는 잔존 고객명이 주된 탈락 경로). 금지 명칭은 대소문자·공백 무시 매칭.
-  시뮬레이션 4회에서 동일한 grep 검사가 반복되어 "같은 코드 2회 이상" 원칙에 따라 추가.
-  그 외 스크립트는 같은 기준을 충족할 때만 추가한다.
+- `references/` — detailed stage guides (structure, sentences, evidence, visuals, review, content patterns).
+- `assets/approved-examples/` — place the organization's approved/winning proposals here.
+  Empty in the distribution to exclude sensitive information.
+- `assets/brand-assets/` — organization's logos/templates; installed brand-document skill tokens are the single source.
+- `scripts/build_deck.py` — slides.json → PPTX generator (12 layouts, role names for shapes).
+- `scripts/deck_check.py` — layout lint, render checks, audit render block output.
+- `fixtures/e2e-mini-rfp/` — mini RFP → slides.json → meta.json golden example spanning the pipeline.
+- `scripts/quality_gate.py` — machine review (exaggerations/placeholders/residual names/palette). Inspects PPTX/DOCX/XLSX
+  bodies plus notes, layouts, masters, charts, headers/footers, footnotes, comments, document properties
+  (invisible residual customer names are a major rejection path). Forbidden names ignore case/whitespace.
+  Added after identical grep checks recurred across 4 simulations under the "same code 2 or more times" principle.
+  Add other scripts only when they meet the same criterion.

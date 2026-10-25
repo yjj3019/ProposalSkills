@@ -3,7 +3,7 @@
 [한국어](README.md)
 
 A Korean IT proposal plugin for RFP analysis, editable PPTX authoring, review, and submission checks.
-The bundled skills and detailed guides are in Korean; this file is the English quick start.
+Shared instructions, operational guides, and code explanations are in English. README.md provides a Korean quick start.
 
 ## Install
 

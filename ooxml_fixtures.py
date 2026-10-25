@@ -1,13 +1,4 @@
-"""테스트용 최소 OOXML 패키지 생성기 — 한 곳에서만 정의한다.
-
-각 테스트가 zipfile로 직접 조립하다 보니 [Content_Types].xml·_rels/.rels 같은 필수
-파트가 빠진 '열리지 않는 파일'이 양성 대조군으로 쓰였다(실제로 python-pptx는 그런
-파일을 열지 못한다). 검사기가 요구하는 패키지 구조와 픽스처를 한 정의로 묶어,
-"게이트는 통과하는데 PowerPoint는 못 여는" 테스트가 다시 생기지 않게 한다.
-
-python-pptx 없이도 동작한다(zipfile만 사용). 실제 렌더가 필요한 테스트는
-python-pptx로 만든 문서를 쓴다.
-"""
+"""Minimal OOXML test package builders, defined in one place. Hand-built ZIP fixtures previously omitted required parts such as [Content_Types].xml and _rels/.rels, producing positive controls that python-pptx could not open. Share required package structure with the checker to prevent files passing the gate but failing in PowerPoint. Uses zipfile only; rendering tests use documents built with python-pptx."""
 from __future__ import annotations
 
 import zipfile
@@ -34,11 +25,7 @@ NS = {
 
 
 def with_namespaces(xml: str) -> str:
-    """루트 태그에 접두사 네임스페이스 선언을 채운다.
-
-    실제 OOXML은 항상 선언을 갖는다. 검사기는 main 파트의 XML 파싱 성공을 요구하므로,
-    선언 없는 조각(`<p:presentation/>`)은 실제 파일과 달리 파싱에 실패한다.
-    """
+    """Add prefixed namespace declarations to the root tag. Real OOXML declares them; the checker requires main-part XML parsing, so undeclared fragments such as `<p:presentation/>` fail unlike real files."""
     start = xml.find("<")
     end = xml.find(">", start)
     if start < 0 or end < 0:
@@ -52,29 +39,26 @@ def with_namespaces(xml: str) -> str:
 
 
 def _package(path: Path, main: str, parts: dict[str, str]) -> Path:
-    """필수 파트를 갖춘 OOXML ZIP을 만든다. parts가 main을 덮어쓸 수 있다."""
+    """Create an OOXML ZIP with required parts; parts may override main."""
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("[Content_Types].xml", CONTENT_TYPES)
         z.writestr("_rels/.rels", ROOT_RELS.format(main=main))
         for name, xml in parts.items():
-            # 모든 XML 파트에 선언을 채운다. 실제 OOXML은 파트마다 선언을 갖고,
-            # 검사기가 본문 파트까지 파싱하므로 main만 채우면 픽스처가 실제 파일과
-            # 다르게 동작한다.
+            # Add declarations to every XML part, as real OOXML does.
+            # The checker parses body parts too; declaring only main would make the fixture
+            # behave differently from a real file.
             z.writestr(name, with_namespaces(xml) if name.endswith(".xml") else xml)
     return path
 
 
 def runs(text: str, tag: str = "a") -> str:
-    """텍스트를 글자 단위 run으로 쪼갠 XML(run 분할 검출 재현용)."""
+    """Split text into character-sized XML runs to reproduce split-run detection."""
     return "".join(f"<{tag}:r><{tag}:t>{ch}</{tag}:t></{tag}:r>" for ch in text)
 
 
 def pptx(path: Path, parts: dict[str, str] | None = None, *,
          presentation: str = "<p:presentation/>", raw: dict[str, str] | None = None) -> Path:
-    """최소 PPTX. parts={zip 경로: 문단 텍스트}는 run 분할 상태로 기록한다.
-
-    raw를 주면 XML을 그대로 넣는다(관계·차트 등 구조를 직접 짜야 할 때).
-    """
+    """Minimal PPTX. parts={ZIP path: paragraph text} uses split runs. Supply raw to insert XML verbatim for relationships, charts, or other structures."""
     body = {"ppt/presentation.xml": presentation}
     for name, text in (parts or {}).items():
         body[name] = f"<p:sld><p:txBody><a:p>{runs(text)}</a:p></p:txBody></p:sld>"
@@ -85,7 +69,7 @@ def pptx(path: Path, parts: dict[str, str] | None = None, *,
 
 
 def docx(path: Path, body_xml: str, extra: dict[str, str] | None = None) -> Path:
-    """최소 DOCX. extra={zip 경로: 텍스트}는 머리말 형식으로 기록한다."""
+    """Minimal DOCX. extra={ZIP path: text} is written as headers."""
     parts = {"word/document.xml": f"<w:document><w:body>{body_xml}</w:body></w:document>"}
     for name, text in (extra or {}).items():
         parts[name] = f"<w:hdr><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:hdr>"
@@ -93,7 +77,7 @@ def docx(path: Path, body_xml: str, extra: dict[str, str] | None = None) -> Path
 
 
 def submission_pptx(path: Path, text: str) -> Path:
-    """실제 로더와 레이아웃 검사를 모두 통과하는 제출 양성 대조군."""
+    """Positive submission control accepted by the actual loader and layout checks."""
     from pptx import Presentation
     from pptx.util import Inches, Pt
     prs = Presentation()
@@ -114,7 +98,7 @@ def submission_pptx(path: Path, text: str) -> Path:
 
 
 def xlsx(path: Path, parts: dict[str, str]) -> Path:
-    """최소 XLSX. parts는 XML을 그대로 넣는다(workbook·sheet·sharedStrings)."""
+    """Minimal XLSX. parts inserts XML verbatim (workbook, sheet, sharedStrings)."""
     body = {"xl/workbook.xml": "<workbook><sheets/></workbook>"}
     body.update(parts)
     if not any(n.startswith("xl/worksheets/sheet") for n in body):

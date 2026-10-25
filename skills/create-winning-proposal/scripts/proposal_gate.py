@@ -27,44 +27,44 @@ INPUT_CLASSES = {"blocking", "non-blocking", "assumption"}
 DEFECT_SEVERITIES = {"critical", "major", "minor", "note"}
 ITEM_STATUSES = {"open", "closed"}
 ARTIFACT_MODES = {"submission-candidate", "simulation-only"}
-# 의도된 정지 결정 — 결함이 아니라 결정 메모로 제시한다.
+# An intentional stop decision is a decision memo, not a defect.
 DECISION_STOP = {"no-bid", "intake-incomplete"}
 REQUIRED_PACKAGE_CHECKS = {
     "metadata", "notes", "comments", "hidden-content", "embedded-files",
     "external-links", "macros", "stale-customer-data", "price-leakage",
 }
-# 선택 필드(후방호환): 존재할 때만 검증한다.
+# Optional fields: validate only when present for backward compatibility.
 OPTIONAL_ARRAY_FIELDS = {"regulatory_checks", "vendor_confirmations", "eligibility", "numbers"}
 REGULATORY_STATUSES = {"met", "gap", "in-progress", "not-applicable"}
 VENDOR_KINDS = {"support", "supply"}
-# 고정 경과시간만 환산한다. 영업일·개월·년은 시작일·달력 근거 없이 시간으로 추정하지 않는다.
+# Convert fixed elapsed durations only; do not infer business-day/month/year hours without calendar evidence.
 DURATION_HOURS = {"분": 1 / 60, "시간": 1.0, "일": 24.0, "주": 168.0}
 CLAIM_KINDS = {"material", "commitment", "informational"}
-# 요구 강도. 실제 공고는 필수/권장/선택/조건부/참고를 구분하는데 mandatory 불리언 하나로는
-# 권장 분량 초과와 필수 위반이 같은 무게가 된다. mandatory는 후방호환으로 남긴다.
+# Real notices distinguish required/recommended/optional/conditional/reference strength; one mandatory bool
+# gives recommended-length overruns the same weight as mandatory violations. Retain it for compatibility.
 STRENGTHS = {"required", "recommended", "optional", "conditional", "informational"}
-# 제출 묶음. 한 파일이 아니라 여러 산출물이 함께 나가고, 파일마다 규칙이 다르다
-# (기명 원본 / 익명 사본 / 밀봉 가격서 / 별책 워크시트). 역할을 적어야 규칙이 붙는다.
+# Submission bundles contain multiple artifacts with different rules
+# (named originals, anonymous copies, sealed prices, separate worksheets); roles activate those rules.
 ATTACHMENT_ROLES = {"proposal", "proposal-anonymous", "price", "form", "certificate",
                     "presentation", "appendix", "other"}
-# 익명 제출본 — 제출자를 식별할 수 있는 표기가 남으면 즉시 탈락 사유다.
+# Anonymous submissions: residual bidder-identifying content can cause immediate disqualification.
 ANONYMOUS_ROLES = {"proposal-anonymous"}
-# 가격을 담아도 되는 역할. 기술본에 가격이 섞이면 실격인 공고가 많다.
+# Roles allowed to contain prices; many notices disqualify prices mixed into technical volumes.
 PRICE_ROLES = {"price"}
 
-# 목차 뼈대(아키타입) — 사업 성격이 다르면 목차가 달라야 한다. 여기 있는 세 유형은
-# 실제 수주 제안서에서 추출해 references/proposal-structure.md에 적힌 것뿐이다.
-# 근거 없는 목차를 지어내지 않으므로, 매핑이 없는 사업 성격에는 유형을 강제하지 않는다.
+# Outline archetypes must reflect engagement type. These three types are extracted from
+# actual winning proposals and documented in references/proposal-structure.md.
+# Do not invent unsupported outlines or force archetypes on unmapped engagements.
 ARCHETYPES = {"build", "maintenance", "technical-response"}
 ARCHETYPE_OF_ENGAGEMENT = {
-    "build": "build",                    # 유형 A 구축
-    "migrate": "build",                  # 이관도 구축 목차(현행→목표·전환·검수)
-    "operate": "maintenance",            # 유형 B 유지보수·기술지원
+    "build": "build",                    # Type A: implementation.
+    "migrate": "build",                  # Migration also uses implementation outlines (current → target, transition, acceptance).
+    "operate": "maintenance",            # Type B: maintenance and technical support.
     "service-improvement": "maintenance",
-    "product-selection": "technical-response",  # 유형 C 기술답변서
+    "product-selection": "technical-response",  # Type C: technical response.
 }
-# 아키타입이 요구하는 절(節). 없으면 그 사업에서 반드시 답해야 할 것을 통째로 빠뜨린 것이다.
-# 값은 목차 표준(proposal-structure.md)에서 왔고, 매칭은 키워드 하나라도 걸리면 충족으로 본다.
+# Required archetype sections; omission loses an entire subject the engagement must address.
+# Values come from proposal-structure.md; matching any section keyword satisfies the requirement.
 ARCHETYPE_SECTIONS: dict[str, dict[str, tuple[str, ...]]] = {
     "build": {
         "사업 범위": ("범위", "scope"),
@@ -90,15 +90,15 @@ STRENGTH_OF_MANDATORY = {True: "required", False: "optional"}
 
 
 def requirement_strength(item: dict) -> str:
-    """요구 강도. strength가 없으면 mandatory에서 유도한다(미기재 = 필수, fail-closed)."""
+    """Requirement strength; derive from mandatory when absent (missing means mandatory, fail-closed)."""
     strength = item.get("strength")
     if isinstance(strength, str) and strength in STRENGTHS:
         return strength
     return STRENGTH_OF_MANDATORY[item.get("mandatory", True) is not False]
-# 원장 항목이 무엇인지 사람이 읽을 수 있는 필드. 하나라도 있으면 된다.
+# Human-readable fields explaining a ledger item; at least one suffices.
 LEDGER_TEXT_FIELDS = ("text", "label", "title", "summary", "description")
-# 엄격 불리언 필드: JSON true만 참. "yes"/"pending"/"no" 같은 문자열은 스키마 오류로
-# 거절한다(진리값 평가로 비어있지 않은 문자열이 통과하던 P0 허위 통과 차단).
+# Strict booleans: only JSON true is true. Reject strings such as "yes"/"pending"/"no"
+# as schema errors, preventing P0 false passes caused by truthy nonempty strings.
 STRICT_BOOL_FIELDS = {
     "bid_conditions": ("accepted",),
     "requirements": ("mandatory",),
@@ -118,7 +118,7 @@ def _true(value: object) -> bool:
     return value is True
 
 
-# 근거·해시 자리에 들어온 플레이스홀더. 'TBD'나 '[NEEDS INPUT]'은 근거가 아니다.
+# Placeholder evidence/hashes: 'TBD' and '[NEEDS INPUT]' are not evidence.
 _PLACEHOLDER_RE = re.compile(
     r"(?:^|[^A-Za-z])(?:tbd|tba|todo|n/?a|xxx+|\?\?+|lorem|placeholder|dummy)(?:$|[^A-Za-z])"
     r"|needs\s*input|입력\s*요망|미정|추후|확인\s*필요|○○○|OOO",
@@ -132,7 +132,7 @@ def _is_placeholder(value: object) -> bool:
 
 
 def _evidence_ok(values: object) -> bool:
-    """비어 있지 않고, 플레이스홀더가 아닌 문자열 근거가 1개 이상."""
+    """At least one nonempty, non-placeholder string evidence reference."""
     if isinstance(values, str):
         values = [values]
     if not isinstance(values, list):
@@ -141,17 +141,17 @@ def _evidence_ok(values: object) -> bool:
 
 
 class GateEnvironmentError(RuntimeError):
-    """실행 환경 오류(PROPOSAL_GATE_NOW 형식 등) — 게이트 판정이 아닌 사용 오류."""
+    """Execution environment error, such as PROPOSAL_GATE_NOW format; a usage error, not a gate decision."""
 
 
 def reference_now() -> datetime:
-    """기준 현재시각. 결정론적 테스트를 위해 PROPOSAL_GATE_NOW(ISO)로 주입 가능."""
+    """Reference current time; inject PROPOSAL_GATE_NOW (ISO) for deterministic tests."""
     override = os.environ.get("PROPOSAL_GATE_NOW")
     if override:
         try:
             dt = datetime.fromisoformat(override.replace("Z", "+00:00"))
         except ValueError as exc:
-            # 조용히 벽시계로 폴백하면 테스트가 실제 시각으로 통과해 버린다 → 명시 오류.
+            # Do not silently fall back to wall-clock time and pass tests against real time; raise explicit errors.
             raise GateEnvironmentError(f"PROPOSAL_GATE_NOW is not ISO datetime: {override!r}") from exc
         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     return datetime.now(timezone.utc)
@@ -175,8 +175,7 @@ def is_iso_datetime(value: object) -> bool:
 
 
 def _enum_ok(value: object, allowed: "set[str] | frozenset[str]") -> bool:
-    """열거값 검사. 비문자열(list·dict 등)은 조용히 거부한다 —
-    `value in allowed`가 unhashable 입력에서 TypeError로 터지던 결함 해소."""
+    """Check enumerated values; reject nonstrings such as lists/dicts without TypeError from unhashable `value in allowed` inputs."""
     return isinstance(value, str) and value in allowed
 
 
@@ -245,7 +244,7 @@ def validate_schema(data: object) -> list[str]:
     for vc in data.get("vendor_confirmations", []) if isinstance(data.get("vendor_confirmations"), list) else []:
         if isinstance(vc, dict) and not _enum_ok(vc.get("kind"), VENDOR_KINDS):
             failures.append(f"vendor confirmation {vc.get('id', '?')} has unsupported kind: {vc.get('kind')}")
-    # eligibility met/curable 불리언 검증은 STRICT_BOOL_FIELDS에서 일괄 수행한다.
+    # STRICT_BOOL_FIELDS validates eligibility met/curable booleans together.
     sub = data.get("submission")
     if isinstance(sub, dict) and "deadline" in sub and not is_iso_datetime(sub["deadline"]):
         failures.append("submission deadline must be ISO datetime with timezone")
@@ -279,7 +278,7 @@ def validate_schema(data: object) -> list[str]:
             failures.append(f"requirement {rid} has unsupported strength: {strength!r} "
                             f"(allowed: {', '.join(sorted(STRENGTHS))})")
             continue
-        # 두 표현이 어긋나면 어느 쪽이 맞는지 게이트가 고를 수 없다.
+        # When representations disagree, the gate cannot choose which is correct.
         if "mandatory" in req and isinstance(req["mandatory"], bool) \
                 and (strength in MANDATORY_STRENGTHS) != req["mandatory"]:
             failures.append(f"requirement {rid} strength={strength} contradicts "
@@ -290,8 +289,8 @@ def validate_schema(data: object) -> list[str]:
     for claim in data.get("claims", []) if isinstance(data.get("claims"), list) else []:
         if isinstance(claim, dict) and "kind" in claim and not _enum_ok(claim["kind"], CLAIM_KINDS):
             failures.append(f"claim {claim.get('id', '?')} has unsupported kind: {claim['kind']}")
-    # ID 무결성: 원장 항목은 식별자가 있어야 추적·대조가 성립한다. ID를 지우면
-    # "요구 ?가 미승인"처럼 지목 불가능한 결함이 되거나, 중복 ID로 근거가 뒤섞인다.
+    # ID integrity enables ledger tracing and comparison. Missing IDs make defects unidentifiable,
+    # while duplicate IDs mix evidence between entries.
     for name in ("requirements", "claims"):
         items = data.get(name)
         if not isinstance(items, list):
@@ -307,16 +306,16 @@ def validate_schema(data: object) -> list[str]:
                 failures.append(f"duplicate id in {name}: {rid}")
             else:
                 seen.add(rid)
-            # ID만 있고 내용이 없는 껍데기 원장 차단. "요구 R1 승인"은 R1이 무엇인지
-            # 적혀 있어야 검증 가능한 기록이 된다. 제출 기록에만 요구한다 — 초안 단계의
-            # 부분 원장까지 막으면 작성 중에 게이트를 돌릴 수 없다.
+            # Block hollow ledgers containing IDs without content. An approved R1 is verifiable only
+            # if the record states what R1 means. Require content only for submission, allowing partial
+            # draft ledgers so authors can run the gate during writing.
             if data.get("mode") == "submission" \
                     and not any(not _is_placeholder(item.get(f)) for f in LEDGER_TEXT_FIELDS):
                 failures.append(
                     f"{name} {rid if isinstance(rid, str) and rid.strip() else i} lacks a "
                     f"human-readable text ({'/'.join(LEDGER_TEXT_FIELDS)} 중 하나에 내용을 적는다)")
-            # informational은 근거 검사를 면제받는 유일한 유형이다. 면제 사유를 적게 해서
-            # 근거 없는 주장을 informational로 재분류해 빠져나가는 경로를 막는다.
+            # informational is the only kind exempt from evidence checks; require an exemption reason
+            # to prevent unsupported claims escaping through reclassification.
             if name == "claims" and _enum_ok(item.get("kind"), {"informational"}) \
                     and _is_placeholder(item.get("rationale")):
                 failures.append(
@@ -329,31 +328,31 @@ _DIGEST_RE = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$", re.IGNORECASE)
 
 
 def is_digest(value: object) -> bool:
-    """sha256:<64 hex> 형식인지. 제출 모드의 artifact_hash는 실제 파일에 대조 가능해야 한다."""
+    """Check sha256:<64 hex> format; submission artifact_hash must be comparable with the actual file."""
     return isinstance(value, str) and _DIGEST_RE.match(value.strip()) is not None
 
 
 def normalize_digest(value: object) -> str:
-    """비교용 정규화 — 접두사 제거 + 소문자. 형식이 아니면 빈 문자열."""
+    """Normalize comparison hashes by stripping the prefix and lowercasing; invalid formats yield an empty string."""
     if not is_digest(value):
         return ""
     return str(value).strip().lower().removeprefix("sha256:")
 
 
 def _exception_granted(item: object) -> bool:
-    """발주처가 허용한 예외인지 — 승인자와 근거가 모두 있어야 인정한다."""
+    """Recognize buyer-authorized exceptions only with both approver and evidence."""
     if not isinstance(item, dict):
         return False
     return not _is_placeholder(item.get("granted_by")) and _evidence_ok(item.get("evidence"))
 
 
 def _is_number(value: object) -> bool:
-    """JSON 숫자만 참(bool 제외). 문자열 "3,700,000,000"은 계산 대상이 아니다."""
+    """Accept only JSON numbers (excluding bool); the string "3,700,000,000" is not arithmetic input."""
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-# 통화 단위의 절대 허용오차. 표시 반올림(원 단위)과 수천만 원 차이를 같은 상대오차로
-# 다루면 37억에 1,800만원 오차가 통과한다 — 금액은 절대값으로 좁게 본다.
+# Use tight absolute currency tolerances; relative tolerance confuses rounding with large errors
+# and could allow an 18-million-won discrepancy on 3.7 billion won.
 CURRENCY_UNITS = {"KRW", "원", "USD", "EUR", "JPY", "달러", "엔"}
 CURRENCY_ABS_TOLERANCE = 1.0
 
@@ -364,14 +363,14 @@ def _is_finite(value: object) -> bool:
 
 
 def _tolerance_for(item: dict, value: float, tol: float) -> float:
-    """항목 성격에 맞는 허용오차. 금액은 절대값, 그 외는 상대값."""
+    """Choose tolerance by item type: absolute for currency, relative otherwise."""
     if str(item.get("unit", "")).strip() in CURRENCY_UNITS:
         return CURRENCY_ABS_TOLERANCE
     return max(tol * max(abs(value), 1), 1e-9)
 
 
 def _to_hours(item: dict) -> float | None:
-    """기간 값을 시간으로 환산한다. 기간 단위가 아니면 None(비교하지 않는다)."""
+    """Convert durations to hours; return None for non-duration units (do not compare)."""
     unit = str(item.get("unit", "")).strip()
     factor = DURATION_HOURS.get(unit)
     value = item.get("value")
@@ -381,14 +380,10 @@ def _to_hours(item: dict) -> float | None:
 
 
 def check_numbers(entries: object) -> list[str]:
-    """수치 원장의 산술을 실제로 계산해 검증한다.
-
-    `checks.arithmetic: true`는 사람이 기록하는 자기선언이라, 본문에 100+200=900이
-    적혀 있어도 게이트가 알 수 없었다. 원장에 값을 적고 구성 요소를 연결하면
-    합계·비율을 여기서 다시 계산한다.
+    """Recalculate numerical-ledger arithmetic. checks.arithmetic: true is a human self-declaration that cannot detect body text such as 100+200=900. Linked ledger components let this function recalculate sums and ratios.
 
     entry = {id, label, value, unit, source?, components?[ids], percent_of?, tolerance?}
-    """
+"""
     failures: list[str] = []
     if not isinstance(entries, list):
         return ["numbers must be an array"]
@@ -420,8 +415,8 @@ def check_numbers(entries: object) -> list[str]:
             failures.append(f"number {nid} tolerance must be a finite non-negative number")
             tol = 0.005
         if not isinstance(item.get("unit"), str):
-            # 단위가 문자열이 아니면 위에서 이미 차단됐다. 여기서 계속 진행하면
-            # 해시 불가 값(dict/list)이 set에 들어가 TypeError로 게이트가 죽는다.
+            # Nonstring units were blocked above; continuing would insert unhashable dict/list values
+            # into sets and crash the gate with TypeError.
             continue
         parts = item.get("components")
         if parts is not None:
@@ -436,7 +431,7 @@ def check_numbers(entries: object) -> list[str]:
                 failures.append(f"number {nid} lists itself as a component — 검산이 성립하지 않는다")
                 continue
             if not all(isinstance(by_id[p].get("unit"), str) for p in parts):
-                continue  # 구성요소 단위가 문자열이 아니면 위에서 이미 차단됐다
+                continue  # Nonstring component units were already blocked above.
             units = {by_id[p].get("unit") for p in parts} | {item.get("unit")}
             if len(units) > 1:
                 failures.append(f"number {nid} mixes units in a sum: {sorted(str(u) for u in units)}")
@@ -448,8 +443,8 @@ def check_numbers(entries: object) -> list[str]:
                 failures.append(
                     f"number {nid} ({item.get('label', '')}) is {item['value']} but its components "
                     f"sum to {total} — 합계가 맞지 않는다")
-        # 수치 사이의 관계. SLA 표는 "최초 응답 ≤ 지속 응답", 단계가 낮아질수록 길어지는
-        # 순서가 성립해야 하는데, 값을 따로만 보면 표를 옮기다 뒤바뀐 값이 그대로 나간다.
+        # SLA relationships require initial response ≤ ongoing response and longer times at lower severity;
+        # checking values separately misses entries swapped during table transcription.
         for field, comparator, label in (("at_most", "<=", "이하"), ("at_least", ">=", "이상")):
             other_id = item.get(field)
             if other_id is None:
@@ -464,7 +459,7 @@ def check_numbers(entries: object) -> list[str]:
             mine = _to_hours(item)
             theirs = _to_hours(other)
             if mine is None or theirs is None:
-                # 고정시간으로 환산할 수 없으면 같은 단위끼리만 비교한다.
+                # If fixed-time conversion is unavailable, compare only identical units.
                 if item.get("unit") != other.get("unit"):
                     failures.append(
                         f"number {nid} cannot be compared with {other_id}: units differ "
@@ -493,7 +488,7 @@ def check_numbers(entries: object) -> list[str]:
                 continue
             share, whole = item.get("value"), by_id[base].get("value")
             amount = item.get("amount")
-            # 계산할 수 없으면 통과가 아니라 미검증이다 — 조용히 넘기면 비율이 무검사로 남는다.
+            # Uncomputable means unverified, not passed; silently skipping leaves ratios unchecked.
             if not _is_finite(amount):
                 failures.append(f"number {nid} uses percent_of but lacks a finite 'amount' "
                                 "(분자) — 검산할 수 없다")
@@ -509,32 +504,32 @@ def check_numbers(entries: object) -> list[str]:
     return failures
 
 
-# 제안 맥락 분류 축. 기관 이름 하나로 정하지 않는다 — 공공병원·국립대학처럼 속성이
-# 겹치는 조직이 있고, 같은 기관이라도 사업 성격·구매 단계에 따라 필요한 근거가 다르다.
+# Classification uses multiple axes, not institution names alone; public hospitals and national
+# universities overlap, and evidence needs vary by engagement and procurement stage.
 BUYER_TYPES = {"public", "private", "education", "healthcare"}
 ENGAGEMENTS = {"build", "operate", "migrate", "education", "consulting",
                "service-improvement", "product-selection", "policy"}
 STAGES = {"explore", "internal-review", "rfp-response", "presentation", "final-submission"}
 READING_MODES = {"screen-presentation", "print-evaluation", "individual-review", "appendix"}
 CONSTRAINTS = {"sensitive-data", "business-continuity", "closed-network", "regulated-industry"}
-# 읽는 조건 → 장표 규격(deck_profiles). 발표라면서 인쇄용 밀도로 만든 덱을 잡는다.
-# 읽는 환경이 규격을 강제하는 것은 그 환경이 규격을 사실상 결정할 때뿐이다.
-# 스크린 발표는 뒷자리 가독성이, 인쇄 채점은 분량 안의 근거 밀도가 규격을 정한다.
-# 개인 열람(individual-review)은 임원 요약본일 수도 상세 기술평가서일 수도 있어서
-# 환경만으로 문서 역할을 정할 수 없다 — 매핑하지 않는다(읽는 환경 ≠ 문서 역할).
+# Reading conditions → deck_profiles; detect presentation decks using print-level density.
+# Reading environments force specifications only when the environment determines them.
+# Projected slides need back-row readability; printed evaluation needs evidence density within page limits.
+# individual-review may mean an executive summary or detailed technical evaluation, so do not
+# map environment alone to document role (reading environment ≠ document role).
 READING_MODE_PROFILE = {
     "screen-presentation": "presentation",
     "print-evaluation": "detailed-submission",
 }
 SUBMISSION_STAGES = {"rfp-response", "final-submission"}
-# 문서 종류는 구매 단계와 다른 축이다. RFI 응답은 입찰이 아니지만 자격·형식 요구는
-# 있을 수 있으므로, "RFI니까 검사를 끈다"가 아니라 무엇이 달라지는지를 명시한다.
+# Document kind and procurement stage are separate axes. RFI responses can still have qualification
+# and format requirements; specify differences instead of disabling checks merely because of RFI.
 RFX_TYPES = {"rfp", "rfi", "rfq"}
 KNOWN_DECK_PROFILES = set(READING_MODE_PROFILE.values())
 
 
 def validate_context(context: object) -> list[str]:
-    """분류 축의 값 검증. 없으면 검사하지 않는다(후방호환)."""
+    """Validate classification-axis values; skip absent axes for backward compatibility."""
     if context is None:
         return []
     if not isinstance(context, dict):
@@ -572,12 +567,12 @@ _AS_OF_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$")
 
 
 def _is_iso_date(value: object) -> bool:
-    """YYYY-MM 또는 YYYY-MM-DD. 자유 문자열('2026년 여름')은 기준일이 아니다."""
+    """YYYY-MM or YYYY-MM-DD; free text such as '2026년 여름' is not a reference date."""
     return isinstance(value, str) and _AS_OF_RE.match(value.strip()) is not None
 
 
 def _vendor_confirmed(data: dict, vendor: str) -> bool:
-    """그 제조사의 확약이 실제로 제출됐는지. 이름은 대소문자·공백 무시로 대조한다."""
+    """Check that the manufacturer's commitment was submitted; compare names ignoring case and whitespace."""
     want = vendor.strip().casefold()
     for vc in data.get("vendor_confirmations", []) if isinstance(
             data.get("vendor_confirmations"), list) else []:
@@ -589,13 +584,7 @@ def _vendor_confirmed(data: dict, vendor: str) -> bool:
 
 
 def check_outline(data: dict) -> list[str]:
-    """목차 뼈대가 사업 성격과 맞는지, 그 뼈대가 요구하는 절이 있는지 본다.
-
-    `context.engagement`가 사업 성격이고 `proposal_archetype`이 실제로 쓴 목차 뼈대다.
-    둘이 어긋나면 유지보수 사업에 구축 목차를 쓴 것이다 — 기관명만 바꾼 제안서의 전형.
-    매핑이 없는 사업 성격(교육·컨설팅·정책)에는 유형을 강제하지 않는다. 이 저장소에 그
-    목차의 근거가 없기 때문이다. 다만 A/B/C 중 하나를 굳이 쓴다면 이유를 적게 한다.
-    """
+    """Check that the outline archetype matches context.engagement and contains required sections. A mismatch indicates an implementation outline reused for maintenance. Do not force archetypes on unmapped training, consulting, or policy work without repository evidence; require justification if A/B/C is nevertheless selected."""
     failures: list[str] = []
     archetype = data.get("proposal_archetype")
     if archetype is not None and not _enum_ok(archetype, ARCHETYPES):
@@ -622,8 +611,8 @@ def check_outline(data: dict) -> list[str]:
             f"engagement '{engagement}' has no standard outline in this repository but "
             f"proposal_archetype '{archetype}' was used — archetype_rationale에 이 목차를 "
             "쓰는 이유를 적는다(IT 구축 목차를 교육·컨설팅 사업에 그대로 쓰지 않는다)")
-    # 목차 원장은 있으면 검사한다. meta에 slides[]가 있으면 변환기가 제목에서 채우므로,
-    # 문서화된 경로를 따르면 자동으로 검사 대상이 된다.
+    # Inspect outline ledgers when present; conversion populates titles from meta slides[], so the
+    # documented workflow automatically activates these checks.
     sections = data.get("sections")
     if sections is None:
         return failures
@@ -639,14 +628,12 @@ def check_outline(data: dict) -> list[str]:
 
 
 def check_attachments(data: dict) -> list[str]:
-    """제출 묶음 원장. 제출은 파일 하나가 아니라 여러 산출물이 함께 나간다.
+    """Submission-bundle ledger; submission includes multiple artifacts.
 
     항목 = {name, required?, present?, role?, format?, sha256?, copies?, channel?,
             anonymity_checked?, price_screened?, reviewer?}
-    역할(role)을 적으면 그 역할의 규칙이 붙는다 — 익명 사본은 식별정보 검사 기록이
-    필요하고, 가격을 담으면 안 되는 산출물은 가격 혼입 검사 기록이 필요하다. 역할이
-    없으면 예전처럼 존재 여부만 본다(후방호환).
-    """
+
+Roles add rules: anonymous copies require identification checks and price-free artifacts require price screening. Without roles, check presence only for backward compatibility."""
     items = data.get("attachments")
     if not isinstance(items, list):
         return []
@@ -683,7 +670,7 @@ def check_attachments(data: dict) -> list[str]:
             failures.append(f"attachment {name} copies must be a positive integer (got {copies!r})")
         if mode != "submission" or not _true(item.get("present")) or role is None:
             continue
-        # 제출하는 파일에는 그 역할의 검사 기록이 있어야 한다. 기록이 없으면 미검사다.
+        # Submitted files need role-specific inspection records; absent records mean not inspected.
         if role in ANONYMOUS_ROLES:
             if not _true(item.get("anonymity_checked")):
                 failures.append(
@@ -698,8 +685,8 @@ def check_attachments(data: dict) -> list[str]:
                 f"attachment {name} lacks a price screening record (price_screened) "
                 "— 가격을 담으면 안 되는 산출물에 가격이 섞였는지 확인한다")
     if mode == "submission" and roles:
-        # 익명 제출을 요구하는 공고는 기명 원본과 익명 사본을 함께 낸다. 한쪽만 있으면
-        # 다른 쪽을 빠뜨렸거나 익명화를 하지 않은 것이다.
+        # Anonymous-submission notices require both named originals and anonymous copies; one alone means
+        # either an omitted counterpart or incomplete anonymization.
         if "proposal-anonymous" in roles and "proposal" not in roles:
             failures.append("bundle has an anonymous copy but no named original "
                             "— 기명 원본이 함께 요구되는지 공고를 확인한다")
@@ -711,18 +698,12 @@ def check_attachments(data: dict) -> list[str]:
 
 
 def check_evaluation_criteria(data: dict) -> list[str]:
-    """평가표 원장. 공공 제안에서 배점표는 목차·분량·근거의 기준이다.
+    """Evaluation-criteria ledger: the basis for public-proposal outlines, space, and evidence allocation.
 
     항목 = {id, label, weight, parent?, stage?, minimum_ratio?, minimum_score?,
             disclosed?(기본 true), source?}
-    원문의 평가 방식은 "합계 100"으로 환원되지 않는다 — 기술 90 + 가격 별책 10, 1단계
-    기술평가 안의 정량 20·정성 80, 부문별 과락이 한 공고에 같이 있다. 그래서:
-    - 최상위 항목의 합은 data.evaluation_total(기본 100)과 같아야 한다.
-    - 하위 항목(parent)의 합은 상위 항목의 배점과 같아야 한다 — 상·하위를 한 번에 더해
-      100을 넘기던 이중 합산을 막는다.
-    - 배점 미공개(disclosed:false)는 weight 없이 기록한다. 게이트가 80:20을 지어내지 않는다.
-    - 과락(minimum_ratio/minimum_score)은 보존만 한다. 게이트는 심사 점수를 예측하지 않는다.
-    """
+
+disclosed defaults to true. Evaluation is not always a total of 100: technical 90 plus a separate price 10, quantitative 20 plus qualitative 80 under a technical stage, and sectional cutoffs can coexist. Top-level weights must sum to data.evaluation_total (default 100); child weights sum to their parent without double counting. Record undisclosed weights with disclosed:false and no invented 80:20 ratio. Preserve minimum_ratio/minimum_score without predicting evaluation scores."""
     entries = data.get("evaluation_criteria")
     if entries is None:
         return []
@@ -773,7 +754,7 @@ def check_evaluation_criteria(data: dict) -> list[str]:
         for field in ("source", "stage", "method"):
             if field in item and not isinstance(item[field], str):
                 failures.append(f"evaluation criterion {cid} {field} must be a string")
-    # 상·하위 구조
+    # Parent-child hierarchy.
     for cid, item in by_id.items():
         parent = item.get("parent")
         if parent is None:
@@ -793,7 +774,7 @@ def check_evaluation_criteria(data: dict) -> list[str]:
             node = by_id[node].get("parent") if isinstance(by_id[node].get("parent"), str) else None
 
     def _weights(items: list[dict]) -> tuple[float, bool]:
-        """(합계, 전부 공개·숫자였는가)."""
+        """Return (sum, whether every entry was disclosed and numeric)."""
         total, complete = 0.0, True
         for it in items:
             w = it.get("weight")
@@ -823,8 +804,8 @@ def check_evaluation_criteria(data: dict) -> list[str]:
                 "— 하위 배점의 합이 상위 배점과 다르다")
     for it in by_id.values():
         it.pop("_bad_parent", None)
-    # 배점 항목 ↔ 요구사항 연결. 대응 요구가 없는 배점은 통째로 비어 있는 목차다.
-    # 하위 항목이 있는 상위는 하위로 대응하므로 말단 항목만 본다.
+    # Map evaluation criteria to requirements; an unmapped criterion is an entirely unaddressed outline item.
+    # Parents with children are covered through children; inspect leaves only.
     referenced: set[str] = set()
     for req in data.get("requirements", []) if isinstance(data.get("requirements"), list) else []:
         if isinstance(req, dict):
@@ -851,12 +832,7 @@ UNSUPPORTED_CODES = {"X", "미지원", "NO", "N", "불가", "미수용", "부적
 
 
 def is_unsupported(value: object) -> bool:
-    """수용여부 표기가 '미지원'을 뜻하는지 판정한다.
-
-    조견표는 기호와 한글 라벨을 함께 쓰므로('X', 'X 미수용', '미수용', '✗') 표기 변형을
-    하나로 본다 — 별칭 하나로 승인 모순 검사를 빠져나가지 못하게 한다.
-    'N/A'(해당없음)는 미지원이 아니다.
-    """
+    """Determine whether support notation means unsupported. Treat 'X', 'X 미수용', '미수용', and '✗' as aliases so notation cannot bypass approval consistency checks. 'N/A' (not applicable) is not unsupported."""
     if not isinstance(value, str):
         return False
     text = value.strip().upper().replace("✗", "X").replace("Ｘ", "X")
@@ -867,11 +843,7 @@ def is_unsupported(value: object) -> bool:
 
 
 def readiness(data: dict, failures: list[str]) -> tuple[str, int]:
-    """(표시 라벨, 종료 코드) — 목적·단계·차단 여부의 단일 판정 지점.
-
-    CLI·explain·점수 보고서가 모두 이 함수를 쓴다. 라벨이 갈라져 draft audit이
-    "제출 가능"으로 설명되던 불일치를 구조적으로 막는다.
-    """
+    """Return (display label, exit code), the shared decision point for purpose, stage, and blockers. CLI, explain, and score reports use it to prevent draft audits being described as submission-ready."""
     decision = str(data.get("bid_decision", ""))
     mode = str(data.get("mode", "")) or "draft"
     if any(str(f).startswith("DECISION_MEMO_ONLY") for f in failures):
@@ -903,18 +875,18 @@ def evaluate(data: dict) -> list[str]:
                 failures.append(
                     f"bid condition {condition.get('id', '?')} deadline has passed: {condition['deadline']}")
         if mode == "submission":
-            # 조건부는 내부 계속 진행 상태일 뿐, 외부 제출 클리어가 아니다.
+            # Conditional status permits internal continuation, not external submission clearance.
             failures.append("submission mode requires bid_decision 'bid' (conditional-bid is internal only)")
     elif decision != "bid":
         failures.append("bid_decision must be 'bid' or accepted 'conditional-bid'")
 
     mandatory_count = 0
     for item in data["requirements"]:
-        # fail-closed: 강도 미기재는 필수로 취급한다(생략으로 우회 방지).
+        # Fail closed: missing strength means mandatory, preventing bypass by omission.
         strength = requirement_strength(item)
         if strength not in MANDATORY_STRENGTHS:
-            # 권장은 안 해도 되지만, 제출 기록에는 안 한 이유가 남아야 한다 — 권장 조건이
-            # 조용히 사라지면 "권장 분량 초과"와 "잊어버림"을 구분할 수 없다.
+            # Recommendations may be declined, but submission records must explain why; otherwise a deliberate
+            # recommended-length overrun cannot be distinguished from a forgotten requirement.
             if strength == "recommended" and mode == "submission" \
                     and item.get("state") != "approved" and _is_placeholder(item.get("rationale")):
                 failures.append(f"recommended requirement {item.get('id', '?')} is not met "
@@ -922,11 +894,11 @@ def evaluate(data: dict) -> list[str]:
             continue
         mandatory_count += 1
         if item.get("state") == "approved":
-            # 반낙관: approved 자기선언만으로는 통과 불가. 비어있지 않은 문자열 근거 필수.
+            # Avoid optimism: approved self-declarations need nonempty string evidence.
             if not _evidence_ok(item.get("evidence_refs")):
                 failures.append(f"requirement {item.get('id', '?')} approved without evidence_refs")
-            # 검토 상태(approved)와 준수 상태(support/fit)는 다른 축이다. "미지원임을
-            # 검토자가 확인했다"가 "필수 요구를 충족했다"로 승격되면 안 된다.
+            # Review status (approved) and compliance (support/fit) are separate axes. Confirming unsupported
+            # status must not become confirmation that a mandatory requirement is satisfied.
             fit = str(item.get("fit", "")).strip().upper()
             if (is_unsupported(item.get("support")) or fit == "GAP") \
                     and not _exception_granted(item.get("exception")):
@@ -942,7 +914,7 @@ def evaluate(data: dict) -> list[str]:
         failures.append("submission requires at least one mandatory requirement in the ledger")
 
     for claim in data["claims"]:
-        # kind 미기재는 material로 취급한다(생략으로 우회 방지).
+        # Missing kind means material, preventing bypass by omission.
         kind = claim.get("kind", "material")
         if kind not in {"material", "commitment"}:
             continue
@@ -950,17 +922,17 @@ def evaluate(data: dict) -> list[str]:
             failures.append(f"claim {claim.get('id', '?')} is unsupported")
         if kind == "commitment" and not _true(claim.get("owner_approved")):
             failures.append(f"commitment {claim.get('id', '?')} lacks owner approval")
-        # 시점에 묶인 주장은 기준일이 없으면 시간이 지나 거짓이 된다. 라이프사이클·EOL·
-        # 버전·인증 유효기간이 그것이다 — 문서에 "기준: YYYY-MM"을 적게 한다.
+        # Time-dependent lifecycle, EOL, version, and certification claims become outdated without
+        # a reference date; require the document to state "기준: YYYY-MM".
         if _true(claim.get("time_sensitive")) and mode == "submission" \
                 and not _is_iso_date(claim.get("as_of")):
             failures.append(
                 f"claim {claim.get('id', '?')} is time-sensitive but lacks a valid 'as_of' date "
                 "(YYYY-MM 또는 YYYY-MM-DD) — 라이프사이클·EOL·버전 주장은 기준일이 없으면 "
                 "시간이 지나 거짓이 된다")
-        # 제3자에 기대는 확약은 우리 근거만으로 성립하지 않는다. 제조사 SLA·공급 조건은
-        # 그 계약·구독 등급에 적용될 때만 유효하므로, 제조사 공개 문서를 인용하는 것과
-        # 이 사업에 적용된다는 확약을 받는 것은 다르다.
+        # Third-party commitments cannot rely only on bidder evidence. Manufacturer SLAs and supply terms
+        # apply only to the relevant contract/subscription tier; citing public documentation differs from
+        # obtaining confirmation that it applies to this engagement.
         vendor = claim.get("depends_on_vendor")
         if vendor is not None and mode == "submission":
             if not isinstance(vendor, str) or not vendor.strip():
@@ -971,8 +943,8 @@ def evaluate(data: dict) -> list[str]:
                     f"claim {claim.get('id', '?')} depends on {vendor} but no matching "
                     f"vendor_confirmation is present — 제조사 공개 문서 인용은 확약이 아니다"
                     "(vendor_confirmations에 present:true 항목을 둔다)")
-        # 제출 모드에서는 'supported/qualified' 선언에 실제 근거가 따라와야 한다.
-        # 상태 문자열만으로 통과하면 근거 없는 성능·실적 주장이 그대로 나간다.
+        # Submission declarations of supported/qualified require actual evidence.
+        # Status-only passing would release unsupported performance and experience claims.
         if mode == "submission" and _enum_ok(claim.get("status"), {"supported", "qualified"}) \
                 and not _evidence_ok(claim.get("evidence_refs")):
             failures.append(
@@ -992,49 +964,49 @@ def evaluate(data: dict) -> list[str]:
     failures.extend(check_attachments(data))
     failures.extend(check_outline(data))
 
-    # submission 체크(파일명·형식·부수 등 제출 규정)는 제출 모드에서만 요구한다. draft/review에서
-    # 요구하면 Pink/Red 체크포인트가 구조적으로 도달 불가능해진다(consistency·arithmetic은 전 모드).
+    # Require submission filename/format/copy-count rules only in submission mode; enforcing them in
+    # draft/review makes Pink/Red checkpoints unreachable. Consistency/arithmetic apply in every mode.
     required_checks = ("consistency", "arithmetic") + (("submission",) if mode == "submission" else ())
     for name in required_checks:
         if data["checks"].get(name) is not True:
             failures.append(f"check failed or missing: {name}")
 
-    # 분류가 요구사항을 바꾼다 — 기관 속성·구매 단계·읽는 조건에 따라 필요한 근거가 다르다.
+    # Classification changes evidence requirements by institution, procurement stage, and reading conditions.
     context = data.get("context") if isinstance(data.get("context"), dict) else {}
     buyers = {b for b in _as_str_list(context.get("buyer_types"))}
     stage_ctx = context.get("stage")
     limits = set(_as_str_list(context.get("constraints")))
     rfx = context.get("rfx_type", "rfp")
     if mode == "submission":
-        # 제출 기록에 분류가 없으면 분류가 바꾸는 요구사항이 전부 꺼진다. 누락은 정상값이
-        # 아니라 미기재다(초안·검토 단계는 후방호환으로 허용).
+        # Missing submission classification disables every classification-dependent rule; absence is missing data,
+        # not a valid value (draft/review retain backward compatibility).
         for field in ("buyer_types", "stage"):
             if context.get(field) is None:
                 failures.append(f"submission requires context.{field} "
                                 "— 분류가 없으면 공공 평가표·규격 대조 같은 검사가 조용히 꺼진다")
     failures.extend(check_evaluation_criteria(data))
     if rfx == "rfi":
-        # RFI 응답은 계약 제안이 아니다. 추정치가 확약 문장으로 승격되면 안 된다.
+        # RFI responses are not contract proposals; estimates must not become commitments.
         for claim in data["claims"]:
             if claim.get("kind") == "commitment":
                 failures.append(f"claim {claim.get('id', '?')} is a commitment in an RFI response "
                                 "— RFI에는 확약을 싣지 않는다(material + 추정 범위로 기술)")
     if "public" in buyers and rfx != "rfi" and (mode == "submission" or stage_ctx in SUBMISSION_STAGES):
-        # 공공 입찰에서 배점표는 목차·분량·근거 배분의 기준이다. 없으면 무엇에 점수가
-        # 걸려 있는지 모르는 채로 쓴 것이다.
+        # Public-bid evaluation matrices guide outline, space, and evidence allocation; without one,
+        # authors do not know which subjects carry scores.
         if not data.get("evaluation_criteria"):
             failures.append(
                 "public procurement requires an evaluation_criteria ledger "
                 "— 평가표(배점)를 옮겨 적고 각 요구를 criterion_ids로 연결한다")
-    # 읽는 조건과 실제 장표 규격이 어긋나면 잡는다(발표라면서 인쇄용 밀도로 만든 덱).
+    # Detect mismatches between reading conditions and actual slide specifications.
     expected_profile = READING_MODE_PROFILE.get(str(context.get("reading_mode", "")))
     actual_profile = data["render"].get("output_profile")
     if actual_profile is not None and not _enum_ok(actual_profile, KNOWN_DECK_PROFILES):
         failures.append(f"render.output_profile has unsupported value: {actual_profile!r} "
                         f"(allowed: {', '.join(sorted(KNOWN_DECK_PROFILES))})")
     elif expected_profile and actual_profile is None and mode == "submission":
-        # 값이 틀리면 잡고 지우면 통과하던 구멍. 누락 = 미검사 = 차단(layout_checked와 동일).
-        # 초안은 아직 산출물이 없을 수 있으므로 제출 기록에만 요구한다.
+        # Missing values formerly bypassed invalid-value checks; missing = uninspected = blocked, like layout_checked.
+        # Require this only for submission because drafts may not yet have artifacts.
         failures.append(
             f"reading_mode={context.get('reading_mode')} expects deck profile "
             f"'{expected_profile}' but render.output_profile is missing "
@@ -1052,15 +1024,15 @@ def evaluate(data: dict) -> list[str]:
                     f"context.constraints includes sensitive-data: package check {name} "
                     f"must be 'pass' (got {checks.get(name)!r})")
 
-    # 수치 원장이 있으면 산술을 게이트가 직접 계산한다. 제출 모드에서는 원장 없이
-    # checks.arithmetic=true 자기선언만으로 통과하지 못한다 — 무엇을 검산했는지
-    # 보이지 않는 '검산 완료'는 검증이 아니다.
+    # Recalculate arithmetic from the ledger. Submission cannot pass on checks.arithmetic=true
+    # alone without a ledger; arithmetic completion without showing what was checked
+    # is not verification.
     numbers = data.get("numbers")
     if numbers is not None:
         failures.extend(check_numbers(numbers))
         if mode == "submission" and isinstance(numbers, list) and not numbers:
-            # 빈 원장으로 검산 의무가 사라지지 않는다. 검증할 수치가 없는 문서라면
-            # 그 사실을 근거와 함께 기록한다.
+            # An empty ledger does not remove arithmetic obligations. If no values need checking,
+            # record that fact with supporting evidence.
             if not _evidence_ok(data.get("numbers_not_applicable")):
                 failures.append(
                     "numbers ledger is empty — 금액·기간·수량이 없는 문서라면 "
@@ -1070,12 +1042,12 @@ def evaluate(data: dict) -> list[str]:
             "checks.arithmetic is self-declared without a numbers ledger — "
             "금액·기간·수량을 numbers[]에 적으면 게이트가 합계·비율을 다시 계산한다")
 
-    # 시뮬레이션 산출물은 내부 확인용이다 — 외부 제출 준비 상태로 승격하지 않는다.
+    # Simulation artifacts are for internal inspection; never promote them to external submission readiness.
     if mode == "submission" and data.get("artifact_mode") == "simulation-only":
         failures.append("artifact_mode 'simulation-only' cannot clear submission "
                         "(use 'submission-candidate' with a real artifact)")
-    # 제출 모드에서는 artifact_required 입력값이 검증 의무를 취소하지 못한다.
-    # (외부 입력 하나로 렌더·해시 검사를 통째로 건너뛰던 우회 경로 차단)
+    # In submission mode, artifact_required cannot cancel verification obligations.
+    # Prevent a single external input from bypassing all rendering and hash checks.
     artifact_required = data["artifact_required"] or mode == "submission"
     if artifact_required and not _true(data["render"].get("verified")):
         failures.append("render verification is missing or failed")
@@ -1085,12 +1057,12 @@ def evaluate(data: dict) -> list[str]:
                 failures.append(f"render verification lacks {field}")
         if not _evidence_ok(data["render"].get("evidence")):
             failures.append("render verification lacks evidence")
-    # 제출 모드는 자동 레이아웃 검사와 사람의 육안 승인을 둘 다 요구한다.
-    # 렌더 성공(PDF 변환)은 디자인 승인이 아니다 — 미검사를 통과로 추정하지 않는다.
+    # Submission requires both automated layout inspection and human visual approval.
+    # Rendering success (PDF conversion) is not design approval; never assume uninspected means passed.
     if mode == "submission":
         render_block = data["render"]
         if not _true(render_block.get("layout_checked")):
-            # 필드를 지우면 요구가 사라지던 구멍을 막는다(누락 = 미검사 = 차단).
+            # Prevent requirements disappearing when fields are removed (missing = uninspected = blocked).
             failures.append("layout check is missing — deck_check.py로 레이아웃을 검사하고 "
                             "render.layout_checked=true를 기록한다")
         if "render_succeeded" in render_block and _true(render_block.get("verified")) \
@@ -1103,8 +1075,8 @@ def evaluate(data: dict) -> list[str]:
                 "render.visual_review_approved=true와 visual_reviewer를 기록한다")
         elif _is_placeholder(render_block.get("visual_reviewer")):
             failures.append("visual review lacks a named reviewer (render.visual_reviewer)")
-    # 제출 모드의 해시는 실제 파일에 대조 가능해야 한다. 형식이 아니거나 render와
-    # package가 서로 다른 파일을 가리키면, 검토 기록이 어느 산출물의 것인지 알 수 없다.
+    # Submission hashes must match actual files. Invalid hashes or render/package hashes
+    # pointing to different files leave the reviewed artifact unidentified.
     if mode == "submission":
         render_hash = data["render"].get("artifact_hash")
         package_hash = data["package"].get("artifact_hash")
@@ -1141,20 +1113,20 @@ def evaluate(data: dict) -> list[str]:
         if _is_placeholder(data["submission"].get("receipt_plan")):
             failures.append("submission receipt plan is missing")
 
-    # 반낙관 가드 1: 마감일 vs 현재일. 제출 모드는 마감일 필수이며 과거이면 차단.
+    # Anti-optimism guard 1: deadline versus current time; submission requires a future deadline.
     deadline = data["submission"].get("deadline")
     if data["mode"] == "submission" and not deadline:
         failures.append("submission deadline is missing")
     elif deadline and is_iso_datetime(deadline) and not deadline_in_future(deadline):
         failures.append(f"submission deadline has passed: {deadline}")
 
-    # 반낙관 가드 3: 계량 자격 일관성. 미충족+치유불가면 bid 금지,
-    # 미충족+치유가능이면 단독 bid 금지(조건부입찰/불참만 허용). 제출 모드는 원장 필수.
+    # Anti-optimism guard 3: quantitative eligibility; unmet and incurable forbids bids,
+    # while unmet and curable permits only conditional-bid/no-bid. Submission requires a ledger.
     eligibility = data.get("eligibility", [])
     for e in eligibility:
         if e.get("mandatory", True) is False or _true(e.get("met")):
             continue
-        # fail-closed: curable 미지정은 보수적으로 '치유불가'로 취급(생략으로 우회 방지).
+        # Fail closed: missing curable means incurable, preventing omission-based bypass.
         if not _true(e.get("curable")):
             if decision != "no-bid":
                 failures.append(
@@ -1165,13 +1137,13 @@ def evaluate(data: dict) -> list[str]:
     if data["mode"] == "submission" and not eligibility:
         failures.append("submission requires eligibility ledger")
 
-    # 제조사 확약(vendor_confirmations): 필수인데 미제출이면 차단(계약 전 독소조항 대응).
+    # Required vendor_confirmations block when absent, addressing problematic pre-contract terms.
     for vc in data.get("vendor_confirmations", []):
         if vc.get("required", True) is not False and not _true(vc.get("present")):
             failures.append(f"vendor confirmation {vc.get('id', '?')} ({vc.get('kind', '?')}) is missing")
 
-    # 금융 등 규제 완료증거(regulatory_checks): 명시적 gap/in-progress는 차단,
-    # met는 증거 필요. 금융 플래그가 켜진 제출 건은 규제 검사 목록이 반드시 있어야 한다.
+    # Regulatory completion evidence: explicit gap/in-progress blocks; met requires evidence.
+    # Financial submissions with the financial flag enabled require a regulatory-check ledger.
     reg_checks = data.get("regulatory_checks", [])
     for check in reg_checks:
         status = check.get("status")
@@ -1187,7 +1159,7 @@ def evaluate(data: dict) -> list[str]:
 
 
 def remediation_hint(failure: str) -> str:
-    """차단 사유별 '무엇을 고칠지' 한 줄 조치 힌트. 작성자가 바로 행동하게 한다."""
+    """One-line corrective action per blocker, enabling authors to act immediately."""
     f = failure.lower()
     table = [
         ("approved without evidence_refs", "해당 요구에 근거(evidence_refs: 제안서 위치·산출물 해시)를 채운다"),
@@ -1222,12 +1194,7 @@ def remediation_hint(failure: str) -> str:
 
 def explain_markdown(data: dict, schema_failures: list[str], failures: list[str],
                      label: str | None = None, document_verified: bool = False) -> str:
-    """게이트 결과를 사람이 바로 고칠 수 있는 마크다운으로 설명한다.
-
-    label을 주면 그 판정을 그대로 쓴다. 호출자(unified_gate)는 audit만으로는 알 수 없는
-    사실 — 실제 문서를 검사했는지 — 을 알기 때문이다. 설명이 audit으로 상태를 다시
-    계산하면 제목은 AUDIT-VALID인데 본문은 "제출 가능"이라고 말하는 모순이 생겼다.
-    """
+    """Explain gate results as actionable Markdown. Use a supplied label unchanged: unified_gate knows whether actual files were inspected, which the audit alone cannot establish. Recalculation previously produced AUDIT-VALID headings with submission-ready body text."""
     if schema_failures:
         lines = ["## 게이트 결과: INVALID AUDIT (스키마 오류)", "",
                  "| # | 스키마 오류 | 조치 |", "|---|---|---|"]
@@ -1236,14 +1203,14 @@ def explain_markdown(data: dict, schema_failures: list[str], failures: list[str]
         return "\n".join(lines)
     decision = data.get("bid_decision")
     if not failures:
-        # 라벨과 설명은 같은 판정에서 나온다. 호출자가 준 label이 우선한다.
+        # Labels and explanations share one decision; caller-supplied labels take precedence.
         label = label or readiness(data, failures)[0]
         mode = str(data.get("mode", "")) or "draft"
         if label == "SUBMISSION-READY" and document_verified:
             body = ("제출 가능. 모든 결정론적 게이트를 통과했고 실제 파일과 해시가 일치한다. "
                     "최종 수치·화면·패키지는 사람이 한 번 더 확인한다.")
         elif label == "SUBMISSION-READY":
-            # 이 호출자는 파일을 보지 않았다 — audit만으로 제출 승인을 말하지 않는다.
+            # This caller has not inspected files; audit-only checks cannot grant submission approval.
             body = ("audit의 결정론적 게이트는 통과했다. **실제 파일을 검사하지 않았으므로 "
                     "제출 승인이 아니다** — `unified_gate.py --doc <최종파일>`로 해시 대조를 받는다.")
         elif label == "AUDIT-VALID":
@@ -1256,7 +1223,7 @@ def explain_markdown(data: dict, schema_failures: list[str], failures: list[str]
             body = (f"{mode} 단계 게이트를 통과했다 — 내부 진행용이다. 제출 판정은 "
                     "mode=submission audit + 실제 파일 대조로 별도로 받는다.")
         return f"## 게이트 결과: {label}\n\n{body}"
-    # no-bid·intake-incomplete는 '의도된 정지'이므로 결함이 아니라 결정 메모로 제시한다.
+    # no-bid/intake-incomplete are intentional stops presented as decision memos, not defects.
     if decision in DECISION_STOP:
         residual = [f for f in failures if "must be 'bid'" not in f.lower()
                     and "check failed or missing: submission" not in f.lower()]
@@ -1300,7 +1267,7 @@ def main(argv: list[str]) -> int:
     explain = ns.explain
     try:
         data = json.loads(ns.audit.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError) as exc:  # JSONDecodeError·UnicodeDecodeError 포함
+    except (OSError, ValueError) as exc:  # Includes JSONDecodeError and UnicodeDecodeError.
         print(f"invalid audit file: {exc}", file=sys.stderr)
         return 2
     schema_failures = validate_schema(data)
@@ -1319,7 +1286,7 @@ def main(argv: list[str]) -> int:
         return 2
     if failures:
         decision = data.get("bid_decision")
-        # S5: no-bid/intake-incomplete는 기본 CLI에서도 의도 정지로 표기 (explain 없이도).
+        # S5: show no-bid/intake-incomplete as intentional stops even in the default CLI without explain.
         if decision in DECISION_STOP:
             print("DECISION_MEMO")
             for failure in failures:
