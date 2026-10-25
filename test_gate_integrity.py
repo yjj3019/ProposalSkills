@@ -206,10 +206,12 @@ class SubmissionValidationRegressionTests(unittest.TestCase):
         data["attachments"][0]["sha256"] = digest_of(outside)
         self.assertTrue(any("폴더 밖" in p for p in self.gate.verify_bundle(data, root)))
         link.unlink()
-        link.symlink_to(root / "missing.txt")
-        # Windows may reject the missing target during resolve(), before is_file().
-        self.assertTrue(any("첨부 파일 없음" in p or "경로를 해석" in p
-                            for p in self.gate.verify_bundle(data, root)))
+        link.symlink_to(inside)
+        data["attachments"][0]["sha256"] = digest_of(inside)
+        self.assertEqual(self.gate.verify_bundle(data, root), [])
+        inside.unlink()
+        problems = self.gate.verify_bundle(data, root)
+        self.assertTrue(problems, problems)
 
 
 class SubmissionLifecycleTests(unittest.TestCase):
