@@ -82,7 +82,7 @@ codex plugin list
 
 ## 릴리스 준비와 검증
 
-현재 로컬 후보 버전은 `1.2.3`다. GitHub 릴리스·태그·공식 디렉터리 게시를 의미하지 않는다.
+현재 로컬 후보 버전은 `1.2.4`다. GitHub 릴리스·태그·공식 디렉터리 게시를 의미하지 않는다.
 
 1. 세 매니페스트의 이름·버전·설명·작성자를 일치시킨다. 버전 변경 시 세 파일을 함께 갱신한다.
 2. 양쪽 카탈로그에 `proposal-skills` 항목이 각각 한 번 존재하고 같은 루트를 가리키는지 확인한다.
@@ -92,7 +92,7 @@ codex plugin list
 python -m unittest test_skill_schema -q
 python -m unittest discover -s . -p "test_*.py" -q
 claude plugin validate .
-python package_plugin.py -o dist/proposal-skills-1.2.3.zip
+python package_plugin.py -o dist/proposal-skills-1.2.4.zip
 ```
 
 2026-10-25 검증: Codex CLI 0.164.0의 임시 홈에서 로컬 카탈로그 등록→1.2.3 설치→목록의
@@ -116,5 +116,5 @@ AUDIT-VALID, 실제 문서 없는 제출 검사는 BLOCKED였다. UI 발견·호
 자동 로드된다고 가정하지 않는다. 플러그인 실행 지침은 배포되는 세 SKILL.md와 reference에 있다.
 
 형식과 등록 근거(2026-10-24 확인):
-[Claude marketplace](https://code.claude.com/docs/en/plugin-marketplaces),
-[OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins).
+[Claude 마켓플레이스 안내](https://code.claude.com/docs/en/plugin-marketplaces),
+[OpenAI 플러그인 패키징 안내](https://developers.openai.com/plugins/build/plugins).

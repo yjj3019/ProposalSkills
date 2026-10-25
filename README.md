@@ -40,9 +40,9 @@ ChatGPT는 지원되는 환경에서 설치된 스킬을 선택합니다.
 
 | 스킬 | 역할 |
 |---|---|
-| [create-best-proposal](skills/create-best-proposal/SKILL.md) | 작성·검토·제출 검사의 통합 진입점 |
-| [create-proposal-document](skills/create-proposal-document/SKILL.md) | 콘텐츠·문체·PPTX 제작 |
-| [create-winning-proposal](skills/create-winning-proposal/SKILL.md) | 요구·근거·승인 요건 검증 |
+| [제안서 통합 작성](skills/create-best-proposal/SKILL.md) | 작성·검토·제출 검사의 통합 진입점 |
+| [제안서 콘텐츠 작성](skills/create-proposal-document/SKILL.md) | 콘텐츠·문체·PPTX 제작 |
+| [제안서 근거·제출 검토](skills/create-winning-proposal/SKILL.md) | 요구·근거·승인 요건 검증 |
 
 내부 두 스킬은 통합 진입점에서 사용하며, 개별 작업은 이름을 명시해 호출합니다.
 

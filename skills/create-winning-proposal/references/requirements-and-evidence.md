@@ -1,65 +1,79 @@
-# Requirements and evidence
+# 요구사항과 근거
 
-## Bid/no-bid gate
+## 참여 여부 판정
 
-Check eligibility, mandatory certifications/experience, deadline, page/file/signature rules, conflicts, delivery capacity, evidence availability, commercial fit, and unacceptable terms. Classify:
+자격·필수 인증/실적·마감·장수/파일/서명 규칙·이해충돌·수행 능력·근거 확보·상업 조건·
+수용 불가능한 조항을 확인하고 다음 상태로 분류한다.
 
-- `intake-incomplete`: sources are too sparse to assess eligibility; list missing inputs without inventing owners or deadlines
-- `bid`: no known blocker
-- `conditional-bid`: named curable conditions, owner, decision deadline, and approval path exist
-- `no-bid`: the bidder lacks a mandatory qualification/capability or an unacceptable risk cannot be cured before submission
+- `intake-incomplete`: 자격을 판단할 자료가 부족하다. 담당자나 마감을 발명하지 말고 필요 입력을 나열한다.
+- `bid`: 알려진 차단 사유가 없다.
+- `conditional-bid`: 치유 가능한 조건·담당자·결정 기한·승인 경로가 정해져 있다.
+- `no-bid`: 필수 자격/능력이 없거나 수용 불가능한 위험을 제출 전까지 해소할 수 없다.
 
-Internal approval cannot waive a buyer's mandatory rule. Check whether consortium or subcontractor credentials are explicitly permitted before treating them as a cure. For obvious no-bid cases, stop proposal drafting and issue a short eligibility decision memo with lawful reconsideration triggers.
+내부 승인으로 발주처의 필수 규칙을 면제할 수 없다. 공동수급·하도급 실적을 보완 근거로 삼기 전에
+명시적으로 허용되는지 확인한다. 불참이 명확하면 작성을 멈추고 적법한 재검토 조건이 담긴 짧은
+자격 판단 메모를 제공한다.
 
-## Source hierarchy
+## 출처 서열
 
-1. RFP, amendments, official Q&A, evaluation sheet, mandatory template
-2. User-approved company facts, policies, contracts, certifications, case studies, product documents
-3. Current authoritative external sources
-4. Explicit assumptions awaiting approval
+1. RFP·수정공고·공식 Q&A·평가표·필수 양식
+2. 사용자가 승인한 사내 사실·정책·계약·인증·사례·제품 문서
+3. 최신 권위 외부 출처
+4. 승인을 기다리는 명시적 가정
 
-Within tier 1, apply this precedence unless the issuer says otherwise: formal amendment/addendum supersedes the base RFP; official Q&A clarifies the latest controlling text and changes it only when explicit; the mandatory template controls presentation; the evaluation sheet controls scoring. Record acknowledgement of each amendment and sweep the draft for superseded dates, versions, locations, quantities, and terms. Normalize deadlines to year, date, exact time, and timezone. Never silently resolve conflicts.
+1순위 내부에서는 발행기관의 별도 지시가 없으면 공식 수정공고가 본 RFP를 대체한다.
+공식 Q&A는 최신 유효 원문을 명확히 하며 명시된 경우에만 내용을 바꾼다. 필수 양식은 표현,
+평가표는 배점을 정한다. 수정공고 확인 이력을 기록하고 폐기된 날짜·버전·위치·수량·조건이
+초안에 남았는지 전수 검색한다. 마감은 연도·날짜·정확한 시각·시간대로 정규화하며 충돌을 조용히 해소하지 않는다.
 
-## Requirement ledger
+## 요구사항 원장
 
-| Field | Required content |
+| 필드 | 기록할 내용 |
 |---|---|
-| `id` | stable requirement ID |
-| `exact_text` | operative source wording |
-| `source` | file, hash, page/sheet/row/section |
-| `basis` | explicit buyer text, interpretation, or internal recommendation |
-| `mandatory` / `weight` | eligibility and scoring importance |
-| `category` | technical, delivery, commercial, legal, security, format, etc. |
-| `response_location` | exact proposal section/table |
-| `evidence_refs` | approved evidence IDs and exact locations |
-| `owner` / `reviewer` | accountable people or roles |
-| `compliance` | compliant, partially-compliant, non-compliant, not-applicable, or needs-confirmation |
-| `verification` | acceptance test, document, calculation, or reviewer decision |
-| `state` | pending, drafted, needs-review, approved, rejected, not-applicable |
-| `open_question` | exact missing decision or evidence |
+| `id` | 유지되는 요구사항 ID |
+| `exact_text` | 현재 유효한 원문 |
+| `source` | 파일·해시·쪽/시트/행/조항 |
+| `basis` | 발주처 명시 원문·해석·내부 권고의 구분 |
+| `mandatory` / `weight` | 필수 여부와 배점 중요도 |
+| `category` | 기술·수행·가격·법무·보안·형식 등의 분류 |
+| `response_location` | 제안서의 정확한 절/표 위치 |
+| `evidence_refs` | 승인된 근거 ID와 정확한 위치 |
+| `owner` / `reviewer` | 책임자·검토자 또는 역할 |
+| `compliance` | `compliant`, `partially-compliant`, `non-compliant`, `not-applicable`, `needs-confirmation` 중 준수 상태 |
+| `verification` | 수용 시험·문서·계산·검토자 판단 |
+| `state` | `pending`, `drafted`, `needs-review`, `approved`, `rejected`, `not-applicable` 중 검토 상태 |
+| `open_question` | 필요한 정확한 결정·근거 |
 
-- Split compound requirements when owner, evidence, or approval differs.
-- For amendments, keep internal IDs stable while recording the revision-specific source clause label.
-  `scripts/compare_requirements.py` compares human-matched IDs and marks changed responses/evidence
-  for review. It does not infer split/merge matches or approve ledger records. Its JSON is a separate
-  review sidecar, not an audit. Input: `{"requirements": [{"id": "REQ-001", "text": "synthetic requirement", "source_clause_label": "1.1"}]}`.
-  Run `python compare_requirements.py before.json after.json --output amendment-diff.json` from the
-  actual script location. Do not store customer source text or diffs in the installed skill directory.
-- Record submission mechanics as requirements.
-- Map source-to-proposal, not topic-to-topic.
-- `not-applicable` requires rationale and reviewer approval.
-- Mandatory `partially-compliant`, `non-compliant`, or `not-applicable` decisions require rationale and accountable approval; assess disqualification risk.
-- Do not broaden evidence: “domestic region available” does not prove all primary, backup, log, and disaster-recovery data stays domestic.
+- 담당자·근거·승인이 다르면 복합 요구를 나눈다.
+- 수정공고에서도 내부 ID는 유지하고 개정별 조항 번호를 별도로 기록한다.
+  `scripts/compare_requirements.py`는 사람이 연결한 ID를 비교해 바뀐 응답·근거를 재검토 대상으로
+  표시한다. 요구 분리/병합을 추론하거나 원장을 승인하지 않는다. 결과 JSON은 감사 원장이 아닌
+  별도 검토 파일이다. 입력 예시는 다음과 같다.
+  `{"requirements": [{"id": "REQ-001", "text": "synthetic requirement", "source_clause_label": "1.1"}]}`
+  실제 스크립트 위치에서 `python compare_requirements.py before.json after.json --output amendment-diff.json`을
+  실행한다. 고객 원문이나 차이 자료를 설치된 스킬 폴더에 저장하지 않는다.
+- 제출 방법도 요구사항으로 기록한다.
+- 주제끼리 연결하지 말고 원문 요구와 제안 응답을 연결한다.
+- `not-applicable`에는 사유와 검토자 승인이 필요하다.
+- 필수 요구의 `partially-compliant`, `non-compliant`, `not-applicable` 판단은 사유와 책임자 승인을
+  기록하고 실격 위험을 평가한다.
+- 근거 범위를 확대하지 않는다. 국내 리전 제공은 운영·백업·로그·재해복구 데이터가 모두 국내에 남는다는 증거가 아니다.
 
-## Evidence and claim ledger
+## 근거·주장 원장
 
-| Claim ID | Type | Claim | Supports | Source tier/ID/location/hash | Version/date/scope | Disclosure permission | Owner/approver | Fact status | Use status |
+| 주장 ID | 유형 | 주장 | 뒷받침 대상 | 출처 순위/ID/위치/해시 | 버전/날짜/범위 | 공개 허가 | 담당자/승인자 | 사실 상태 | 사용 상태 |
 |---|---|---|---|---|---|---|---|---|---|
 
-Require evidence for prices, dates, quantities, calculations, performance, savings, availability, certifications, compliance, security, privacy, lifecycle, support, customer results, comparisons, guarantees, and superlatives.
+가격·날짜·수량·계산·성능·절감·가용성·인증·규제·보안·개인정보·수명주기·지원·고객 성과·
+비교·보장·최상급 표현에는 근거를 요구한다.
 
-Use `[NEEDS INPUT: owner — exact item]`, a visible assumption with impact, an assigned evidence gap, or remove the claim. Preserve the generated and approved versions in review events.
+`[NEEDS INPUT: owner — exact item]`, 영향이 드러난 가정, 담당자를 배정한 근거 미비 중 하나로
+남기거나 주장을 제거한다. 생성본과 승인본은 검토 이력에 보존한다.
 
-Classify unresolved items as `blocking-input`, `non-blocking-input`, or `assumption`. Eligibility, mandatory compliance, price, schedule, SLA, contract, security, and required evidence are blocking unless the accountable approver documents otherwise. A prior proposal is pattern guidance only; never transfer its customer, price, staffing, schedule, architecture, result, or commitment as current evidence.
+미결 항목은 `blocking-input`, `non-blocking-input`, `assumption`으로 분류한다. 자격·필수 준수·
+가격·일정·SLA·계약·보안·필수 근거는 책임 승인자가 달리 기록하지 않는 한 차단 항목이다.
+과거 제안서는 패턴 참고일 뿐이며 고객·가격·인력·일정·구성·성과·확약을 현재 근거로 전용하지 않는다.
 
-Keep artifact placeholders separate from the input ledger. Any token physically remaining in a deliverable belongs in `unresolved_tokens` and blocks finalization; a non-blocking input or visible assumption belongs only in `inputs` unless its placeholder still remains in the artifact.
+산출물의 입력 표식과 필요 입력 원장은 구분한다. 산출물에 실제 남은 표식은 모두
+`unresolved_tokens`에 기록하고 최종화를 차단한다. 비차단 입력과 명시적 가정은 해당 표식이
+산출물에 남아 있지 않으면 `inputs`에만 기록한다.

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Best Proposal (Unified)"
-  short_description: "Content + governance proposal workflow with deterministic gates"
-  default_prompt: "Use create-best-proposal to run bid decision and proposal work with the current session's tools. Run available scripts and report checks that could not be performed."
+  display_name: "제안서 통합 작성"
+  short_description: "요구사항 분석부터 제안서 작성·검토·제출 검사까지 통합 진행"
+  default_prompt: "$create-best-proposal로 참여 판단과 제안서 작성을 진행해줘. 현재 실행 가능한 도구로 검사하고 수행하지 못한 검사는 밝혀줘."

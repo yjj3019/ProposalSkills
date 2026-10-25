@@ -1,63 +1,83 @@
-# Anonymized proposal patterns
+# 익명 제안서 패턴
 
-Use this reference for planning and visual composition, not as evidence for a customer-specific claim.
+이 자료는 구성·시각 표현의 참고용이며 특정 고객에 대한 사실 주장의 근거로 사용하지 않는다.
 
-## Corpus and privacy boundary
+## 분석 자료와 개인정보 경계
 
-These patterns were abstracted from 25 supplied Korean enterprise and public-sector proposal documents totaling more than 1,300 pages/slides. The corpus includes PDF and PPTX material. The review sampled cover, contents, quarter points, middle, and closing pages from every document and used text extraction only to measure broad section coverage and sentence function.
+제공된 한국어 기업·공공 제안 문서 25개, 1,300쪽 이상의 페이지·장표에서 구조를 추상화했다.
+PDF와 PPTX를 포함하며 각 문서의 표지·목차·사분위 위치·중간·마지막 페이지를 표본 확인했다.
+텍스트 추출은 큰 단위의 절 구성과 문장 기능을 측정하는 데만 사용했다.
 
-No source file, page image, filename, logo, person, contact detail, customer or supplier name, exact date, unique project number, proprietary figure, verbatim sentence, or document hash is included here. Do not reconstruct, quote, or identify a source from these aggregates.
+원본 파일·페이지 이미지·파일명·로고·인물·연락처·고객/공급사명·정확한 날짜·고유 사업번호·
+독점 도식·원문 문장·문서 해시는 포함하지 않는다. 집계 내용으로 원문을 복원·인용·식별하지 않는다.
 
-## Stable patterns observed
+## 반복 관찰된 패턴
 
-- The corpus separates into slide-oriented persuasion documents and A4 evaluation documents. Slide-oriented work favors a conclusion headline plus a diagram or table. A4 work favors explicit requirement, activity, deliverable, responsibility, and acceptance traceability.
-- Solution, migration, and operations/support content appeared in nearly every document. Quality/security and references appeared in most; training appeared frequently. Executive summaries and explicit customer-understanding sections were less consistent, making them useful differentiators when the buyer permits them.
-- Operations/support proposals repeatedly organize around service scope, request and incident flow, severity, escalation, organization, reporting, SLA, transition, and improvement.
-- Migration/build proposals repeatedly follow current-state diagnosis, target architecture, phased execution, verification or rollback, stabilization, and operating handoff.
-- Standard product proposals commonly use context, product role, differentiators, architecture, capability groups, adoption, operations, and evidence. Convert this catalog order into a buyer decision flow; a feature inventory alone is not a proposal.
-- Policy or standardization proposals work best when they connect the reason to standardize, selection criteria, target baseline, governance and security controls, transition roadmap, and operating economics.
-- Resilience proposals progress from failure assumptions and recovery objectives to protection patterns, orchestration, validation, operating ownership, and pattern-selection criteria. A topology without recovery behavior and test evidence is incomplete.
-- Case-led proposals use context, challenge, choice, implementation, result, and transferability. Treat every name, image, date, metric, quote, and architecture as restricted until reuse permission and evidence are confirmed.
-- Strong technical pages pair a conclusion-style headline with an architecture, process, comparison, schedule, or responsibility model. Weak pages use topic-only headings, tiny prose, unexplained vendor diagrams, illegible screenshots, or placeholder imagery.
-- Covers and section dividers establish navigation, but decorative pages do not replace scored content. Closing pages should be omitted or minimized when page limits count them.
+- 장표형 설득 문서와 A4 평가 문서로 나뉜다. 장표형은 결론 제목과 도식·표를, A4형은
+  요구·활동·산출물·책임·검수의 명시적 추적 관계를 중시한다.
+- 해결안·이관·운영/지원은 거의 모든 문서에 나타났다. 품질/보안·실적은 대부분, 교육은
+  자주 나타났다. 제안 요약과 명시적 고객 이해는 덜 일관돼 발주처가 허용하면 차별점이 될 수 있다.
+- 운영·지원 제안은 서비스 범위·요청/장애 흐름·심각도·단계별 보고·조직·보고서·SLA·전환·개선을
+  중심으로 반복 구성됐다.
+- 이관·구축 제안은 현황 진단·목표 구조·단계적 실행·검증/복원·안정화·운영 인계 순서가 반복됐다.
+- 표준 제품 제안은 상황·제품 역할·차별점·구조·기능군·도입·운영·근거를 주로 사용했다.
+  제품 목록 순서를 고객의 의사결정 흐름으로 바꾼다. 기능 목록만으로는 제안서가 되지 않는다.
+- 정책·표준화 제안은 표준화 이유·선정 기준·목표 기준선·관리/보안 통제·전환 계획·운영 경제성을
+  연결할 때 효과적이다.
+- 복원력 제안은 장애 가정·복구 목표에서 보호 방식·실행 제어·검증·운영 책임·방식 선택 기준으로
+  전개한다. 복구 동작과 시험 근거가 없는 구성도는 불완전하다.
+- 사례형 제안은 상황·과제·선택·구현·성과·적용 가능성을 다룬다. 이름·이미지·날짜·수치·인용·
+  구성은 재사용 허가와 근거를 확인하기 전까지 사용이 제한된 것으로 취급한다.
+- 좋은 기술 페이지는 결론형 제목을 구조·절차·비교·일정·책임 모형과 연결한다. 약한 페이지는
+  주제명만 있는 제목·작은 글자·설명 없는 제조사 그림·읽기 어려운 화면 캡처·임시 이미지를 사용한다.
+- 표지·간지는 탐색을 돕지만 장식 페이지가 배점 내용을 대신하지 않는다. 장수에 포함되면
+  마무리 장표는 생략하거나 최소화한다.
 
-## Reusable narrative spine
+## 재사용할 이야기 흐름
 
-Use this spine only when it fits the buyer's required order:
+발주처가 요구한 순서에 맞을 때만 다음 흐름을 사용한다.
 
-1. Show the decision and measurable outcome.
-2. Demonstrate understanding of the present constraint and evaluation concern.
-3. State the proposed scope, boundaries, target state, and differentiator.
-4. Explain how delivery, migration, testing, and acceptance will work.
-5. Prove that operations, support, security, quality, and governance are sustainable.
-6. Expose responsibilities, assumptions, dependencies, risks, and rollback or exit paths.
-7. Tie evidence and commitments back to requirements and the next decision.
+1. 결정과 측정 가능한 성과를 제시한다.
+2. 현재 제약과 평가상의 관심을 이해했음을 보여 준다.
+3. 제안 범위·경계·목표 상태·차별점을 밝힌다.
+4. 수행·이관·시험·검수가 어떻게 진행되는지 설명한다.
+5. 운영·지원·보안·품질·관리 체계의 지속 가능성을 근거로 보여 준다.
+6. 책임·가정·의존성·위험·복원/종료 경로를 드러낸다.
+7. 근거와 확약을 요구사항 및 다음 결정에 다시 연결한다.
 
-## Page patterns
+## 페이지 유형
 
-- **Decision page**: recommendation; 3–5 reasons; quantified outcomes with evidence IDs; conditions.
-- **Understanding page**: observed constraint; impact; buyer priority; source location; response implication.
-- **Architecture page**: boundary; components; interfaces; data/control flows; security zones; legend; assumptions.
-- **Process page**: trigger; accountable role; steps; control point; output; SLA or acceptance.
-- **Roadmap page**: phases; entry/exit criteria; dependencies; deliverables; decision gates; rollback.
-- **Operating model page**: roles; responsibility matrix; escalation; reporting cadence; service hours; exclusions.
-- **Evidence page**: requirement or claim; evidence ID; scope and date; relevance; limitation.
-- **Risk page**: cause; event; effect; probability/impact; prevention; contingency; owner; trigger.
-- **Capability page**: buyer need; mechanism; operating effect; boundary; dependency; evidence. Group related functions instead of listing every feature.
-- **Comparison page**: decision criteria; defined alternatives; same measurement basis; source/date; gaps; buyer implication. Do not use an unsupported winner-first table.
-- **Resilience pattern page**: failure domain; protected scope; recovery objective; data protection; orchestration; test method; residual risk; owner.
-- **Case page**: approved anonymous context; challenge; intervention; verified outcome; relevance; differences and limits. Omit it when permission or evidence is absent.
+- **의사결정:** 권고, 이유 3–5개, 근거 ID가 있는 정량 성과, 조건
+- **고객 이해:** 관찰된 제약, 영향, 고객 우선순위, 출처 위치, 제안에 미치는 의미
+- **구조:** 경계, 구성요소, 연계, 데이터/제어 흐름, 보안 영역, 범례, 가정
+- **절차:** 시작 조건, 책임 역할, 단계, 통제 지점, 산출물, SLA/수용 기준
+- **추진계획:** 단계, 진입/종료 기준, 의존성, 산출물, 결정 지점, 복원
+- **운영 체계:** 역할, 책임 분담, 단계별 보고, 보고 주기, 서비스 시간, 제외 범위
+- **근거:** 요구/주장, 근거 ID, 범위·날짜, 관련성, 한계
+- **위험:** 원인, 사건, 영향, 가능성/영향도, 예방, 비상 대응, 담당자, 시작 조건
+- **역량:** 고객 필요, 수행 원리, 운영 효과, 경계, 의존성, 근거. 모든 기능을 나열하지 말고
+  관련 기능을 묶는다.
+- **비교:** 결정 기준, 정의된 대안, 동일한 측정 기준, 출처/날짜, 미충족 사항, 고객 의미.
+  근거 없이 승자를 먼저 정한 표를 사용하지 않는다.
+- **복원력 방식:** 장애 영역, 보호 범위, 복구 목표, 데이터 보호, 실행 제어, 시험 방법,
+  잔여 위험, 담당자
+- **사례:** 승인된 익명 상황, 과제, 조치, 검증된 성과, 관련성, 차이·한계.
+  허가나 근거가 없으면 생략한다.
 
-## Visual system rules
+## 시각 표현 규칙
 
-- Keep one dominant message per page and express it as a conclusion, not a noun phrase.
-- Select the visual by the reasoning task: architecture for relationships, flow for sequence, matrix for comparison, timeline for dependencies, table for accountable detail.
-- Repeat a small set of semantic colors and shapes; do not encode meaning by color alone.
-- Label scope, version, unit, date, source, assumptions, and abbreviations where relevant.
-- Keep diagram text readable at final page size. Redraw or summarize screenshots instead of enlarging low-resolution captures.
-- Test Korean and symbol fonts through the final PDF renderer. Font substitution can alter line breaks, tables, and symbols even when the source application looks correct.
-- Treat legacy connectors, embedded screenshots, and external media as portability risks. Render through the intended submission application and replace broken or unreadable objects.
+- 페이지마다 핵심 메시지를 하나로 두고 명사형 주제 대신 결론으로 표현한다.
+- 논리에 맞는 표현을 고른다. 관계는 구조도, 순서는 흐름도, 비교는 행렬, 의존성은 일정표,
+  책임 있는 상세는 표로 표현한다.
+- 의미가 정해진 소수의 색·도형을 반복 사용하고 색에만 의미를 맡기지 않는다.
+- 필요한 위치에 범위·버전·단위·날짜·출처·가정·약어를 표시한다.
+- 최종 페이지 크기에서 도식 글자가 읽혀야 한다. 저해상도 화면 캡처를 확대하지 말고 다시 그리거나 요약한다.
+- 최종 PDF 렌더 도구로 한글·기호 폰트를 확인한다. 원본 앱에서 정상이어도 대체 폰트로
+  줄바꿈·표·기호가 달라질 수 있다.
+- 구형 연결선·포함 화면 캡처·외부 미디어는 호환 위험으로 본다. 실제 제출 앱에서 렌더하고
+  깨졌거나 읽을 수 없는 개체를 교체한다.
 
-## Adaptation rule
+## 적용 원칙
 
-Treat every pattern as a hypothesis to test against the current RFP, evaluation weights, page limit, evidence, template, and approval boundary. Buyer instructions always win. Never carry forward a prior customer's facts, commitments, architecture, pricing, performance, references, or branding.
+모든 패턴은 현재 RFP·배점·장수·근거·양식·승인 경계에 맞는지 확인할 가설이다.
+발주처 지시가 우선한다. 과거 고객의 사실·확약·구조·가격·성능·실적·브랜드를 그대로 넘겨 쓰지 않는다.

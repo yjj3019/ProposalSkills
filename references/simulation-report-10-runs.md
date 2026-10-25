@@ -38,7 +38,7 @@
 ## 회귀 검증
 
 - `quick_validate.py`: `Skill is valid!`
-- `python -m unittest discover -s skills/create-winning-proposal/scripts -p test_*.py -v`: 5 tests passed
+- `python -m unittest discover -s skills/create-winning-proposal/scripts -p test_*.py -v`: 5개 테스트 통과
 - 회귀 항목: 정상 제출 통과, 승인된 conditional-bid 통과, 분석-only 렌더 예외, 누락 스키마 차단, 다중 실패 차단
 
 ## 남은 한계

@@ -178,5 +178,5 @@ PDF를 별도로 내보내 snapshot에 넘긴다. 기존 renderer의 임시 PDF 
 
 설계 참고: [Agent Skills](https://agentskills.io/specification),
 [diff-pdf-visually](https://github.com/bgeron/diff-pdf-visually),
-[Docling offline options](https://github.com/docling-project/docling/blob/main/docs/usage/advanced_options.md).
+[Docling 오프라인 설정](https://github.com/docling-project/docling/blob/main/docs/usage/advanced_options.md).
 외부 코드·템플릿은 복제하지 않았다. 선택 패키지·모델은 실제 채택 revision의 조건을 별도 확인한다.

@@ -1,6 +1,6 @@
-# Audit JSON schema
+# 감사 JSON 스키마
 
-Create every top-level field; do not omit empty arrays.
+최상위 필드를 모두 작성하고 빈 배열도 생략하지 않는다.
 
 ```json
 {
@@ -29,22 +29,22 @@ Create every top-level field; do not omit empty arrays.
 }
 ```
 
-- `mode`: submission, draft, review, or analysis.
+- `mode`: `submission`, `draft`, `review`, `analysis` 중 작업 모드를 기록한다.
 - `artifact_mode`(선택): `submission-candidate` 또는 `simulation-only`. 마감 경과 등으로
   no-bid인 RFP를 벤치마크 작성할 때도 `bid_decision`은 바꾸지 않는다.
-- Conditional-bid passes only when every condition has an owner, ISO-8601 date/time with timezone, and acceptance.
-- Intake-incomplete and no-bid never pass submission readiness.
-- Not-applicable mandatory items need rationale and reviewer.
-- Material claims must be supported, qualified, or removed; commitments also need owner approval.
-- Open blocking inputs and open Critical/Major defects block submission. `conditional-go` is an internal review state only.
-- Allow only `blocking|non-blocking|assumption`, `critical|major|minor|note`, and `open|closed`. Unknown values invalidate the audit.
-- Closing Critical/Major defects requires closure evidence, reviewer, ISO timestamp, and reverified scope.
-- Use `artifact_required: false` only when no rendered artifact is requested.
-- Set package inspection `required` for editable office files; missing capability is `inspected: false`, not a pass.
-- Verified render/package states require artifact hash, tool identity, evidence/check results, and reviewer. These fields prove that a review event was recorded, not that its factual conclusion is true.
-- In submission mode, a failed or not-inspected required package check blocks readiness.
-- Submission package scope must cover metadata, notes, comments, hidden content, embedded files, external links, macros, stale customer data, and price leakage; use `not-applicable` only with reviewer accountability.
-- Submission clearance requires rehearsal evidence and a receipt-capture plan. Add the actual receipt evidence after submission; do not fabricate it before submission.
+- `conditional-bid`는 모든 조건에 담당자·시간대가 있는 ISO-8601 날짜/시각·수락 기록이 있어야 통과한다.
+- `intake-incomplete`와 `no-bid`는 제출 준비 상태를 통과하지 않는다.
+- 필수 요구의 `not-applicable`에는 사유와 검토자가 필요하다.
+- 중대 주장은 `supported`·`qualified`로 근거를 갖추거나 제거한다. 확약은 담당자 승인도 필요하다.
+- 미결 차단 입력과 Critical/Major 결함은 제출을 차단한다. `conditional-go`는 내부 검토 상태일 뿐이다.
+- `blocking|non-blocking|assumption`, `critical|major|minor|note`, `open|closed`만 허용한다. 모르는 값은 감사를 무효로 만든다.
+- Critical/Major를 해결 처리하려면 해결 근거·검토자·ISO 시각·재검증 범위가 필요하다.
+- 렌더 산출물을 요청받지 않은 경우에만 `artifact_required: false`를 사용한다.
+- 편집 가능한 Office 파일은 패키지 검사 `required`를 설정한다. 도구가 없으면 통과가 아니라 `inspected: false`다.
+- 검증된 렌더/패키지 상태에는 산출물 해시·도구 식별·근거/검사 결과·검토자가 필요하다. 검토 기록의 존재를 보여 주며 판단의 진위를 증명하지 않는다.
+- 제출 모드에서는 필수 패키지 검사의 실패·미검사가 준비 상태를 차단한다.
+- 제출 패키지는 문서 속성·노트·주석·숨김 내용·포함 파일·외부 링크·매크로·이전 고객 자료·가격 누출을 검사한다. 검토자가 책임지는 경우에만 `not-applicable`을 사용한다.
+- 제출 허가에는 리허설 근거와 접수 증적 확보 계획이 필요하다. 실제 접수 증적은 제출 후 추가하며 제출 전에 발명하지 않는다.
 - `win_themes`(선택): `[{id, statement, req_ids[], proof?}]`. 각 theme의 `req_ids`는
   비어 있지 않아야 한다(장식 theme 금지). 게이트 필수 필드는 아니나 meta 빌더
   `--strict`와 작성 규율이 강제한다.
@@ -53,7 +53,7 @@ Create every top-level field; do not omit empty arrays.
 - `flags`, `regulatory_checks`, `vendor_confirmations`(선택·후방호환): 없으면 검사하지 않는다.
   - `regulatory_checks[]` status ∈ {met, gap, in-progress, not-applicable}. `gap`·`in-progress`는 차단, `met`는 evidence 필수. `flags.financial: true`인 submission은 `regulatory_checks`가 비면 차단(금융 규제 미기재 방지).
   - `vendor_confirmations[]` kind ∈ {support, supply}. `required && !present`이면 차단 — 제조사 기술지원·공급 확약서 같은 계약 전 필수 제출물을 blocking으로 모델링한다.
-- Record completed or documented-not-applicable consistency, arithmetic, and submission checks as `true`.
+- 일관성·산술·제출 검사를 완료했거나 해당 없음의 사유를 기록한 경우 `true`로 표시한다.
 
 ## 반낙관 하드닝(anti-optimism) — 자기선언 낙관 통과 차단
 
@@ -109,7 +109,7 @@ READY가 나오는 구멍이 있었다. 아래 3종 가드로 이를 막는다.
 - **목차 뼈대(proposal_archetype, sections, archetype_rationale)**: `build`(구축) |
   `maintenance`(유지보수·기술지원) | `technical-response`(기술답변서). 사업 성격
   (`context.engagement`)이 표준 뼈대를 정한다 — build·migrate → `build`,
-  operate·service-improvement → `maintenance`, product-selection → `technical-response`.
+  `operate`·`service-improvement` → `maintenance`, `product-selection` → `technical-response`.
   둘이 어긋나면 차단하되, 발주처가 목차를 지정했다면 `archetype_rationale`에 근거를 적어
   통과시킨다. 제출 모드에서 매핑되는 사업 성격이면 **어떤 뼈대를 썼는지 기록**해야 한다.
   `sections[]`(`{title}` 또는 문자열 배열)를 적으면 뼈대별 필수 절 누락을 검사한다 —

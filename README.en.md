@@ -3,6 +3,7 @@
 [한국어](README.md)
 
 A Korean IT proposal plugin for RFP analysis, editable PPTX authoring, review, and submission checks.
+The bundled skills and detailed guides are in Korean; this file is the English quick start.
 
 ## Install
 
@@ -40,9 +41,9 @@ In supported ChatGPT environments, select the installed skill.
 
 | Skill | Role |
 |---|---|
-| [create-best-proposal](skills/create-best-proposal/SKILL.md) | Unified entry for authoring, review, and submission checks |
-| [create-proposal-document](skills/create-proposal-document/SKILL.md) | Content, writing style, and PPTX generation |
-| [create-winning-proposal](skills/create-winning-proposal/SKILL.md) | Requirements, evidence, and approval validation |
+| [Unified proposal workflow](skills/create-best-proposal/SKILL.md) | Unified entry for authoring, review, and submission checks |
+| [Proposal content and slides](skills/create-proposal-document/SKILL.md) | Content, writing style, and PPTX generation |
+| [Evidence and submission review](skills/create-winning-proposal/SKILL.md) | Requirements, evidence, and approval validation |
 
 The unified entry uses the two internal skills; name them explicitly for standalone work.
 

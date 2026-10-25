@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "proposal-skills",
-  "version": "1.2.3",
-  "description": "Korean IT proposal workflows for RFP analysis, editable slide decks, evidence review, and submission checks.",
+  "version": "1.2.4",
+  "description": "제안요청서 분석부터 편집 가능한 제안서 작성·근거 검토·제출 검사까지 지원하는 한국어 IT 제안서 스킬 모음입니다.",
   "author": {
     "name": "ProposalSkills"
   },
@@ -12,7 +12,7 @@
     "com.openai": {
       "interface": {
         "displayName": "ProposalSkills",
-        "shortDescription": "Korean IT proposals: RFP analysis, slide decks, and submission checks",
+        "shortDescription": "제안요청서 분석·제안서 작성·근거 검토·제출 검사",
         "developerName": "yjj3019",
         "category": "Productivity",
         "capabilities": [

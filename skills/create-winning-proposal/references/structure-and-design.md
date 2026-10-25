@@ -1,62 +1,84 @@
-# Structure and design
+# 구조와 디자인
 
-Always use the buyer's mandatory outline first. Otherwise choose only the sections needed.
+발주처의 필수 목차를 우선한다. 지정이 없으면 필요한 절만 선택한다.
 
-## Choose an archetype
+## 제안 유형 선택
 
-- **Operations and support**: service scope; operating model; request/incident/escalation flow; severity and SLA; staffing and governance; reporting; transition; continuous improvement.
-- **Migration and modernization**: current constraints; target state; assessment; migration waves; compatibility/data/cutover; verification and rollback; stabilization; operating handoff.
-- **Platform or system build**: objectives; target architecture; functional and non-functional design; integration/data/security; implementation plan; testing and acceptance; operations.
-- **Product or solution selection**: evaluation criteria; fit and gaps; architecture; lifecycle and support; implementation; risk; total value; evidence.
-- **Standard product proposal**: buyer context; product role; decision criteria; differentiators; architecture; grouped capabilities; adoption and integration; operations and lifecycle; evidence; next decision.
-- **Policy or standardization decision**: why standardize; policy and operational constraints; selection criteria; approved baseline; governance/security; transition; economics; decision and next step.
-- **Resilience or continuity design**: business service and failure assumptions; recovery objectives; protection patterns; target architecture; orchestration; testing; operations; pattern selection; roadmap.
-- **Case-led education or persuasion**: audience question; context and challenge; decision; implementation; verified outcome; transferability and limits; implications. Use only approved case evidence.
-- **Outsourcing or managed service**: service boundaries; responsibility matrix; transition; organization and facilities; processes and tools; service levels; governance; exit plan.
+- **운영·지원:** 서비스 범위, 운영 체계, 요청/장애/보고 흐름, 심각도·SLA, 인력·관리 체계,
+  보고, 전환, 지속 개선을 담는다.
+- **이관·현대화:** 현재 제약, 목표 상태, 진단, 이관 단계, 호환성/데이터/전환, 검증·복원,
+  안정화, 운영 인계를 담는다.
+- **플랫폼·시스템 구축:** 목표, 목표 구조, 기능·비기능 설계, 연계/데이터/보안, 구축 계획,
+  시험·검수, 운영을 담는다.
+- **제품·솔루션 선정:** 평가 기준, 적합성·미충족 사항, 구조, 수명주기·지원, 도입, 위험,
+  종합 가치, 근거를 담는다.
+- **표준 제품 제안:** 고객 상황, 제품 역할, 판단 기준, 차별점, 구조, 기능군, 도입·연계,
+  운영·수명주기, 근거, 다음 결정을 담는다.
+- **정책·표준화 결정:** 표준화 이유, 정책·운영 제약, 선정 기준, 승인 기준선, 관리·보안,
+  전환 계획, 경제성, 결정·다음 단계를 담는다.
+- **복원력·연속성 설계:** 업무 서비스·장애 가정, 복구 목표, 보호 방식, 목표 구조, 실행 제어,
+  시험, 운영, 방식 선택, 추진계획을 담는다.
+- **사례 중심 교육·설득:** 독자 질문, 상황·과제, 결정, 구현, 검증된 성과, 적용 가능성·한계,
+  시사점을 담는다. 승인된 사례 근거만 사용한다.
+- **외주·관리형 서비스:** 서비스 경계, 책임 분담, 전환, 조직·시설, 절차·도구, 서비스 수준,
+  관리 체계, 종료 계획을 담는다.
 
-Hybrid work may combine archetypes, but assign one primary narrative: the archetype that carries the highest evaluation weight; if weights are absent, use the one carrying the main buyer decision and delivery risk. Do not copy a prior proposal's section order when the buyer specifies another.
+복합 사업도 주된 이야기는 하나로 정한다. 배점이 가장 큰 유형을 우선하고 배점이 없으면
+고객의 핵심 결정과 수행 위험을 담당하는 유형을 고른다. 발주처가 다른 순서를 지정하면 과거
+제안서의 절 순서를 그대로 복사하지 않는다.
 
-## Build a page-message map
+## 페이지별 메시지 맵
 
-For a substantial proposal, define each planned page or spread before drafting:
+규모 있는 제안서는 본문 작성 전에 페이지 또는 펼침면마다 다음을 정의한다.
 
 `page_id | evaluator_question | conclusion_headline | evidence | buyer_implication | assumptions_conditions | visual_type | requirement_ids | owner | state`
 
-Use a conclusion headline that states the page's answer. The body should prove it with a diagram, table, calculation, schedule, or concise prose, then state the buyer implication. A topic label alone is not a conclusion.
+제목은 그 페이지의 답을 말하는 결론으로 쓴다. 본문은 도식·표·계산·일정·짧은 문장으로
+결론을 증명한 뒤 고객에게 어떤 의미인지 설명한다. 주제명만으로는 결론이 되지 않는다.
 
-## Public/RFP proposal
+## 공공·RFP 제안
 
-Executive summary; compliance matrix; requirement understanding; solution; delivery/schedule; governance; operations/security/compliance; risks/assumptions; outcomes/acceptance; requested commercial/evidence appendices.
+제안 요약, 조견표, 요구 이해, 해결안, 수행·일정, 관리 체계, 운영/보안/규제 준수,
+위험·가정, 성과·수용 기준, 요청된 가격·증빙 별첨으로 구성한다.
 
-## Private sales proposal
+## 민간 영업 제안
 
-Decision summary; current impact; proposed outcome/scope; approach/differentiators; delivery/responsibilities; value/measures/risks/commercials; next decision.
+의사결정 요약, 현재 영향, 제안 성과·범위, 접근법·차별점, 수행·책임,
+가치/측정/위험/상업 조건, 다음 결정으로 구성한다.
 
-## Technical proposal
+## 기술 제안
 
-Summary/goals; requirements/non-goals; current state/constraints; design; security/operations/data/migration; alternatives; delivery/testing/rollback; risks/open decisions.
+요약·목표, 요구·제외 목표, 현황·제약, 설계, 보안/운영/데이터/이관, 대안,
+수행/시험/복원, 위험·미결 결정으로 구성한다.
 
-## Security questionnaire/XLSX
+## 보안 질의서·XLSX
 
-Preserve the buyer workbook, row order, formulas, validations, hidden sheets, and formatting. Add or map fields for direct answer, compliance level, boundary/exception, evidence ID, owner, reviewer, and state. Reopen the workbook and verify formulas and hidden structures. Do not attach sensitive internal policies when a redacted citation or controlled-review reference satisfies the requirement.
+발주처 통합문서·행 순서·수식·유효성 검사·숨김 시트·서식을 보존한다. 직접 답변·준수 수준·
+경계/예외·근거 ID·담당자·검토자·상태를 지정 열에 연결하거나 추가한다. 다시 열어 수식과 숨김
+구조를 확인한다. 가린 인용이나 통제된 열람 참조로 충족할 수 있으면 민감한 내부 정책 원문을 첨부하지 않는다.
 
-## Strict page limits
+## 엄격한 장수 제한
 
-Confirm whether cover, TOC, separators, appendices, and attachments count. Until confirmed, conservatively count every page in the limit and mark the assumption. Reserve pages by evaluation weight, then merge low-weight sections rather than shrinking fonts or hiding content. Track every separate package component and filename.
+표지·목차·간지·별첨·첨부의 산정 여부를 확인한다. 미확인일 때는 보수적으로 모든 페이지를
+제한에 포함하고 가정을 표시한다. 배점에 따라 지면을 확보하고 글자를 줄이거나 내용을 숨기는
+대신 낮은 배점의 절을 합친다. 별도 제출물마다 구성과 파일명을 추적한다.
 
-## Page design
+## 페이지 디자인
 
-- Give each page or major section one dominant message.
-- Prefer `conclusion → evidence → buyer implication`; keep the headline and visual mutually consistent.
-- Use architecture diagrams for boundaries and interfaces, process flows for sequence and control, matrices for repeated comparisons, timelines for phases and dependencies, and tables for accountable detail.
-- Use semantic heading styles and consistent brand assets supplied by the user.
-- Use tables for repeated mappings, not decorative layout.
-- Label units, dates, scope, source, and baseline on charts/tables.
-- Provide captions and text alternatives; never rely on color or direction alone.
-- Use at least 4.5:1 contrast for normal text and 3:1 for large text as a conservative reference.
-- Keep assumptions/exclusions near affected scope, schedule, or price.
-- Avoid unreadable screenshots, unexplained product diagrams, ornamental closing pages, and dense text reduced to fit. Replace image-only evidence with legible, sourced content.
+- 페이지나 주요 절마다 핵심 메시지를 하나로 둔다.
+- `결론 → 근거 → 고객 의미`를 우선하고 제목과 도식을 일치시킨다.
+- 구조도는 경계·연계, 흐름도는 순서·통제, 행렬은 반복 비교, 일정표는 단계·의존성,
+  표는 책임 있는 상세를 표현할 때 사용한다.
+- 의미에 맞는 제목 스타일과 사용자가 제공한 브랜드 자산을 일관되게 사용한다.
+- 표는 반복된 대응 관계를 표현할 때 사용하며 장식용 배치로 쓰지 않는다.
+- 차트·표에 단위·날짜·범위·출처·기준선을 표시한다.
+- 캡션·대체 텍스트를 제공하고 색상이나 방향에만 의미를 맡기지 않는다.
+- 보수적 참고값으로 일반 텍스트 대비는 4.5:1, 큰 텍스트는 3:1 이상을 사용한다.
+- 가정·제외는 영향을 받는 범위·일정·가격 가까이에 둔다.
+- 읽을 수 없는 화면 캡처, 설명 없는 제품도, 장식용 마무리 장표, 맞추려고 축소한 빽빽한
+  글을 피한다. 이미지뿐인 근거는 읽을 수 있고 출처가 있는 내용으로 바꾼다.
 
-## Template handling
+## 양식 처리
 
-Preserve supplied DOCX styles, headers, footers, section breaks, and boilerplate. Do not overwrite the original. Render and inspect every page when layout affects submission.
+제공된 DOCX 스타일·머리말·바닥글·구역 나누기·고정 문구를 보존하고 원본을 덮어쓰지 않는다.
+배치가 제출에 영향을 주면 전 페이지를 렌더하고 확인한다.

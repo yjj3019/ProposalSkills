@@ -1,4 +1,4 @@
-# Capture & Positioning — RFP 이전 포지셔닝
+# RFP 이전 사전 포지셔닝·제안 전략
 
 공고가 나오기 전이나 공고 직후, 무엇을 강조하고 무엇을 보완해야 하는지 정리하는 작성
 양식이다. 결과는 **Pink 입력 보강용**이다. `bid_decision`, audit JSON, 제출 게이트를
@@ -40,7 +40,7 @@ price_posture           known range / cost floor / commercial constraints / unkn
 각 축에 대해 "발주처가 이 축을 중시한다는 근거"(`FACT`/`HYPOTHESIS`)와
 "우리가 이 축에서 증명할 수단"을 짝으로 적는다. 증명 수단이 없으면 강점으로 쓰지 않는다.
 
-## 4. Price Posture
+## 4. 가격 전략
 
 Price-to-Win(낙찰가 추정)은 쓰지 않는다. 아래만 기록한다.
 

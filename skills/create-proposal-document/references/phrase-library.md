@@ -60,27 +60,27 @@
 | 정량 효과 | `{항목} {수치}{단위} {개선/절감} 예상(산식: {산식}, 전제: {전제조건}).` 산식·전제 없이 수치만 쓰지 않는다. |
 | 정성 효과 | `{활동}을 통해 {효과: 운영 표준화/기술 내재화/대응 속도 향상}을 기대할 수 있습니다.` |
 
-## 영문 제안 패턴 (English proposals)
+## 영문 작성 예시
 
 영문 산출 시 아래 패턴에 사실을 채운다. 한국어와 동일 규율: `{slot}`을 못 채우면
 그 문장은 쓰지 않고, 과장어는 writing-style.md 영문 금지어 사전을 따른다. 결론(답) →
 근거 → 발주처 함의 순서로 쓴다.
 
-| Purpose | Pattern |
+| 목적 | 영문 문장 예시 |
 |---|---|
-| Buyer problem | `{Current condition} causes {business/operational impact}. {Buyer} needs {target state} by {date/condition}.` |
-| Proposal thesis | `We propose {scope and method} to achieve {measurable outcome}, while controlling {material risk}.` |
-| Requirement response | `Comply. {Actor} will {action} using {method}. Evidence/acceptance: {artifact or criterion}.` |
-| Partial compliance | `Partially comply. {covered scope} is met; {gap} requires {decision/change} by {owner/date}.` |
-| Capability | `{Buyer need} is addressed by {mechanism}, producing {operating effect} within {scope/boundary}. Evidence: {approved source or acceptance test}.` |
-| Architecture conclusion | `{configuration} removes {single point of failure}, targeting {quality attribute: availability/scalability}.` |
-| Differentiation | `Unlike {defined alternative}, this approach {verifiable difference}, which enables {buyer outcome}.` |
-| SLA / support | `For severity {level}, {actor} responds within {time} and targets {recovery objective} (see SLA table).` |
-| Schedule | `{Phase} runs from {start} to {finish}. Exit requires {deliverable and approval}.` |
-| Risk | `If {risk} occurs, {impact} follows. {Owner} reduces likelihood/impact via {control}, monitored by {indicator}.` |
-| Assumption | `This schedule/cost assumes {condition}. If it changes, {impact and change process} apply.` |
-| Quantified benefit | `Estimated {figure}{unit} {improvement/saving} against {baseline} (method: {formula}, assumptions: {conditions}).` |
-| Unsupported claim | `[unverified] {claim} — confirm {source, version, date, scope} before approval.` |
+| 고객 문제 | `{Current condition} causes {business/operational impact}. {Buyer} needs {target state} by {date/condition}.` |
+| 핵심 제안 | `We propose {scope and method} to achieve {measurable outcome}, while controlling {material risk}.` |
+| 요구 응답 | `Comply. {Actor} will {action} using {method}. Evidence/acceptance: {artifact or criterion}.` |
+| 부분 준수 | `Partially comply. {covered scope} is met; {gap} requires {decision/change} by {owner/date}.` |
+| 역량 | `{Buyer need} is addressed by {mechanism}, producing {operating effect} within {scope/boundary}. Evidence: {approved source or acceptance test}.` |
+| 구조의 결론 | `{configuration} removes {single point of failure}, targeting {quality attribute: availability/scalability}.` |
+| 차별화 | `Unlike {defined alternative}, this approach {verifiable difference}, which enables {buyer outcome}.` |
+| SLA·지원 | `For severity {level}, {actor} responds within {time} and targets {recovery objective} (see SLA table).` |
+| 일정 | `{Phase} runs from {start} to {finish}. Exit requires {deliverable and approval}.` |
+| 위험 | `If {risk} occurs, {impact} follows. {Owner} reduces likelihood/impact via {control}, monitored by {indicator}.` |
+| 가정 | `This schedule/cost assumes {condition}. If it changes, {impact and change process} apply.` |
+| 정량 효과 | `Estimated {figure}{unit} {improvement/saving} against {baseline} (method: {formula}, assumptions: {conditions}).` |
+| 근거 없는 주장 | `[unverified] {claim} — confirm {source, version, date, scope} before approval.` |
 
 영문 문체 간단 규칙(writing-style.md 보완): 한 문장 1개념, 능동태, 두문자어는 첫 등장
 시 풀어 쓴 뒤 통일, 결론 우선. 발주처가 페이지·단어 수 제한을 주면 그 안에서 저배점

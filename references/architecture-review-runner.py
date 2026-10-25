@@ -376,110 +376,150 @@ def run_all() -> dict:
     }
 
 
+REPORT_LABELS = {
+    "10 persona-weighted architecture reviews over shared evidence scores + deterministic jitter": "공통 근거 점수에 관점별 가중치와 결정론적 변동을 적용한 10회 구조 검토",
+    "layering": "계층 분리",
+    "modularity": "모듈성",
+    "coupling": "결합도",
+    "determinism": "결정론적 검사",
+    "extensibility": "확장성",
+    "operability": "운영성",
+    "testability": "검증 용이성",
+    "consistency": "일관성",
+    "R01 Layering architect": "R01 계층 구조",
+    "R02 Modularity / SRP": "R02 모듈성·단일 책임",
+    "R03 Coupling & deploy topology": "R03 결합도·배포 구조",
+    "R04 Deterministic control plane": "R04 결정론적 제어",
+    "R05 Extensibility / product growth": "R05 확장성·제품 확장",
+    "R06 Operability / SRE of skills": "R06 스킬 운영성·신뢰성",
+    "R07 Testability & regression": "R07 검증 용이성·회귀",
+    "R08 Consistency / vocabulary": "R08 일관성·용어",
+    "R09 Security & fail-closed": "R09 보안·실패 시 차단",
+    "R10 Agent-runtime fit": "R10 에이전트 실행 환경 적합성",
+    "3-layer split: content / governance / orchestration": "3개 레이어 분리: 콘텐츠 / 근거·승인 / 통합 진행",
+    "Anti-optimism gates (evidence_refs, deadline, eligibility)": "낙관적 자기선언 차단 검사(evidence_refs, deadline, eligibility)",
+    "Dual-axis completeness (readiness vs quality; gate owns status)": "제출 준비도·제안 품질의 두 축 분리, 상태는 검사기가 결정",
+    "Automation bridges SI-B1/C1 (meta→audit, bulk matrix)": "SI-B1/C1 자동 연결(meta→audit, 대량 조견표)",
+    "Soft discovery of sibling gates via path/env": "경로·환경변수로 내부 레이어 검사기 탐색",
+    "P1: create-best-proposal alone lacks vendored gates → degraded install": "P1: create-best-proposal 단독 설치에는 내부 검사기 사본이 없어 기능이 제한됨",
+    "P1: local proposal_gate missing --explain/remediation vs origin/main": "P1: 당시 로컬 proposal_gate에는 origin/main의 --explain·수정 안내가 없음",
+    "P2: heavy ../ sibling markdown coupling for agent context loading": "P2: 에이전트 문맥 로딩이 ../ 내부 레이어 문서 경로에 강하게 결합됨",
+    "P2: install default still create-winning-proposal, not flagship": "P2: 당시 기본 설치 대상이 통합 진입점이 아닌 create-winning-proposal임",
+    "P2: status vocabulary READY vs SUBMISSION-READY not fully unified": "P2: READY와 SUBMISSION-READY 상태 용어가 완전히 통일되지 않음",
+    "No critical architectural defects detected in automated scan": "자동 검사에서 치명적인 구조 결함을 발견하지 않음",
+    "Vendor or package sibling gates with best skill; merge origin explain UX; default install → best": "내부 검사기를 통합 스킬과 함께 배포하고 원격의 설명 기능을 반영하며 기본 설치를 통합 진입점으로 변경",
+    "Port origin/main --explain + golden tests onto local gate; keep best orchestration": "통합 진행 구조를 유지하고 origin/main의 --explain과 기준 테스트를 로컬 검사기에 반영",
+    "Maintain 3-layer model; avoid collapsing content banks into best skill": "3개 레이어 구조를 유지하고 콘텐츠 자료를 통합 스킬 하나로 합치지 않음"
+}
+
+def _report_label(value: str) -> str:
+    return REPORT_LABELS.get(value, value)
+
+
 def render_markdown(data: dict) -> str:
     lines = [
-        "# Architecture Review Report — ProposalSkills ×10",
+        "# ProposalSkills 구조 검토 보고서 — 10회",
         "",
-        f"- Generated: `{data['meta']['generated_at']}`",
-        f"- Root: `{data['meta']['root']}`",
-        f"- Skills: {', '.join(f'`{s}`' for s in data['meta']['skills'])}",
-        f"- Method: {data['meta']['method']}",
+        f"- 작성 시각: `{data['meta']['generated_at']}`",
+        "- 기준 위치: 저장소 루트",
+        f"- 대상 스킬: {', '.join(f'`{s}`' for s in data['meta']['skills'])}",
+        f"- 방법: {_report_label(data['meta']['method'])}",
         "",
-        "## Executive summary",
+        "## 검토 요약",
         "",
-        f"| Metric | Value |",
+        f"| 지표 | 값 |",
         f"|---|---:|",
-        f"| **Mean overall** | **{data['overall']['mean']} / 10** |",
-        f"| Median | {data['overall']['median']} |",
-        f"| Stdev (population) | {data['overall']['stdev']} |",
-        f"| Min / Max | {data['overall']['min']} / {data['overall']['max']} |",
+        f"| **전체 평균** | **{data['overall']['mean']} / 10** |",
+        f"| 중앙값 | {data['overall']['median']} |",
+        f"| 모집단 표준편차 | {data['overall']['stdev']} |",
+        f"| 최솟값 / 최댓값 | {data['overall']['min']} / {data['overall']['max']} |",
         "",
-        "### Dimension means (10-run average)",
+        "### 항목별 평균(10회)",
         "",
-        "| Dimension | Mean /10 |",
+        "| 항목 | 평균 /10 |",
         "|---|---:|",
     ]
     for d, v in data["dimension_means"].items():
-        lines.append(f"| {d} | {v} |")
+        lines.append(f"| {_report_label(d)} | {v} |")
 
     ranked = sorted(data["dimension_means"].items(), key=lambda x: x[1], reverse=True)
     lines += [
         "",
-        f"- **Strongest:** `{ranked[0][0]}` ({ranked[0][1]})",
-        f"- **Weakest:** `{ranked[-1][0]}` ({ranked[-1][1]})",
+        f"- **가장 높은 항목:** `{_report_label(ranked[0][0])}` ({ranked[0][1]})",
+        f"- **가장 낮은 항목:** `{_report_label(ranked[-1][0])}` ({ranked[-1][1]})",
         "",
-        "## Per-run scoreboard",
+        "## 회차별 결과",
         "",
-        "| Run | Lens | Overall | layer | modular | couple | determ | extend | operate | test | consist |",
+        "| 회차 | 검토 관점 | 종합 | 계층 | 모듈 | 결합 | 결정성 | 확장 | 운영 | 검증 | 일관 |",
         "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for r in data["runs"]:
         s = r["scores"]
         lines.append(
-            f"| {r['run']} | {r['lens']} | **{r['overall']}** | "
+            f"| {r['run']} | {_report_label(r['lens'])} | **{r['overall']}** | "
             f"{s['layering']} | {s['modularity']} | {s['coupling']} | {s['determinism']} | "
             f"{s['extensibility']} | {s['operability']} | {s['testability']} | {s['consistency']} |"
         )
 
-    lines += ["", "## Run narratives", ""]
+    lines += ["", "## 회차별 검토 내용", ""]
     for r in data["runs"]:
         lines += [
-            f"### Run {r['run']}: {r['lens']} — **{r['overall']}/10**",
+            f"### 검토 {r['run']}: {_report_label(r['lens'])} — **{r['overall']}/10**",
             "",
-            "**Strengths**",
+            "**강점**",
         ]
         for x in r["strengths"]:
-            lines.append(f"- {x}")
+            lines.append(f"- {_report_label(x)}")
         lines.append("")
-        lines.append("**Risks**")
+        lines.append("**위험**")
         for x in r["risks"]:
-            lines.append(f"- {x}")
+            lines.append(f"- {_report_label(x)}")
         lines.append("")
-        lines.append(f"**Recommendation:** {r['recommendation']}")
+        lines.append(f"**개선안:** {_report_label(r['recommendation'])}")
         lines.append("")
 
     ev = data["meta"]["evidence"]
     lines += [
-        "## Evidence snapshot (shared inputs)",
+        "## 당시 근거 원장(공통 입력)",
         "",
         "```json",
         json.dumps(ev, ensure_ascii=False, indent=2),
         "```",
         "",
-        "## Consolidated findings",
+        "## 종합 지적",
         "",
-        "### Architecture shape (as-reviewed)",
+        "### 검토 당시 구조",
         "",
         "```",
-        "Agent runtime",
-        "  └─ create-best-proposal          (orchestration / path selection)",
-        "       ├─ create-proposal-document (content bank + quality_gate)",
-        "       └─ create-winning-proposal  (audit schema + proposal_gate)",
-        "  score_completeness.py            (root dual-axis scorer → imports winning gate)",
-        "  install_skill.py                 (copytree per skill; default=winning)",
+        "에이전트 실행 환경",
+        "  └─ create-best-proposal          (통합 진행 / 경로 선택)",
+        "       ├─ create-proposal-document (콘텐츠 자료 + quality_gate)",
+        "       └─ create-winning-proposal  (감사 스키마 + proposal_gate)",
+        "  score_completeness.py            (루트의 두 축 점수 계산 → 내부 제출 검사기 호출)",
+        "  install_skill.py                 (스킬별 폴더 복사; 당시 기본값=winning)",
         "```",
         "",
-        "### P0 / P1 / P2 backlog (from 10-run consensus)",
+        "### P0 / P1 / P2 개선 목록(10회 검토 종합)",
         "",
-        "| Pri | Finding | Why it scored down | Suggested fix |",
+        "| 우선순위 | 지적 | 감점 이유 | 개선안 |",
         "|---|---|---|---|",
-        "| P1 | Partial-install fragility | coupling weak without vendor/ | vendor gates into best or install plugin deps |",
-        "| P1 | Gate UX lag vs origin/main | determinism/operability | merge a4cc4a3 --explain + goldens |",
-        "| P2 | Status vocab drift | consistency | READY ≡ SUBMISSION-READY alias table |",
-        "| P2 | Default install not flagship | operability | DEFAULT_NAME=create-best-proposal or --all default |",
-        "| P2 | Sibling path coupling | coupling | package references or runtime skill resolver |",
+        "| P1 | 부분 설치 취약성 | vendor/ 없이 결합도 문제 발생 | 내부 검사기를 동봉하거나 플러그인 의존 스킬 함께 설치 |",
+        "| P1 | origin/main보다 검사 안내가 뒤처짐 | 결정론적 검사·운영성 | a4cc4a3의 --explain·기준 테스트 반영 |",
+        "| P2 | 상태 용어 불일치 | 일관성 | READY ≡ SUBMISSION-READY 대응표 |",
+        "| P2 | 기본 설치가 통합 진입점이 아님 | 운영성 | DEFAULT_NAME=create-best-proposal 또는 --all 기본값 |",
+        "| P2 | 내부 레이어 경로 결합 | 결합도 | 참고 문서 함께 배포 또는 실행 중 스킬 경로 탐색 |",
         "",
-        "### Verdict",
+        "### 판단",
         "",
-        f"Across 10 independent lenses the architecture scores **{data['overall']['mean']}/10** "
-        f"(range {data['overall']['min']}–{data['overall']['max']}, σ={data['overall']['stdev']}). ",
+        f"10개 검토 관점의 구조 점수는 **{data['overall']['mean']}/10** "
+        f"(범위 {data['overall']['min']}–{data['overall']['max']}, σ={data['overall']['stdev']}).",
         "",
-        "The **3-layer model is sound** and is the main source of high layering/modularity/extensibility scores. "
-        "The main drag is **deploy topology** (best skill depends on siblings without vendoring) and "
-        "**control-plane UX lag** versus published origin/main explain/remediation work.",
+        "**3개 레이어 구조는 타당**하며 계층 분리·모듈성·확장성 점수가 높은 주된 이유다. "
+        "주요 약점은 **배포 구조**(내부 검사기 사본 없이 통합 스킬이 내부 레이어에 의존)와 "
+        "공개된 origin/main의 설명·수정 안내보다 **제어 단계의 안내가 뒤처진 점**이다.",
         "",
-        "**Ship recommendation:** merge remote gate depth *into* local orchestration breadth — "
-        "do not choose one side of the fork exclusively.",
+        "**배포 개선안:** 원격 검사기의 상세 검증을 로컬 통합 진행 구조에 결합한다. "
+        "두 분기 중 하나만 선택하지 않는다.",
         "",
     ]
     return "\n".join(lines)
