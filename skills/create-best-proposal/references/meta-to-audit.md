@@ -55,6 +55,16 @@
 
 ## 빌더 동작
 
+작성용 `proposal_type`의 A/B/C와 감사용 `proposal_archetype`을 혼동하지 않는다.
+감사 값은 각각 `build`/`maintenance`/`technical-response`다. `mode: draft`와
+`context.stage: internal-review`도 서로 다른 분류이며, 읽기 조건은 `context.reading_mode`에
+예를 들어 `screen-presentation`으로 적는다. 합성 여부는 `artifact_mode: simulation-only`에
+기록하고 임의의 context 제약값을 만들지 않는다. 평가 항목 이름은 `evaluation_criteria[].label`,
+미제공 필수 입력은 `inputs[].class: blocking`·`status: open`으로 기록한다.
+전체 허용값은 [audit-schema.md](../../create-winning-proposal/references/audit-schema.md)를 따른다.
+변환 성공은 감사 유효성이나 승인 확보를 뜻하지 않는다. 변환 후 통합 게이트로 검사하고,
+메타 작성 오류를 고치기 위해 실제 미결 입력·사람 승인을 완료로 바꾸지 않는다.
+
 ```bash
 python scripts/build_audit_from_meta.py meta.json -o audit.json
 python scripts/build_audit_from_meta.py meta.json --strict

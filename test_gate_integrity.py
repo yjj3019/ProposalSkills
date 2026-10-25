@@ -261,6 +261,70 @@ class SubmissionLifecycleTests(unittest.TestCase):
             check(0, "SUBMISSION-READY")
 
 
+class SyntheticProposalLayoutTests(unittest.TestCase):
+    """Layout regressions observed in a natively rendered synthetic proposal."""
+
+    def setUp(self):
+        sys.path.insert(0, str(DOC / "scripts"))
+
+    def _build(self, req_ids, caption="합성 검수계획 · 시험 미실행"):
+        import build_deck
+        builder = build_deck.DeckBuilder({
+            "meta": {"output_profile": "presentation", "output_spec": {
+                "source": "합성 RFP", "font_min_pt": 14}},
+            "slides": [{"type": "gantt", "title": "수행 일정", "lead": "월별 검수계획입니다.",
+                        "caption": caption, "source": "합성 RFP",
+                        "req_ids": req_ids, "months": 12,
+                        "tasks": [{"name": "분기 검수", "start": 1, "end": 12, "phase": True,
+                                   "milestones": [{"at": 6, "label": "검수"}]}]}]}, None, True)
+        builder.build()
+        return builder, {s.name: s for s in builder.prs.slides[0].shapes}
+
+    def test_short_requirement_ids_keep_the_existing_column(self):
+        import build_deck
+        _, shapes = self._build(["R01"])
+        self.assertEqual(shapes["REQID"].width, int(3.2 * build_deck.IN))
+
+    def test_long_requirement_ids_expand_without_shrinking_text(self):
+        import build_deck
+        req_ids = ["R01", "R07", "R09", "R13", "R14", "R17", "R19"]
+        builder, shapes = self._build(req_ids)
+        req, caption = shapes["REQID"], shapes["CAPTION"]
+        self.assertGreater(req.width, int(3.2 * build_deck.IN))
+        self.assertLessEqual(caption.left + caption.width, req.left)
+        self.assertLessEqual(req.top + req.height, shapes["PAGENO"].top)
+        self.assertTrue(all(r in req.text for r in req_ids))
+        self.assertEqual({r.font.size.pt for p in req.text_frame.paragraphs for r in p.runs},
+                         {builder.size["caption"]})
+        self.assertGreaterEqual(builder.size["caption"], 14)
+        self.assertEqual(builder.violations, [])
+
+    def test_unrenderable_requirement_ids_are_violations(self):
+        for req_ids in (["R" + "9" * 300], ["R01\nR02"]):
+            with self.subTest(req_ids=req_ids):
+                builder, shapes = self._build(req_ids)
+                self.assertTrue(any("하단 요구 ID" in v for v in builder.violations), builder.violations)
+                self.assertGreater(shapes["CAPTION"].width, 0)
+                self.assertGreater(shapes["REQID"].width, 0)
+
+    def test_requirement_expansion_cannot_displace_a_fitting_caption(self):
+        caption = "합성검수조건" * 5
+        original, _ = self._build(["R01"], caption)
+        self.assertEqual(original.violations, [])
+        expanded, _ = self._build(["R01", "R07", "R09", "R13", "R14", "R17", "R19"], caption)
+        self.assertTrue(any("하단 캡션" in v for v in expanded.violations), expanded.violations)
+
+    def test_milestone_labels_have_a_checkable_contrasting_background(self):
+        import color_contrast
+        builder, shapes = self._build(["R01"])
+        label = shapes["BODY_GMSL1"]
+        self.assertEqual(color_contrast.solid_rgb(label.fill), "FFFFFF")
+        run = label.text_frame.paragraphs[0].runs[0]
+        self.assertGreaterEqual(color_contrast.contrast_ratio(str(run.font.color.rgb), "FFFFFF"), 4.5)
+        problems, skipped = color_contrast.slide_issues(builder.prs.slides[0])
+        self.assertEqual((problems, skipped), ([], 0))
+
+
 class ArtifactBindingTests(unittest.TestCase):
     """F01 — 검증 기록이 '어느 파일'의 것인지 확인한다."""
 

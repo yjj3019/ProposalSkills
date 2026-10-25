@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import unicodedata
 import sys
 from pathlib import Path
 from typing import Any
@@ -72,6 +73,13 @@ ALL_TYPES = BODY_TYPES | {"cover", "toc", "section", "closing"}
 
 def rgb(hex6: str) -> RGBColor:
     return RGBColor.from_string(hex6.lstrip("#").upper())
+
+
+def _estimated_text_width(text: str, size: float) -> int:
+    # shortcut: glyph widths are approximate, check final renders for custom fonts.
+    units = max((sum(1 if unicodedata.east_asian_width(c) in "WF" else 0.6 for c in line)
+                 for line in text.splitlines()), default=0)
+    return int((units * size / 72 + 0.2) * IN)
 
 
 class DeckBuilder:
@@ -265,11 +273,23 @@ class DeckBuilder:
             cap_parts.append(s["caption"])
         if s.get("source"):
             cap_parts.append(f"출처: {s['source']}")
-        self._text(slide, "CAPTION", M, CAPTION_Y, BODY_W - int(3.2 * IN), CAPTION_H,
-                   "  ·  ".join(cap_parts), self.size["caption"], color=self.pal["muted"])
         req = s.get("req_ids") or []
-        self._text(slide, "REQID", W - M - int(3.2 * IN), CAPTION_Y, int(3.2 * IN), CAPTION_H,
-                   ("대응 요구: " + ", ".join(map(str, req))) if req else "", self.size["caption"],
+        req_text = ("대응 요구: " + ", ".join(map(str, req))) if req else ""
+        req_width = max(int(3.2 * IN), _estimated_text_width(req_text, self.size["caption"]))
+        if req_width > BODY_W - IN or "\n" in req_text or "\r" in req_text:
+            self.violations.append(f"슬라이드 {self.page}: 하단 요구 ID가 한 줄 영역을 넘는다 — 대응표로 분리한다")
+        req_width = min(req_width, BODY_W - IN)
+        caption = "  ·  ".join(cap_parts)
+        caption_width = _estimated_text_width(caption, self.size["caption"])
+        if caption_width > BODY_W - req_width:
+            if req_width > int(3.2 * IN) and caption_width <= BODY_W - int(3.2 * IN):
+                self.violations.append(f"슬라이드 {self.page}: 요구 ID 확대로 하단 캡션 영역이 부족하다 — 출처를 간결화하거나 장표를 분리한다")
+            else:
+                self.warnings.append(f"슬라이드 {self.page}: 하단 캡션 줄바꿈 가능 — 렌더에서 푸터와 겹침을 확인한다")
+        self._text(slide, "CAPTION", M, CAPTION_Y, BODY_W - req_width, CAPTION_H,
+                   caption, self.size["caption"], color=self.pal["muted"])
+        self._text(slide, "REQID", W - M - req_width, CAPTION_Y, req_width, CAPTION_H,
+                   req_text, self.size["caption"],
                    color=self.pal["muted"], align=PP_ALIGN.RIGHT)
         if not req and s.get("type") in BODY_TYPES and self.meta.get("require_req_ids", True):
             self.warnings.append(f"슬라이드 {self.page} '{s.get('title', '')}': REQ-ID 없음 (공공·금융 A/B 유형은 필수)")
@@ -469,14 +489,14 @@ class DeckBuilder:
                 if ms.get("label"):
                     # 마지막 달의 마일스톤은 라벨이 오른쪽 여백을 넘어간다 → 다이아몬드
                     # 왼쪽에 붙여 뒤집는다(화면 밖으로 나가면 렌더에도 안 보인다).
-                    lw = int(1.6 * IN)
+                    lw = min(int(1.6 * IN), _estimated_text_width(str(ms["label"]), self.size["table"] - 1))
                     lx = mx + int(0.1 * IN)
                     align = PP_ALIGN.LEFT
                     if lx + lw > W - M:
                         lx, align = mx - int(0.1 * IN) - lw, PP_ALIGN.RIGHT
                     self._text(slide, f"BODY_GMSL{ti + 1}", max(M, lx), y, lw, row_h,
                                ms["label"], self.size["table"] - 1, color=self.pal["warn"],
-                               anchor=MSO_ANCHOR.MIDDLE, align=align)
+                               anchor=MSO_ANCHOR.MIDDLE, align=align, fill=self.pal["white"])
         return slide
 
     def staff(self, s):
