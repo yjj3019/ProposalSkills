@@ -374,10 +374,16 @@ class DeckBuilder:
                 f"{self.style['table_rows_max']}행 — deck_check도 경고한다. 분할을 늘린다")
         chunks = [rows[i:i + per] for i in range(0, len(rows), per)] or [[]]
         self.matrix_rows.append((s, sum(len(c) for c in chunks)))
+        row_ids = [r.get("id", "") for r in rows]
+        explicit = s.get("req_ids") or []
+        per_row_scope = (bool(row_ids) and all(isinstance(r, str) and r.strip() for r in row_ids)
+                         and len(set(row_ids)) == len(row_ids) and explicit == row_ids)
         for i, chunk in enumerate(chunks):
             title = s.get("title", "요구사항 대응표(조견표)") + (f" (계속 {i + 1}/{len(chunks)})" if len(chunks) > 1 and i else
                                                           (f" (1/{len(chunks)})" if len(chunks) > 1 else ""))
-            sub = {**s, "title": title, "req_ids": s.get("req_ids") or [r.get("id", "") for r in chunk]}
+            sub = {**s, "title": title,
+                   "req_ids": ([r.get("id", "") for r in chunk]
+                               if per_row_scope or not explicit else explicit)}
             slide = self._frame(sub)
             data = [[r.get(k, "") for k in keys] for r in chunk]
             h = min(BODY_H, int((len(data) + 1) * 0.36 * IN))

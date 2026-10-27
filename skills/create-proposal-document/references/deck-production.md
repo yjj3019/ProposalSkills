@@ -54,7 +54,7 @@ check renders for obscured schedule information and insufficient contrast.
 | `cover` | Cover | Uses meta; `title`, `subtitle` can override |
 | `toc` | Contents | `items[]` — automatic two-column layout |
 | `section` | Divider | `no` (Ⅰ…), `title`, `items[]` |
-| `matrix` | Compliance matrix | `rows[{id,text,support,response_loc,note}]`, `rows_per_slide` (default 12, **positive integer only**); auto-split, repeated headers, Korean label "(계속 n/N)"; reconcile input/output row counts to prevent loss |
+| `matrix` | Compliance matrix | `rows[{id,text,support,response_loc,note}]`, `rows_per_slide` (profile default; **positive integer only**); auto-split, repeated headers, Korean label "(계속 n/N)"; reconcile input/output row counts to prevent loss |
 | `table` | One table | `columns[]`, `rows[[…]]` (cells per row = columns), `col_widths[]` (finite positive values, length = column count), `right_cols[]` (zero-based indices) |
 | `process` | Staged process | `steps[{title,desc[]}]` — chevrons for ≤6 stages, boxes beyond |
 | `zones` | Architecture | `zones[{title,items[{title,desc[]}]}]`, `legend[]` — top-down hierarchy, zone labels/cards |
@@ -88,6 +88,7 @@ Missing/unknown markers warn in draft and block submission. For externally gener
 `--profile`; silently passing under the loosest default would check presentations against detailed criteria (9pt/600 characters).
 
 Density counts table-cell text. Previously, dense matrix slides counted as 0 characters, effectively disabling density warnings.
+For a split matrix, explicit `req_ids` exactly matching unique, nonempty row IDs in order are divided by page. Other explicit scopes are retained on each page; verify their meaning manually.
 
 For RFPs fixing page count/minimum fonts, first shorten duplicate titles, leads, table labels.
 Cards retain distinctions between risk, method, planned evidence, effect. SLA tables retain severity, measurement clock,
@@ -95,7 +96,7 @@ intake criteria, response/recovery deadlines, holiday conditions.
 Keep amounts, quantities, unit prices, periods, VAT, discounts, totals in the body.
 Korean notation examples: distinguish zero discount with `;할인0`, not only `/0` after a formula.
 Replacing `부가세` with vague `세액` can weaken required meaning even with unchanged numbers.
-Do not hide warnings by changing thresholds/profiles/stage/fonts or moving information into captions/notes/later slides.
+Do not hide warnings by changing thresholds/profiles/stage/fonts or relocating required content to captions or notes. If density requires a matrix split, retain every row and its source, confirm the page limit, and reconcile each page’s requirement IDs against its rows.
 After shortening, reconcile actual PPTX requirements, figures, formulas; inspect spacing/compressed labels in renders.
 Zero density warnings never replace readability review.
 
@@ -212,7 +213,7 @@ header/footer areas (top 0.25~0.55in, bottom 6.95~7.25in). Pass brand tokens thr
 
 With `page_limit`, allocate **slide counts**, not percentages.
 Formula: weight ratio × (limit − fixed slides).
-Fixed = cover 1 + contents 1 + matrix ⌈requirements/12⌉ + dividers (chapter count) + closing 1.
+Fixed = cover 1 + contents 1 + matrix ⌈requirements / effective matrix rows per slide⌉ + dividers (chapter count) + closing 1. Use the selected profile’s matrix-row default or the matrix’s `rows_per_slide` override; confirm the generated page count.
 Check RFP counting rules; cover/contents are usually excluded.
 
 Example: 40p limit; technical evaluation understanding 10, strategy 20, architecture 25, migration 15, management 10 (=80), 7 requirements.

@@ -73,6 +73,34 @@ class DeckPipelineTests(unittest.TestCase):
         self.assertIn("(1/3)", titles[0])
         self.assertIn("(계속 3/3)", titles[2])
 
+    def test_split_matrix_footer_matches_unambiguous_page_rows(self):
+        from pptx import Presentation
+
+        rows = [{"id": f"R{i}", "text": f"요구 {i}", "support": "O",
+                 "response_loc": "p", "note": ""} for i in range(1, 5)]
+        for req_ids, expected in ((["R1", "R2", "R3", "R4"],
+                                   ["대응 요구: R1, R2", "대응 요구: R3, R4"]),
+                                  (None, ["대응 요구: R1, R2", "대응 요구: R3, R4"]),
+                                  (["R1", "SHARED"],
+                                   ["대응 요구: R1, SHARED", "대응 요구: R1, SHARED"])):
+            with self.subTest(req_ids=req_ids):
+                slide = {"type": "matrix", "title": "조견표", "lead": "대응을 설명합니다",
+                         "rows_per_slide": 2, "rows": rows}
+                if req_ids is not None:
+                    slide["req_ids"] = req_ids
+                spec = {"meta": {"title": "t", "bidder": "b"}, "slides": [slide]}
+                source = self.out / "matrix-footer.json"
+                output = self.out / "matrix-footer.pptx"
+                source.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+                proc = run(DOC / "scripts/build_deck.py", source, "-o", output)
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                prs = Presentation(str(output))
+                actual = [deck_check.shape_text(next(sh for sh in s.shapes if sh.name == "REQID"))
+                          for s in prs.slides]
+                self.assertEqual(actual, expected)
+                self.assertEqual(sum(len(sh.table.rows) - 1 for s in prs.slides for sh in s.shapes
+                                     if sh.has_table), 4)
+
     def test_strict_fails_on_missing_lead_and_page_limit(self):
         spec = {"meta": {"title": "t", "page_limit": 1},
                 "slides": [{"type": "cover"}, {"type": "bullets", "title": "x", "items": ["a"]}]}
