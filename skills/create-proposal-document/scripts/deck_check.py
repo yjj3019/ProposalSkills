@@ -48,6 +48,7 @@ TABLE_ROWS_MAX = _DEFAULT["table_rows_max"]
 REQ_RE = re.compile(r"(?:REQ[-_ ]?\d+|\bR\d{1,3}\b|요구\s*[:：]\s*\S|대응\s*요구)", re.IGNORECASE)
 WARN = "[경고]"
 NOTE = "[NOT INSPECTED]"
+FONT_UNINSPECTED = "폰트 크기"
 BLOCK_PREFIXES = ("[차단]",)
 
 
@@ -149,7 +150,7 @@ def _effective_pt(run, paragraph, shape) -> float | None:
     return None
 
 
-def min_font_pt(slide) -> tuple[float | None, float | None]:
+def min_font_pt(slide, *, unresolved: list[int] | None = None) -> tuple[float | None, float | None]:
     """Return (minimum body pt, minimum table pt), excluding captions, headers, and footers. Keep distinct minima so body text reduced to table size cannot pass."""
     body: list[float] = []
     table: list[float] = []
@@ -171,6 +172,8 @@ def min_font_pt(slide) -> tuple[float | None, float | None]:
                     pt = _effective_pt(r, p, sh)
                     if pt is not None:
                         bucket.append(pt)
+                    elif unresolved is not None:
+                        unresolved[0] += 1
     return (min(body) if body else None, min(table) if table else None)
 
 
@@ -249,6 +252,11 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
             items.append(f"{'[차단]' if not pics else WARN} 슬라이드 {idx}: "
                          f"{'빈 슬라이드' if not pics else '이미지 전용 슬라이드 — 텍스트 검사 불가, 렌더 육안 확인 필수'}")
             continue
+        unresolved = [0]
+        body_pt, table_pt = min_font_pt(slide, unresolved=unresolved)
+        if unresolved[0]:
+            items.append(f"{NOTE} 슬라이드 {idx}: {FONT_UNINSPECTED} {unresolved[0]}개 run 미검사 "
+                         "— 상속 글꼴 크기를 원본에서 확인")
         if kind in {"cover", "closing", "section", "toc"}:
             continue
         heuristic = not ({"TITLE", "LEAD"} <= names.keys())
@@ -281,7 +289,6 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
                       if not heuristic else len(all_text))
         if body_chars > density_max:
             items.append(f"{WARN} 슬라이드 {idx}: 텍스트 {body_chars}자 > {density_max}자 — 도식·표로 압축 또는 분할")
-        body_pt, table_pt = min_font_pt(slide)
         for measured, floor, role in ((body_pt, min_font, "본문"),
                                       (table_pt, min_table_font, "표")):
             if measured is not None and floor is not None and measured < floor:
@@ -505,15 +512,16 @@ def main(argv: list[str] | None = None) -> int:
         items += r_items
         rendered = bool(evidence.get("tool")) and not any(is_blocking(i) for i in r_items)
     blockers = [i for i in items if is_blocking(i)]
+    font_uninspected = any(i.startswith(NOTE) and FONT_UNINSPECTED in i for i in items)
     for i in items:
         print(i)
     if a.emit_render:
         block = {
-            "verified": rendered and not blockers,
+            "verified": rendered and not blockers and not font_uninspected,
             # Successful rendering is a machine fact; visual approval is a separate human fact.
             # PDF conversion alone does not mean a person reviewed and approved the slides.
             "render_succeeded": rendered,
-            "layout_checked": True,
+            "layout_checked": not font_uninspected,
             "visual_review_approved": False,
             "visual_reviewer": "",
             "output_profile": profile,
@@ -531,6 +539,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[정보] render 블록 → {a.emit_render} (verified={block['verified']})")
     if blockers:
         print(f"차단 — {len(blockers)}건")
+        return 1
+    if font_uninspected:
+        print("검증 미완료 — 확인되지 않은 글꼴 크기를 원본에서 점검한다")
         return 1
     print("통과 (레이아웃 린트" + (" + 렌더" if rendered else "") + " — 도식 의미·설득력은 사람이 검토)")
     return 0

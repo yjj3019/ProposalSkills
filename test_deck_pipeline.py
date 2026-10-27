@@ -94,6 +94,91 @@ class DeckPipelineTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout)
         self.assertIn("본문 14장 / 제한 40장", proc.stdout)
 
+    def test_deck_check_reports_unresolved_body_and_table_fonts(self):
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        for name, top, text, size in (("TITLE", .3, "제목", 24),
+                                      ("LEAD", 1, "근거 있는 제안", 18),
+                                      ("BODY", 2, "중요 수치 123", None),
+                                      ("HEADER", 3, "머리말", None)):
+            shape = slide.shapes.add_textbox(Inches(1), Inches(top), Inches(5), Inches(.5))
+            shape.name = name
+            run = shape.text_frame.paragraphs[0].add_run()
+            run.text = text
+            if size is not None:
+                run.font.size = Pt(size)
+        table = slide.shapes.add_table(1, 1, Inches(1), Inches(4), Inches(3), Inches(.5)).table
+        table.cell(0, 0).text = "표의 수치 456"
+        saved = self.out / "unresolved-font.pptx"
+        prs.save(saved)
+        prs = Presentation(str(saved))
+
+        def check():
+            return deck_check.lint(prs, max_pages=None, exclude_cover_toc=False,
+                                   min_font=14, require_req_ids=False, stage="draft")
+
+        self.assertTrue(any("폰트 크기 2개 run 미검사" in item for item in check()))
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from unittest.mock import patch
+        report = self.out / "unresolved-render.json"
+        with patch.object(deck_check, "render", return_value=([], {"tool": "simulated"})), redirect_stdout(StringIO()):
+            result = deck_check.main([str(saved), "--profile", "detailed-submission", "--emit-render", str(report)])
+        evidence = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual(result, 1)
+        self.assertTrue(evidence["render_succeeded"])
+        self.assertFalse(evidence["verified"])
+        self.assertFalse(evidence["layout_checked"])
+        self.assertFalse(evidence["visual_review_approved"])
+        self.assertTrue(any("폰트 크기" in item and "미검사" in item for item in evidence["evidence"]))
+        slide = prs.slides[0]
+        next(sh for sh in slide.shapes if sh.name == "BODY").text_frame.paragraphs[0].runs[0].font.size = Pt(13)
+        next(sh for sh in slide.shapes if sh.has_table).table.cell(0, 0).text_frame.paragraphs[0].runs[0].font.size = Pt(14)
+        items = check()
+        self.assertFalse(any("폰트 크기" in item and "미검사" in item for item in items))
+        self.assertTrue(any("본문 최소 폰트 13pt" in item for item in items))
+
+    @unittest.skipUnless(shutil.which("soffice"), "LibreOffice is required for real rendering")
+    def test_unresolved_fonts_prevent_verified_after_real_render(self):
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        for name, top, text, size in (("TITLE", .3, "제목", 24),
+                                      ("LEAD", 1, "근거 있는 제안", 18),
+                                      ("BODY", 2, "중요 수치 123", None)):
+            shape = slide.shapes.add_textbox(Inches(1), Inches(top), Inches(5), Inches(.5))
+            shape.name = name
+            text_run = shape.text_frame.paragraphs[0].add_run()
+            text_run.text = text
+            if size is not None:
+                text_run.font.size = Pt(size)
+        deck = self.out / "real-font-render.pptx"
+        report = self.out / "real-font-render.json"
+        prs.save(deck)
+        args = (DOC / "scripts/deck_check.py", deck, "--profile", "detailed-submission",
+                "--min-font", "14", "--render", "--emit-render", report)
+        proc = run(*args)
+        evidence = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertTrue(evidence["render_succeeded"])
+        self.assertFalse(evidence["verified"])
+        self.assertFalse(evidence["layout_checked"])
+        self.assertTrue(any("폰트 크기" in item and "미검사" in item for item in evidence["evidence"]))
+        next(sh for sh in slide.shapes if sh.name == "BODY").text_frame.paragraphs[0].runs[0].font.size = Pt(14)
+        prs.save(deck)
+        proc = run(*args)
+        evidence = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertTrue(evidence["render_succeeded"])
+        self.assertTrue(evidence["verified"])
+        self.assertTrue(evidence["layout_checked"])
+        self.assertFalse(evidence["visual_review_approved"])
+
     def test_deck_check_blocks_small_font_and_missing_lead(self):
         spec = {"meta": {"title": "t"},
                 "slides": [{"type": "bullets", "title": "x", "lead": "", "items": ["a"]}]}
