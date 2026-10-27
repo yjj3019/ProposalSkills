@@ -153,10 +153,10 @@ class DeckPipelineTests(unittest.TestCase):
                                       ("BODY", 2, "중요 수치 123", None)):
             shape = slide.shapes.add_textbox(Inches(1), Inches(top), Inches(5), Inches(.5))
             shape.name = name
-            run = shape.text_frame.paragraphs[0].add_run()
-            run.text = text
+            text_run = shape.text_frame.paragraphs[0].add_run()
+            text_run.text = text
             if size is not None:
-                run.font.size = Pt(size)
+                text_run.font.size = Pt(size)
         deck = self.out / "real-font-render.pptx"
         report = self.out / "real-font-render.json"
         prs.save(deck)
