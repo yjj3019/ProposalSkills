@@ -5,6 +5,20 @@ never write them into public repositories or installed skill folders.
 Continue using existing generation/submission gates. These sidecars are not audit JSON and never update approvals automatically.
 Example paths are relative to the user-selected work folder; locate scripts in their installed location.
 
+## Translated PDF references
+
+Treat a translated PDF as an unverified reading aid, not the authoritative RFP or evidence. Keep the original and
+verify the page mapping of any bilingual output before comparing it with the translation. Compare each relevant
+page against the original, including table headers and cells, footnotes, requirements IDs, numbers and units,
+conditions, exclusions, and negations. Mark uncertain or missing content `[unverified]`; do not infer or copy it
+into a requirement or commitment as confirmed.
+
+Check both rendered pages and extracted/searchable text, including text and image regions on mixed pages.
+Check for untranslated or partially translated passages even when conversion succeeds. Tables may remain in the source language or as images;
+a visually readable identifier or value may extract incorrectly or not at all. An extraction mismatch is a review
+warning, not by itself proof that the visible page is wrong. Verify translated meaning and any questionable value
+against the original before updating the requirements/evidence register.
+
 ## 1. Structured RFP extraction
 
 `scripts/extract_rfp.py` connects PDF/DOCX with DoclingDocument JSON. Existing JSON can be imported without Docling.

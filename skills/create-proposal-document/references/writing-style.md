@@ -10,7 +10,7 @@ and score accurately: write verifiable sentences rather than decorative prose.
   Do not mix styles within a document (polite leads + noun-form bullets is the only permitted combination).
 - **Length**: aim for at most 60 characters per lead sentence. At most 40 characters per bullet line (split when exceeding 2 lines).
 - **Subject**: avoid repeatedly using the Korean example "당사는". Name the actor only when it changes (proposer/buyer/vendor/consortium partner).
-- **Active voice**: replace the Korean example "~될 수 있습니다" with "~합니다/제공합니다". Keep responsibility clear.
+- **Active voice**: name the responsible actor when known. Preserve modality and conditions: do not turn the Korean example "~될 수 있습니다" into the unconditional commitment "~합니다/제공합니다" without an approved basis.
 
 ## 2. Banned exaggerations (hard rule)
 
@@ -59,6 +59,8 @@ Korean examples:
 | 필요 시 기술지원이 가능합니다. | Critical 장애 접수 후 30분 이내 1차 응답하고 원격 분석을 즉시 착수합니다. |
 | 성능 저하 시 튜닝 지원 예정입니다. | 월간 성능 보고에서 기준 초과 항목을 식별하고, 다음 정기점검에서 튜닝 결과를 보고합니다. |
 | 개선 방안을 적극 검토하겠습니다. | 개선 요청은 변경관리 절차로 접수해 영향도 분석 결과를 10영업일 이내 회신합니다. |
+
+These replacement examples are illustrative, not approved facts or service levels. Use a time, action, or condition only when supported by the source and approved delivery capability.
 
 The words themselves are not banned. These are valid cases:
 

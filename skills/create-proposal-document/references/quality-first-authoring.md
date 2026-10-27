@@ -29,6 +29,22 @@ Korean proposal examples: do not merely write “신속한 장애 대응 제공�
 검토한다” to procedures, RACI, and verification evidence. State guaranteed times only when supported by source
 requirements and approved delivery capability. Do not copy this example as a universal answer or a new SLA.
 
+## Edit for clarity without changing commitments
+
+- Remove empty contrasts, repeated conclusions, and decorative claims only when they add no distinct information.
+  Check adjacent paragraphs and slide leads for repeated openings or forced parallel items; keep repetition when it
+  preserves a distinct requirement, comparison, or required structure. Do not flag a word or punctuation alone as a defect.
+- Compare each edited passage against its source and affected requirement/evidence entries: preserve IDs, figures and
+  units, dates, actors, scope, exceptions, conditions, modality, negation, commitments, and attribution. Preserve
+  direct RFP quotations verbatim. Never resolve missing facts by inventing details.
+- If a change alters or drops a commitment, restore it or record the change for owner approval and update the affected
+  register and dependent sections. If the source or meaning cannot be checked, mark it `[unverified]` and request confirmation.
+  This is a manual review, not a submission gate or proof of factual accuracy.
+
+Synthetic Korean edit: “발주처가 승인하면 장애 접수 후 1시간 내 원격 지원이 가능합니다.” →
+“장애 접수 후 1시간 내 원격 지원은 발주처 승인 시 가능합니다.” Both retain the approval condition,
+start event, time, action, and possibility. Removing the condition or replacing possibility with a promise changes meaning.
+
 ## Individual slides and overall flow
 
 - Before drafting, read only titles and leads in order. Check the progression: constraints → solution strategy →

@@ -22,10 +22,16 @@ Questions each slide must answer:
 
 1. What was required? → `req_ids`, matrix row.
 2. What is our conclusion? → Lead.
-3. Why this approach? → One-line reason versus alternatives.
+3. Why this approach? → One-line reason tied to the buyer’s requirement or decision criterion.
 4. What proves it? → Diagram/table/source.
 5. What benefits the buyer? → Benefit statement.
 6. What are the commitment boundaries? → Boundary caption.
+
+When there are genuine feasible alternatives and the comparison helps the buyer decide, use criteria grounded in the
+RFP or documented buyer priorities. Apply the same scope, units, period, and evidence standard to each option; separate
+mandatory constraints from preferences. Record each option’s evidence and unknowns, and do not rank unsupported
+claims or invent competitors, scores, or alternatives. If evidence is insufficient, mark it `[NEEDS INPUT]` rather
+than presenting a winner as established. Do not create a comparison solely to fill a template.
 
 For technical items, fill 3/4/6 with [technical-depth-six-questions.md](technical-depth-six-questions.md).
 
