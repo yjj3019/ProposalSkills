@@ -61,6 +61,13 @@ class SubmissionValidationRegressionTests(unittest.TestCase):
         import unified_gate
         self.numbers, self.gate = check_numbers, unified_gate
 
+    def test_uninspected_font_render_cannot_clear_submission(self):
+        data = ready_audit()
+        data["render"].update(verified=False, layout_checked=False, render_succeeded=True)
+        failures = pg.evaluate(data)
+        self.assertIn("render verification is missing or failed", failures)
+        self.assertTrue(any("layout check is missing" in item for item in failures))
+
     def test_currency_scale_is_part_of_the_value(self):
         for value, text, matches in ((37, "총액 37억원", False),
                                      (37, "총액 37 천원", False),

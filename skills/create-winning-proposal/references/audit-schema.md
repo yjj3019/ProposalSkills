@@ -170,6 +170,7 @@ could yield READY. The following three guard categories close that gap.
 - **Missing check records = uninspected**: `render.layout_checked` is **required**.
   Both false and **omission block**, closing the deletion bypass.
   Contradictory `verified: true`/`render_succeeded: false` also block.
+  For PPTX output, unresolved font sizes keep `layout_checked` and `verified` false even after a successful render; verify and set the sizes explicitly before rerunning.
   `build_audit_from_meta.py` copies supplied `render_succeeded`, `layout_checked`,
   `visual_review_approved`, `visual_reviewer`, `output_profile`; it never fabricates approvals.
 - **Artifact binding**: submission with `artifact_required: true` requires real matching

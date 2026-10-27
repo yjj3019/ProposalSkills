@@ -82,6 +82,7 @@ Specifications live only in `scripts/deck_profiles.py`, shared by generator/chec
 Generated PPTX core properties retain `proposal-deck:<프로파일>`, allowing `deck_check.py` to apply the same
 criteria without arguments (`--profile` override warns on mismatch).
 Minimum font sizes derive from the profile's smallest body size rather than a constant.
+If font size cannot be resolved, the checker marks those runs `[NOT INSPECTED]`, returns a nonzero status, and sets `verified` and `layout_checked` to false even if rendering succeeds. Confirm the actual size and make it explicit in the source presentation, then rerun the checks.
 
 Missing/unknown markers warn in draft and block submission. For externally generated decks, explicitly supply
 `--profile`; silently passing under the loosest default would check presentations against detailed criteria (9pt/600 characters).
