@@ -82,7 +82,7 @@ Do not update by overwriting files in the installation cache. Keep user material
 
 ## Release preparation and validation
 
-The current local candidate version is `1.2.5`. This does not imply a GitHub release, tag, or official-directory publication.
+The current local candidate version is `1.3.0`. This does not imply a GitHub release, tag, or official-directory publication.
 
 1. Match names, versions, descriptions, and authors across all three manifests. Update all three when changing versions.
 2. Check both catalogs contain exactly one `proposal-skills` entry pointing to the same root.
@@ -92,7 +92,7 @@ The current local candidate version is `1.2.5`. This does not imply a GitHub rel
 python -m unittest test_skill_schema -q
 python -m unittest discover -s . -p "test_*.py" -q
 claude plugin validate .
-python package_plugin.py -o dist/proposal-skills-1.2.5.zip
+python package_plugin.py -o dist/proposal-skills-1.3.0.zip
 ```
 
 Historical validation on 2026-10-25: in a temporary home with Codex CLI 0.164.0, local catalog registration,

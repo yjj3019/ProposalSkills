@@ -164,6 +164,7 @@ class FileHandlingTests(unittest.TestCase):
             code = scan.main([str(bad)])
         self.assertEqual(code, 2)
         self.assertIn("UNSCANNED", out.getvalue())
+        self.assertIn("DRM-protected", out.getvalue())
         self.assertIn("INCOMPLETE", out.getvalue())
 
     def test_dtd_entity_xml_is_refused_not_expanded(self):
@@ -184,12 +185,12 @@ class FileHandlingTests(unittest.TestCase):
             found, unscanned, _ = scan.scan_paths([path])
             self.assertEqual((found, bool(unscanned)), ([], True), name)
 
-    def test_directory_walk_reports_pdf_and_hwpx_as_unscanned(self):
+    def test_directory_walk_reports_pdf_and_binary_hwp_as_unscanned(self):
         (self.dir / "rfp.pdf").write_bytes(b"%PDF-1.4")
-        (self.dir / "resume.hwpx").write_bytes(b"PK")
+        (self.dir / "resume.hwp").write_bytes(b"PK")
         found, unscanned, count = scan.scan_paths([self.dir])
         self.assertEqual((found, count), ([], 0))
-        self.assertEqual(sorted(Path(u.path).name for u in unscanned), ["resume.hwpx", "rfp.pdf"])
+        self.assertEqual(sorted(Path(u.path).name for u in unscanned), ["resume.hwp", "rfp.pdf"])
 
     def test_incomplete_scan_exits_2_even_with_findings(self):
         (self.dir / "dirty.md").write_text("담당 010-1234-5678", encoding="utf-8")

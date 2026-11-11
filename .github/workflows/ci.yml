@@ -24,7 +24,7 @@ jobs:
         run: python -m pip install --quiet -r requirements.txt
       - name: Install LibreOffice (render path)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libreoffice-impress poppler-utils fonts-nanum >/dev/null
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libreoffice-impress libreoffice-calc poppler-utils fonts-nanum >/dev/null
       - name: Unit tests (repo root)
         run: python -m unittest discover -s . -p "test_*.py" -v
       - name: proposal_gate tests
@@ -322,7 +322,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          dpkg-query -W libreoffice-impress poppler-utils fonts-nanum
+          dpkg-query -W libreoffice-impress libreoffice-calc poppler-utils fonts-nanum
           python skills/create-proposal-document/scripts/deck_check.py "${RUNNER_TEMP}/draft.pptx" \
             --max-pages 40 --exclude-cover-toc --require-req-ids --stage draft --render \
             --png-dir "${RUNNER_TEMP}/rendered-deck" --emit-render "${RUNNER_TEMP}/render.json"

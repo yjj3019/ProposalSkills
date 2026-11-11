@@ -138,6 +138,10 @@ class RepoHygieneTests(unittest.TestCase):
         self.assertEqual(problems, [],
                          "픽스처 발주처는 가상 표기여야 한다:\n" + "\n".join(problems))
 
+    def test_line_endings_are_pinned_to_lf(self):
+        attributes = (REPO / ".gitattributes").read_text(encoding="utf-8")
+        self.assertRegex(attributes, r"(?m)^\*\s+text=auto\s+eol=lf\s*$")
+
     def test_the_rule_is_documented_for_contributors_and_agents(self):
         text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("Public repository", text)

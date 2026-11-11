@@ -10,9 +10,13 @@ This is tamper-evidence for honest mistakes and casual edits, not authentication
 file can rebuild the chain.
 
   python evidence_chain.py append LOG --command "..." --exit-code N [--artifact FILE ...] [--note TEXT]
+                                       [--seconds S] [--cost AMOUNT]
   python evidence_chain.py verify LOG [--check-artifacts]
+  python evidence_chain.py rerun LOG        list the commands whose artifacts changed or vanished (nothing else to redo)
 
-Exit codes: 0 ok, 1 chain broken or artifact changed, 2 usage error.
+`--seconds` and `--cost` are optional; `verify` totals them so cost per verified check can be read off. `rerun` reads the
+latest record per command, so only the checks that ran on a file that has since changed need to be run again. Exit codes:
+0 ok / nothing stale, 1 chain broken, artifact changed, or something stale, 2 usage error.
 """
 from __future__ import annotations
 
@@ -41,7 +45,8 @@ def read_log(log: Path) -> list[dict]:
     return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def append(log: Path, command: str, exit_code: int, artifacts: list[Path], note: str = "", now: datetime | None = None) -> dict:
+def append(log: Path, command: str, exit_code: int, artifacts: list[Path], note: str = "", now: datetime | None = None,
+           seconds: float | None = None, cost: float | None = None) -> dict:
     records = read_log(log)
     problems = verify(records)
     if problems:
@@ -50,6 +55,11 @@ def append(log: Path, command: str, exit_code: int, artifacts: list[Path], note:
               "command": command, "exit_code": exit_code, "note": note,
               "artifacts": [{"path": p.as_posix(), "sha256": digest(p)} for p in artifacts],
               "prev": records[-1]["hash"] if records else GENESIS}
+    for key, value in (("seconds", seconds), ("cost", cost)):
+        if value is not None:
+            if value < 0:
+                raise ValueError(f"{key} must not be negative")
+            record[key] = value
     record["hash"] = record_hash(record)
     with log.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n")
@@ -77,6 +87,19 @@ def verify(records: list[dict], check_artifacts: bool = False, base: Path = Path
     return problems
 
 
+def stale_commands(records: list[dict], base: Path = Path(".")) -> list[str]:
+    """Commands (latest record each) that ran on an artifact that is now missing or different."""
+    latest = {r["command"]: r for r in records}
+    stale = []
+    for command, record in latest.items():
+        for item in record.get("artifacts", []):
+            target = base / item["path"]
+            if not target.is_file() or digest(target) != item["sha256"]:
+                stale.append(command)
+                break
+    return stale
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="action", required=True)
@@ -86,16 +109,31 @@ def main(argv: list[str] | None = None) -> int:
     add.add_argument("--exit-code", type=int, required=True)
     add.add_argument("--artifact", type=Path, action="append", default=[])
     add.add_argument("--note", default="")
+    add.add_argument("--seconds", type=float)
+    add.add_argument("--cost", type=float)
+    again = sub.add_parser("rerun")
+    again.add_argument("log", type=Path)
     check = sub.add_parser("verify")
     check.add_argument("log", type=Path)
     check.add_argument("--check-artifacts", action="store_true")
     args = parser.parse_args(argv)
     try:
         if args.action == "append":
-            record = append(args.log, args.command, args.exit_code, args.artifact, args.note)
+            record = append(args.log, args.command, args.exit_code, args.artifact, args.note,
+                            seconds=args.seconds, cost=args.cost)
             print(f"EVIDENCE-CHAIN: appended #{record['seq']} head={record['hash']}")
             return 0
         records = read_log(args.log)
+        if args.action == "rerun":
+            broken = verify(records)
+            if broken:
+                print(f"[BROKEN] {broken[0]}")
+                return 1
+            stale = stale_commands(records)
+            for command in stale:
+                print(f"RERUN: {command}")
+            print(f"EVIDENCE-CHAIN: {len(stale)} check(s) to rerun")
+            return 1 if stale else 0
         problems = verify(records, args.check_artifacts)
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -103,7 +141,9 @@ def main(argv: list[str] | None = None) -> int:
     for problem in problems:
         print(f"[BROKEN] {problem}")
     head = records[-1]["hash"] if records else GENESIS
-    print(f"EVIDENCE-CHAIN: {'BROKEN' if problems else 'OK'} ({len(records)} record(s), head={head})")
+    totals = "".join(f", total {k}={sum(r.get(k, 0) for r in records):g}" for k in ("seconds", "cost")
+                     if any(k in r for r in records))
+    print(f"EVIDENCE-CHAIN: {'BROKEN' if problems else 'OK'} ({len(records)} record(s), head={head}{totals})")
     return 1 if problems else 0
 
 

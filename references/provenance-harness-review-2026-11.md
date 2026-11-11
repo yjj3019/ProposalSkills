@@ -86,6 +86,25 @@ mechanizes them. The reviewed repository's Node tooling was not copied or ported
 | Merge guard (checks must pass, skipped is not a pass) | `merge_guard.py` | Python and `gh`-based; advisory, with the same stated limit that only branch protection enforces. |
 | Destructive-command hook | `hook_guard_bash.py` | Python lexical guard; opt-in, fail closed, states that it is not a sandbox. |
 
+### Growth-guide pass (fifth pass; the owner's own planning notes, ideas only, written fresh in Python)
+
+Source: the repository owner's private planning guide on harness, loop, document and writing practice (not a code
+repository). It names many third-party projects as installation candidates; none of them was consulted, installed,
+copied from or adopted, so no third-party license applies to this pass. Only ideas that fit proposal work were taken.
+
+| Idea in the guide | Implementation here | Notes |
+|---|---|---|
+| Five document formats need format-specific gates; HWPX needs structure checks | HWPX reading in `sensitive_scan.py`, `quality_gate.py`, `check_numbers.py`, `plain_language_check.py` (`test_hwpx.py`) | Built from the published package layout and checked locally against a real Hancom-format template found on the developer's machine. That template is third-party and was neither copied nor committed; the committed fixtures are synthetic. |
+| Same facts across formats; spreadsheet formula and reference integrity | `cross_format_numbers.py`, `xlsx_check.py` | `--recalc` forces LibreOffice recalculation with a temporary profile; found necessary because the default keeps stored values. |
+| Rerun only what failed; cost per verified task | `evidence_chain.py rerun`, `--seconds`, `--cost` | Reuses the existing hash chain. |
+| Task contract with limits, budget, stop conditions and state transitions | `task_contract.py` | Proposal-specific fields; `Verified` needs evidence and passing oracle checks. |
+| Paired baseline/candidate evaluation: verified success, false completion, regression, cost | `eval_metrics.py` | Aggregates recorded runs only; refuses unpaired input; no target values assumed. |
+| One verdict vocabulary: PASS / FAIL / BLOCKED / NOT VERIFIED | `references/verdict-vocabulary.md` (drift-tested) | Maps every tool's output; NOT VERIFIED is never PASS. |
+| Vet a skill's reach before installing it | `skill_audit.py --inventory` and `--deny` | Regex inventory of process, network, environment, file-write, dynamic-code and install capabilities. |
+| Visual rubric with must-pass defects; reader comprehension; claim and counterclaim | `visual-critique.md`, `plain-writing.md` | The guide's 100-point visual score was deliberately not adopted as a gate (it would give false assurance); a non-numeric trend comparison is offered instead. |
+
+Not adopted from the guide: the 12-week learning schedule and weekly routine (learning operations, not repository code), the Notion, TalkAbout and DeepSeek items (outside this repository), automatic overlap detection of shapes (high false-positive risk in generated decks), and any installation of the third-party skills it lists.
+
 Not adopted in this pass: the phase-gate runner, tool broker, dashboard, task-graph and accounting tools (supervision
 of coding agents, not proposal authoring, and a Node runtime dependency). Tests: `test_session_guardrails.py`.
 

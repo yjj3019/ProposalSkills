@@ -241,12 +241,68 @@ def _pptx_slide_order(z: zipfile.ZipFile) -> list[str]:
     return ordered
 
 
+def _hwpx_root(data: bytes) -> ET.Element:
+    """Parse HWPX XML after refusing entity-expansion inputs (same rule as sensitive_scan.py)."""
+    if b"\0" in data:
+        raise KeyError("UTF-16/32 XML 파트는 읽지 않는다")
+    upper = data.upper()
+    if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+        raise KeyError("DTD/엔티티 선언이 있는 XML 파트는 읽지 않는다")
+    return ET.fromstring(data)
+
+
+def _hwpx_blocks(z: zipfile.ZipFile) -> list[tuple[str, str]]:
+    """HWPX (Hancom, a ZIP of XML): one block per paragraph, labeled like DOCX (`문단 N`, counted across sections).
+
+    A paragraph reads only its own direct `run/t` children, so table cells, footnotes and drawn text (separate nested
+    paragraphs) are neither lost nor counted twice. Headers/footers (master pages) and metadata are labeled apart.
+    """
+    names = set(z.namelist())
+    if "mimetype" not in names or not z.read("mimetype").startswith(b"application/hwp+zip"):
+        raise KeyError("hwpx 패키지가 아니다 (mimetype 없음 또는 불일치)")
+    sections = sorted(n for n in names if re.fullmatch(r"Contents/section\d+\.xml", n))
+    if not sections:
+        raise KeyError("hwpx 패키지에 본문 구역(Contents/section*.xml)이 없다")
+    bad = z.testzip()
+    if bad is not None:
+        raise KeyError(f"손상된 ZIP 항목: {bad}")
+
+    def paragraphs(data: bytes) -> list[str]:
+        out = []
+        for p in _hwpx_root(data).iter():
+            if p.tag.rsplit("}", 1)[-1] != "p":
+                continue
+            text = "".join("".join(t.itertext()) for run in p if run.tag.rsplit("}", 1)[-1] == "run"
+                           for t in run if t.tag.rsplit("}", 1)[-1] == "t")
+            if normalize_text(text):
+                out.append(normalize_text(text))
+        return out
+
+    blocks: list[tuple[str, str]] = []
+    index = 0
+    for name in sections:
+        for text in paragraphs(z.read(name)):
+            index += 1
+            blocks.append((f"문단 {index}", text))
+    for i, name in enumerate(sorted(n for n in names if re.fullmatch(r"Contents/masterpage\d+\.xml", n)), 1):
+        for text in paragraphs(z.read(name)):
+            blocks.append((f"머리말·바닥글 {i}", text))
+    if "Contents/content.hpf" in names:
+        meta = [e.text.strip() for e in _hwpx_root(z.read("Contents/content.hpf")).iter()
+                if e.tag.rsplit("}", 1)[-1] in {"title", "meta"} and e.text and e.text.strip()]
+        if meta:
+            blocks.append(("문서속성", "\n".join(meta)))
+    return blocks
+
+
 def extract_labeled_blocks(path: Path) -> list[tuple[str, str]]:
     """Return (location label, text) pairs, including PPTX notes/layouts/masters/charts and DOCX headers/footers/footnotes/endnotes/comments/text boxes. Content invisible in PDF but retained in the package was a major source of false passes."""
     suffix = path.suffix.lower()
     blocks: list[tuple[str, str]] = []
     with zipfile.ZipFile(path) as z:
         validate_package(z, suffix)
+        if suffix == ".hwpx":
+            return _hwpx_blocks(z)
 
         def add(label: str, name: str, extract=xml_text) -> None:
             text = extract(z.read(name).decode("utf-8", "ignore"))
@@ -338,7 +394,7 @@ def extract_labeled_blocks(path: Path) -> list[tuple[str, str]]:
             if "docProps/core.xml" in z.namelist():
                 add("문서속성", "docProps/core.xml")
             return blocks
-    raise ValueError(f"지원하지 않는 형식: {path.suffix} (pptx/docx/xlsx만 지원)")
+    raise ValueError(f"지원하지 않는 형식: {path.suffix} (pptx/docx/xlsx/hwpx만 지원; 바이너리 .hwp는 HWPX로 저장해 검사)")
 
 
 def extract_blocks(path: Path) -> list[str]:

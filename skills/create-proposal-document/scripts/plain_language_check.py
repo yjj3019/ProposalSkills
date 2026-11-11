@@ -2,7 +2,7 @@
 """Plain-language lint for proposal text: long sentences, undefined acronyms, self-narration, filler, passive stacks.
 
 Complements quality_gate.py (exaggeration, placeholders, slop phrases, ambiguous commitments); it does not repeat
-those lists. Reads .md/.txt directly and .pptx/.docx/.xlsx through quality_gate's extractor.
+those lists. Reads .md/.txt directly and .pptx/.docx/.xlsx/.hwpx through quality_gate's extractor.
 
 Rules (all WARN; a person decides)
   long-sentence   a sentence longer than --max-chars (default 90) characters
@@ -35,7 +35,7 @@ PASSIVE = re.compile(r"되어집니다|되어지며|이루어지게 (?:됩니다
 
 
 def read_text(path: Path) -> str:
-    if path.suffix.lower() in {".pptx", ".docx", ".xlsx"}:
+    if path.suffix.lower() in {".pptx", ".docx", ".xlsx", ".hwpx"}:
         return "\n".join(quality_gate.extract_blocks(path))
     return path.read_text(encoding="utf-8-sig")
 
