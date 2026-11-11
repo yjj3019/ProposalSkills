@@ -72,6 +72,22 @@ were not duplicated.
 
 Tests: `test_design_writing_checks.py`.
 
+### Session continuity and guardrails (fourth pass; owner-authored source, ideas only, written fresh in Python)
+
+`iteration-and-handoff.md` already stated the rules (three-failure stop, hand-off records, lessons). This pass
+mechanizes them. The reviewed repository's Node tooling was not copied or ported line by line.
+
+| Idea in the reviewed repository | Implementation here | What is different |
+|---|---|---|
+| Retry budget and early stop on repeated failure or regression | `skills/create-best-proposal/scripts/retry_guard.py` | New verdicts over an attempts log (done, regression, same cause, budget). |
+| Hash-chained evidence records bound to artifact hashes | `skills/create-best-proposal/scripts/evidence_chain.py` | Small JSONL chain with append and verify; documents that tail truncation needs a pinned head hash. |
+| Hand-off lint and compound (lessons) log | `skills/create-best-proposal/scripts/handoff_lint.py` | Checks labeled fields, file-hash freshness, sensitive data and lesson fields; no project content is stored here. |
+| Merge guard (checks must pass, skipped is not a pass) | `merge_guard.py` | Python and `gh`-based; advisory, with the same stated limit that only branch protection enforces. |
+| Destructive-command hook | `hook_guard_bash.py` | Python lexical guard; opt-in, fail closed, states that it is not a sandbox. |
+
+Not adopted in this pass: the phase-gate runner, tool broker, dashboard, task-graph and accounting tools (supervision
+of coding agents, not proposal authoring, and a Node runtime dependency). Tests: `test_session_guardrails.py`.
+
 ## Considered and not adopted
 
 | Item | Reason |

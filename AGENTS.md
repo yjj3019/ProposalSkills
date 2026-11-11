@@ -137,6 +137,7 @@ It cannot decide whether a name belongs to a real customer; that judgment relies
 
 - After changes, `python -m unittest discover -s . -p "test_*.py" -q` must pass.
 - If gate behavior changes, add a reproduction test to `test_gate_integrity.py`.
+- Before merging a pull request, run `python merge_guard.py <PR>` (advisory: all checks must be `pass`, none skipped).
 - After weakening-prone gate edits, run `python gate_mutation_probe.py` (minutes; needs the dependencies in
   `requirements.txt`). Every catalogued mutation must be KILLED; a SURVIVED result is a test gap. Add a test, not an
   exemption. `test_gate_mutation_probe.py` keeps the catalog valid.

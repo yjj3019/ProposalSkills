@@ -71,3 +71,34 @@ Do not assume fixed context-usage percentages. Handoff through these records whe
 Accumulate only confirmed repeated-failure causes, solutions, and revalidation results briefly; read only relevant
 entries on similar future work. Never promote one customer's exceptions, hypotheses, or failed remedies to universal rules.
 These are project-operation records, not new audit approval fields or automatic-pass evidence.
+
+## 5. Mechanical aids for long work (optional)
+
+These turn the rules above into checks. None adds an approval field, and none replaces the gates.
+
+- **Stop rule**: record each fix-and-recheck attempt as `{"failures": [...], "passed": [...]}` and run
+  `scripts/retry_guard.py attempts.json`. It stops on a regression (a check that passed now fails), on the same
+  failure three times in a row, or when the attempt budget is spent, then asks you to report instead of repeating.
+- **Tamper-evident check log**: `scripts/evidence_chain.py append LOG --command "..." --exit-code N --artifact FILE`
+  after each real check; `verify LOG --check-artifacts` later shows a removed, edited or re-ordered record, or a file
+  that changed after it was checked. Keep the printed `head` hash in the hand-off note, because cutting records off the
+  end of the log is not visible from the file alone. It is tamper-evidence, not authentication.
+- **Hand-off note**: use these labeled fields and a hash table, then run `scripts/handoff_lint.py HANDOFF.md --root .`
+  on resumption. A `STALE` row means the file changed after the note, so rerun the affected checks.
+
+  ```markdown
+  - **Path/Phase**: Full / Phase C
+  - **Last verified**: numbers check, exit 0 (log entry 12)
+  - **Next task**: matrix slides for REQ-020 to REQ-031
+  - **Open items**: buyer Q&A answer on SLA window (owner: PM)
+
+  | path | sha256 |
+  |---|---|
+  | slides.json | <64 hex> |
+  ```
+- **Lessons log** (`handoff_lint.py HANDOFF.md --lessons LESSONS.md`): each `###` entry carries Issue, Root cause,
+  Resolution and Revalidation. Record structural lessons only; never put customer names, figures or excerpts in it.
+- **Repository guardrails**: `merge_guard.py PR` (all checks `pass`, none skipped; advisory only, branch protection is the
+  enforcing boundary) and `hook_guard_bash.py`, an opt-in Claude Code hook that denies a short list of destructive
+  commands. It is a lexical guard, not a sandbox; setup is in the script's docstring and nothing is installed
+  automatically.
