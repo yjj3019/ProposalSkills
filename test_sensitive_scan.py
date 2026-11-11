@@ -164,6 +164,7 @@ class FileHandlingTests(unittest.TestCase):
             code = scan.main([str(bad)])
         self.assertEqual(code, 2)
         self.assertIn("UNSCANNED", out.getvalue())
+        self.assertIn("DRM-protected", out.getvalue())
         self.assertIn("INCOMPLETE", out.getvalue())
 
     def test_dtd_entity_xml_is_refused_not_expanded(self):

@@ -15,12 +15,19 @@ Added
   inspected. The older binary `.hwp` is still reported as UNSCANNED (save it as HWPX first).
 - Proposal checks: `edit_preservation.py`, `deck_story_check.py`, `plain_language_check.py`, `deck_stage_gate.py`,
   `verification_report.py`, `retry_guard.py`, `evidence_chain.py`, `handoff_lint.py`.
-- References: AI-tell review, visual critique, plain-writing guide; operating principles in `AGENTS.md`.
+- `cross_format_numbers.py` (one numbers ledger over every delivered format), `xlsx_check.py` (error cells, `#REF!`,
+  never-calculated formulas, `--recalc` through a throwaway LibreOffice profile that forces recalculation),
+  `task_contract.py` (limits and states for a long job; `Verified` needs evidence), `eval_metrics.py` (paired
+  baseline/candidate metrics from recorded runs), `skill_audit.py --inventory/--deny` (what each skill's scripts can do).
+- `evidence_chain.py`: `rerun` lists the checks whose artifacts changed; optional `--seconds` and `--cost` are totaled.
+- References: AI-tell review, visual critique (mandatory defects, non-numeric trend), plain-writing guide (question
+  coverage, strongest objection), verdict vocabulary (PASS / FAIL / BLOCKED / NOT VERIFIED); operating principles in `AGENTS.md`.
 - `THIRD-PARTY-NOTICES.md` and license-hygiene tests; `.gitattributes` pins line endings to LF.
 
 Changed
 - `skill_audit.py`: a negation word exempts a match only when it precedes it in the same clause.
-- `sensitive_scan.py`: UTF-16/32 XML and DOCTYPE/ENTITY anywhere in a part are refused.
+- `sensitive_scan.py`: UTF-16/32 XML and DOCTYPE/ENTITY anywhere in a part are refused; an Office-named file that is not
+  a ZIP (for example one wrapped by an enterprise DRM agent) is reported as encrypted or DRM-protected, not silently skipped.
 
 ## 1.2.5
 

@@ -352,6 +352,9 @@ def scan_file(path: Path, allow: frozenset[str]) -> tuple[list[Finding], list[Un
                 return [], [Unscanned(label, "binary content")]
             return scan_text(raw.decode("utf-8", errors="replace"), label, None, allow), []
         return [], [Unscanned(label, f"unsupported file type {suffix}")]
+    except zipfile.BadZipFile:
+        # Seen with files saved under an enterprise DRM agent: the file looks like .xlsx but is not a ZIP.
+        return [], [Unscanned(label, "not a ZIP package: encrypted or DRM-protected, or corrupt; decrypt it through an authorized route and rescan")]
     except (OSError, zipfile.BadZipFile, ElementTree.ParseError, ValueError, RuntimeError) as exc:
         return [], [Unscanned(label, f"cannot read ({type(exc).__name__}: {str(exc)[:80]})")]
 

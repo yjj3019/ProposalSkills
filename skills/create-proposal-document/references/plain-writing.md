@@ -30,6 +30,15 @@ even if it reads awkwardly, and smooth wording that buries a fact is rewritten. 
 - Do not narrate the document ("본 장에서는 ~을 살펴보겠습니다"); start with the content.
 - Exact terms stay exact: do not simplify a requirement ID, a figure, or a defined term into a vague phrase.
 
+## 4-1. Question coverage and the strongest objection
+
+- For each evaluation item, write the evaluator's question in one line and note the slide or section that answers it.
+  An item with no answering location is a gap; a section that answers no item is padding. Count answered over total and
+  report the count with the unanswered items, so coverage can be compared between drafts.
+- For each key claim, write the strongest objection a skeptical evaluator would raise (a competitor's counter, a delivery
+  risk, a missing reference) and where the proposal answers it. An objection with no answer is an open risk, not a
+  detail to hide. Do not invent evidence to answer one; mark it `[unverified]` or list it as open.
+
 ## 5. Fresh-reader check (required before calling a section done)
 
 Read the section as someone who never saw the drafting: can they find the answer, the evidence and the commitment

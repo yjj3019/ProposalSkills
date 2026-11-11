@@ -65,6 +65,9 @@ Do not write the Full body under any of these conditions:
 | AUDIT-VALID / DRAFT-READY / REVIEW-READY | Audit-only or corresponding internal-stage pass | No |
 
 Do not confuse quality scores with status. **Gates decide status.**
+When reporting results from several tools together, translate them with
+[verdict-vocabulary.md](verdict-vocabulary.md): PASS / FAIL / BLOCKED / NOT VERIFIED, where a tool that did not run,
+could not read the file, or was skipped is NOT VERIFIED and never PASS.
 
 ## 5. Type signals
 

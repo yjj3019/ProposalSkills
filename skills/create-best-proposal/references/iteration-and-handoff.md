@@ -98,6 +98,19 @@ These turn the rules above into checks. None adds an approval field, and none re
   ```
 - **Lessons log** (`handoff_lint.py HANDOFF.md --lessons LESSONS.md`): each `###` entry carries Issue, Root cause,
   Resolution and Revalidation. Record structural lessons only; never put customer names, figures or excerpts in it.
+- **Task contract and states**: `scripts/task_contract.py validate|advance` records the goal, scope, non-goals, allowed
+  actions (outward-facing ones need a named approver), write boundary, test oracle, attempt and time budgets, and the state
+  (Planned, Running, Verifying, Verified, Failed, Blocked, Not Verified). It refuses `Verified` without evidence and a
+  passing result for every oracle check, and refuses another retry once `max_attempts` is used up.
+- **Rerun only what changed**: `evidence_chain.py rerun LOG` lists the checks whose artifacts changed since they ran.
+  `--seconds` and `--cost` on `append` let `verify` total the effort per verified check.
+- **Same facts in every format**: `cross_format_numbers.py DOC... --audit audit.json` runs the numbers ledger on each
+  delivered PPTX/DOCX/XLSX/HWPX and flags values found in some files but missing from others; `xlsx_check.py` reports
+  error cells, `#REF!`, never-calculated formulas and (with `--recalc`) stored values that differ from a recalculation.
+- **Comparing two workflows**: `eval_metrics.py runs.json` aggregates recorded runs of a baseline and a candidate on the
+  same tasks and conditions (verified success, false completion, cost per verified task, regression). It refuses unpaired
+  input and counts unverified runs against success; it makes no significance claim.
+- **Verdict words**: see [verdict-vocabulary.md](verdict-vocabulary.md) for PASS / FAIL / BLOCKED / NOT VERIFIED across tools.
 - **Repository guardrails**: `merge_guard.py PR` (all checks `pass`, none skipped; advisory only, branch protection is the
   enforcing boundary) and `hook_guard_bash.py`, an opt-in Claude Code hook that denies a short list of destructive
   commands. It is a lexical guard, not a sandbox; setup is in the script's docstring and nothing is installed

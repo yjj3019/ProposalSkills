@@ -64,14 +64,16 @@ Standard-library scripts; each prints what it did not check and never replaces r
 
 | Script | Purpose |
 |---|---|
-| [`sensitive_scan.py`](skills/create-best-proposal/scripts/sensitive_scan.py) | Find credentials and personal data in PPTX/DOCX/XLSX and text before sharing; unreadable files are reported, not skipped |
+| [`sensitive_scan.py`](skills/create-best-proposal/scripts/sensitive_scan.py) | Find credentials and personal data in PPTX/DOCX/XLSX/HWPX and text before sharing; unreadable files are reported, not skipped |
 | [`edit_preservation.py`](skills/create-proposal-document/scripts/edit_preservation.py) | Block a wording edit that lost or invented a figure, date, ID, link, quote or hedge |
 | [`deck_story_check.py`](skills/create-proposal-document/scripts/deck_story_check.py) | Print the titles-only "ghost deck"; flag duplicate titles and unsourced figures |
 | [`plain_language_check.py`](skills/create-proposal-document/scripts/plain_language_check.py) | Long sentences, unexpanded acronyms, self-narration, filler, passive stacks |
 | [`deck_stage_gate.py`](skills/create-proposal-document/scripts/deck_stage_gate.py) | Gate a deck workspace: approved design spec bound to its hash, plan matches `slides.json` |
 | [`verification_report.py`](skills/create-best-proposal/scripts/verification_report.py) | Validate that a check report matches the delivered file and does not overstate its depth |
 | [`retry_guard.py`](skills/create-best-proposal/scripts/retry_guard.py), [`evidence_chain.py`](skills/create-best-proposal/scripts/evidence_chain.py), [`handoff_lint.py`](skills/create-best-proposal/scripts/handoff_lint.py) | Stop rule for fix-and-recheck loops, tamper-evident check log, hand-off note lint |
-| `gate_mutation_probe.py`, `skill_audit.py`, `merge_guard.py`, `hook_guard_bash.py` | Repository tools: weaken-a-gate probe, skill safety and license audit, advisory PR readiness, opt-in destructive-command hook |
+| [`cross_format_numbers.py`](skills/create-proposal-document/scripts/cross_format_numbers.py), [`xlsx_check.py`](skills/create-proposal-document/scripts/xlsx_check.py) | Run the numbers ledger over every delivered PPTX/DOCX/XLSX/HWPX and flag disagreements; spreadsheet error cells, `#REF!`, never-calculated formulas, stale stored values (`--recalc`) |
+| [`task_contract.py`](skills/create-best-proposal/scripts/task_contract.py), [`eval_metrics.py`](skills/create-best-proposal/scripts/eval_metrics.py) | Written limits and states for a long proposal job (no `Verified` without evidence); paired baseline-versus-candidate metrics from recorded runs |
+| `gate_mutation_probe.py`, `skill_audit.py`, `merge_guard.py`, `hook_guard_bash.py` | Repository tools: weaken-a-gate probe, skill safety, license and capability audit, advisory PR readiness, opt-in destructive-command hook |
 
 Release notes: [CHANGELOG.md](CHANGELOG.md).
 

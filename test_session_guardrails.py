@@ -86,6 +86,37 @@ class EvidenceChainTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.add()
 
+    def test_rerun_lists_only_commands_whose_artifacts_changed(self):
+        other = self.dir / "matrix.txt"
+        other.write_text("m1", encoding="utf-8")
+        chain.append(self.log, "check deck", 0, [self.file], now=self.when, seconds=2.5, cost=0.1)
+        chain.append(self.log, "check matrix", 0, [other], now=self.when, seconds=1.5)
+        self.assertEqual(chain.stale_commands(chain.read_log(self.log)), [])
+        self.file.write_text("v2", encoding="utf-8")
+        self.assertEqual(chain.stale_commands(chain.read_log(self.log)), ["check deck"])
+        chain.append(self.log, "check deck", 0, [self.file], now=self.when)  # rerun recorded: no longer stale
+        self.assertEqual(chain.stale_commands(chain.read_log(self.log)), [])
+        other.unlink()
+        self.assertEqual(chain.stale_commands(chain.read_log(self.log)), ["check matrix"])
+
+    def test_seconds_and_cost_are_optional_validated_and_totaled(self):
+        record = chain.append(self.log, "x", 0, [], now=self.when, seconds=2, cost=0.5)
+        self.assertEqual((record["seconds"], record["cost"]), (2, 0.5))
+        self.assertNotIn("cost", chain.append(self.log, "y", 0, [], now=self.when))
+        with self.assertRaises(ValueError):
+            chain.append(self.log, "z", 0, [], now=self.when, seconds=-1)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(chain.main(["verify", str(self.log)]), 0)
+        self.assertIn("total seconds=2", out.getvalue())
+
+    def test_rerun_cli_exit_codes(self):
+        chain.append(self.log, "check deck", 0, [self.file], now=self.when)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(chain.main(["rerun", str(self.log)]), 0)
+            self.file.write_text("v9", encoding="utf-8")
+            self.assertEqual(chain.main(["rerun", str(self.log)]), 1)
+
     def test_cli(self):
         with redirect_stdout(io.StringIO()):
             self.assertEqual(chain.main(["append", str(self.log), "--command", "x", "--exit-code", "0", "--artifact", str(self.file)]), 0)

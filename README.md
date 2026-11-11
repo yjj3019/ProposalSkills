@@ -64,14 +64,16 @@ PPTX 생성·검사는 Python 3.10+와 `python-pptx`, 자동 렌더는 LibreOffi
 
 | 스크립트 | 용도 |
 |---|---|
-| [`sensitive_scan.py`](skills/create-best-proposal/scripts/sensitive_scan.py) | 공유 전에 PPTX·DOCX·XLSX·텍스트에서 비밀키와 개인정보 탐지. 읽지 못한 파일은 건너뛰지 않고 보고 |
+| [`sensitive_scan.py`](skills/create-best-proposal/scripts/sensitive_scan.py) | 공유 전에 PPTX·DOCX·XLSX·HWPX·텍스트에서 비밀키와 개인정보 탐지. 읽지 못한 파일은 건너뛰지 않고 보고 |
 | [`edit_preservation.py`](skills/create-proposal-document/scripts/edit_preservation.py) | 문장 다듬기에서 수치·날짜·ID·링크·인용·불확실 표시가 사라지거나 생기면 차단 |
 | [`deck_story_check.py`](skills/create-proposal-document/scripts/deck_story_check.py) | 제목만 이어 읽는 "고스트 덱" 출력, 중복 제목과 출처 없는 수치 표시 |
 | [`plain_language_check.py`](skills/create-proposal-document/scripts/plain_language_check.py) | 긴 문장, 풀이 없는 약어, 자기 해설, 군더더기, 이중 피동 |
 | [`deck_stage_gate.py`](skills/create-proposal-document/scripts/deck_stage_gate.py) | 덱 작업 폴더 게이트: 승인된 디자인 명세를 해시에 묶고 계획과 `slides.json` 일치 확인 |
 | [`verification_report.py`](skills/create-best-proposal/scripts/verification_report.py) | 검사 보고서가 납품 파일과 일치하고 검사 깊이를 과장하지 않는지 검증 |
 | [`retry_guard.py`](skills/create-best-proposal/scripts/retry_guard.py), [`evidence_chain.py`](skills/create-best-proposal/scripts/evidence_chain.py), [`handoff_lint.py`](skills/create-best-proposal/scripts/handoff_lint.py) | 수정·재검증 반복 중단 규칙, 변조 흔적이 남는 검사 기록, 인계 노트 점검 |
-| `gate_mutation_probe.py`, `skill_audit.py`, `merge_guard.py`, `hook_guard_bash.py` | 저장소 도구: 게이트 약화 탐침, 스킬 안전·라이선스 감사, PR 준비 상태 확인(권고용), 위험 명령 차단 훅(선택) |
+| [`cross_format_numbers.py`](skills/create-proposal-document/scripts/cross_format_numbers.py), [`xlsx_check.py`](skills/create-proposal-document/scripts/xlsx_check.py) | 수치 원장을 납품한 PPTX·DOCX·XLSX·HWPX 전부에 대조해 불일치 표시. 스프레드시트의 오류 셀, `#REF!`, 계산된 적 없는 수식, 저장값과 재계산값 차이(`--recalc`) 점검 |
+| [`task_contract.py`](skills/create-best-proposal/scripts/task_contract.py), [`eval_metrics.py`](skills/create-best-proposal/scripts/eval_metrics.py) | 긴 제안 작업의 한도와 상태를 기록(증거 없이는 `Verified` 불가), 기록된 실행으로 기준과 후보를 짝지어 비교 |
+| `gate_mutation_probe.py`, `skill_audit.py`, `merge_guard.py`, `hook_guard_bash.py` | 저장소 도구: 게이트 약화 탐침, 스킬 안전·라이선스·기능 범위 감사, PR 준비 상태 확인(권고용), 위험 명령 차단 훅(선택) |
 
 릴리스 노트: [CHANGELOG.md](CHANGELOG.md).
 

@@ -31,6 +31,13 @@ buyer prescribes a template, the template wins over taste.
 - Body text in low-contrast gray; type roles that cannot be told apart (the measurable parts are in `deck_check.py`).
 - Generic captions ("핵심 역량", "최적의 솔루션") where a buyer-specific statement belongs.
 
+## 4-1. Mandatory defects (any one fails the page)
+
+Clipped or overflowing text; text overlapping other text, an arrow or a shape that hides meaning; connectors that point at
+nothing or contradict the text claim; text too small or too low in contrast to read at presentation distance; a figure
+whose drawn size contradicts its value. These are checked on the rendered page. `deck_check.py` covers font size,
+density and page counts; overlap and arrow meaning still need a person looking at the render.
+
 ## 5. Critique-and-revise loop
 
 1. Render the saved deck (`deck_check.py --render`) and look at every page image, not the source file.
@@ -39,5 +46,9 @@ buyer prescribes a template, the template wins over taste.
 3. Revise once against that list, then render and list again. A revision that leaves the findings list unchanged
    did not fix anything; say so instead of claiming progress.
 4. Record the result with `verification_report.py` (what was inspected, at which level, what was not inspected).
+
+Optional trend comparison between iterations (never a gate and never a total): mark each of composition, information
+hierarchy, color, whitespace and alignment, originality for this buyer, and legibility as Better / Same / Worse than the
+previous render, with one line of reason. Mandatory defects above still decide pass or fail.
 
 A rendered page that fails is a fail even when the source passes. Rendering is separate from human visual approval.

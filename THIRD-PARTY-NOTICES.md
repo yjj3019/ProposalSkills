@@ -35,6 +35,13 @@ examples, or assets from them are present in this repository. Details are in
 The repository owner's separate private agent-harness repository (Apache-2.0, same author) was also reviewed for ideas.
 Its content is not included; the overlap check and rewording are recorded in the provenance file.
 
+## Format knowledge and planning notes
+
+- HWPX (Hancom) is read through its published package layout (a ZIP of XML parts such as `Contents/section*.xml`). No
+  Hancom or third-party library, specification text or sample file is included; the committed HWPX tests build synthetic files.
+- The owner's own planning notes (a growth and execution guide) were a source of ideas. The third-party repositories that
+  guide lists as candidates were not consulted, copied from or depended on, and nothing from them was adopted.
+
 ## Obligations going forward
 
 - Adding third-party code, text, fonts, images, or templates requires recording the exact license and notice here

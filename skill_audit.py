@@ -13,9 +13,14 @@ A skill is text that an agent obeys. Two failures matter before a skill is distr
 Heuristics only: a clean audit means these patterns were absent, not that a skill is safe or that its
 content is original. Review remains a human decision.
 
+A third check, `--inventory`, lists what each skill's scripts can do (run processes, reach the network, read the
+environment, write or delete files, run dynamic code, install packages) so a reviewer sees the reach of a skill before
+trusting it. `--deny network,install` turns the listed capabilities into findings. The inventory is a regex scan, not a
+proof: strings and comments can trigger it, and code can hide what it does.
+
 Exit codes: 0 clean, 1 findings, 2 usage error.
 
-Usage: python skill_audit.py [SKILLS_DIR] [--root-license MIT]
+Usage: python skill_audit.py [SKILLS_DIR] [--root-license MIT] [--inventory] [--deny network,install]
 """
 from __future__ import annotations
 
@@ -103,6 +108,35 @@ def content_findings(skill: Path, base: Path) -> list[Finding]:
     return findings
 
 
+CAPABILITIES: dict[str, re.Pattern[str]] = {
+    "process": re.compile(r"\b(?:subprocess|os\.system|os\.popen|child_process|Start-Process|Invoke-Expression)\b"),
+    "network": re.compile(r"\b(?:urllib\.request|urlopen|requests\.(?:get|post|put|request|Session)|http\.client|socket\.socket|"
+                          r"ftplib|smtplib|XMLHttpRequest|Invoke-WebRequest)\b|\bfetch\(|\b(?:curl|wget)\s"),
+    "environment": re.compile(r"\b(?:os\.environ|os\.getenv|process\.env)\b"),
+    "file-write": re.compile(r"\.write_text\(|\.write_bytes\(|\bopen\([^)\n]*['\"][wax]b?\+?['\"]|"
+                             r"shutil\.(?:copy|copy2|copytree|move|rmtree)|os\.(?:remove|unlink|rename|replace)\(|\.unlink\(|\.mkdir\("),
+    "dynamic-code": re.compile(r"\b(?:eval|exec)\(|__import__\(|\bimportlib\."),
+    "install": re.compile(r"\b(?:pip3?|python -m pip)\s+install\b|\bnpm\s+(?:install|i)\b|\bnpx\s|\bapt(?:-get)?\s+install\b|\bchoco\s+install\b"),
+}
+SCRIPT_SUFFIXES = {".py", ".sh", ".js", ".ps1", ".bat", ".cmd"}
+
+
+def capability_inventory(skill: Path) -> dict[str, list[str]]:
+    """{capability: [relative script paths]} for the scripts inside one skill."""
+    found: dict[str, list[str]] = {}
+    for path in sorted(skill.rglob("*")):
+        if not path.is_file() or path.is_symlink() or path.suffix.lower() not in SCRIPT_SUFFIXES or "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for capability, pattern in CAPABILITIES.items():
+            if pattern.search(text):
+                found.setdefault(capability, []).append(path.relative_to(skill).as_posix())
+    return found
+
+
 def audit(skills_root: Path, root_license: str) -> list[Finding]:
     findings: list[Finding] = []
     for skill in skill_dirs(skills_root):
@@ -125,6 +159,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("skills_dir", nargs="?", type=Path, default=REPO / "skills")
     parser.add_argument("--root-license", default=None, help="SPDX id of the repository (default: plugin.json license)")
+    parser.add_argument("--inventory", action="store_true", help="also list what each skill's scripts can do")
+    parser.add_argument("--deny", default="", metavar="CAPS",
+                        help="comma-separated capabilities to report as findings (" + ", ".join(CAPABILITIES) + ")")
     args = parser.parse_args(argv)
     if not args.skills_dir.is_dir():
         print(f"Not a directory: {args.skills_dir}", file=sys.stderr)
@@ -133,7 +170,17 @@ def main(argv: list[str] | None = None) -> int:
     if not root_license:
         print("Repository license is unknown: set `license` in plugin.json or pass --root-license", file=sys.stderr)
         return 2
+    denied = {c.strip() for c in args.deny.split(",") if c.strip()}
+    if denied - set(CAPABILITIES):
+        print("Unknown capability in --deny: " + ", ".join(sorted(denied - set(CAPABILITIES))), file=sys.stderr)
+        return 2
     findings = audit(args.skills_dir, root_license)
+    for skill in skill_dirs(args.skills_dir):
+        inventory = capability_inventory(skill)
+        if args.inventory:
+            print(f"[inventory] {skill.name}: " + ("; ".join(f"{c}: {', '.join(files)}" for c, files in inventory.items()) or "no scripts with these capabilities"))
+        findings += [Finding(f"{skill.name}/{file}", 0, "capability-" + cap, f"script uses {cap}")
+                     for cap in sorted(denied) for file in inventory.get(cap, [])]
     for f in findings:
         print(f"{f.path}:{f.line} [{f.rule}] {f.text}")
     print(f"SKILL-AUDIT: {'FINDINGS' if findings else 'CLEAN'} ({len(skill_dirs(args.skills_dir))} skill(s), {len(findings)} finding(s))")
