@@ -130,6 +130,15 @@ Distinguish stages:
 Before the final gate run, apply [anti-ai-tells.md](anti-ai-tells.md). It removes machine-generic phrasing while
 keeping facts, and reports Changed / Kept / Evidence / Uncovered. It does not replace any gate above.
 
+### Fact-preserving edits and verification reports
+
+- After any wording-only edit, run `python scripts/edit_preservation.py original.md revised.md`. BLOCKED means a figure,
+  date, requirement ID, link, quotation, code span or hedge was lost or invented. REVIEW (negation or hedge count
+  changed) needs a human read. PASS means the inventories match, not that the meaning is unchanged.
+- When recording what was checked, validate the record with `create-best-proposal/scripts/verification_report.py`:
+  it ties the report to the delivered file by SHA-256, requires a tool and evidence for rendered or live passes,
+  requires not-inspected checks to be listed, and refuses numeric scores.
+
 ### Centralize completeness figures in score_completeness.py
 
 For completeness-score requests, run `create-best-proposal/scripts/score_completeness.py` (same entry point at repository root).

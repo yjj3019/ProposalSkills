@@ -220,6 +220,14 @@ Example: 40p limit; technical evaluation understanding 10, strategy 20, architec
 Fixed = matrix 1 + dividers 5 = 6 → body 34 → understanding 4, strategy 9, architecture 10, migration 7, management 4.
 Write high-weight leads first and emphasize diagrams; condense low-weight chapters into one table.
 
+## 4-1. Staged workspace gate (optional, for decks built in several sessions or by several people)
+
+Keep `brief.md`, `design_spec.md`, `page_plan.json`, `slides.json` and a `stages.json` manifest in one folder and run
+`python scripts/deck_stage_gate.py <folder>`. The design spec must be approved by a named person; the approval is
+bound to the file's SHA-256, so editing the spec afterward invalidates it. Plan titles must be claims, and
+`slides.json` content titles must match the plan. Routes: `generate`/`template` (all stages, approval blocking),
+`edit` (slides only), `quick` (brief and slides, no approval gate). It checks recorded facts, not who approved.
+
 ## 5. Production checks
 
 Follow [quality-first-authoring.md](quality-first-authoring.md) for content review.

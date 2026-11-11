@@ -40,13 +40,29 @@ Same source, same licensing position: owner-authored Apache-2.0 ideas, written f
 | Skill trigger evaluation (positive and negative phrases) | `references/trigger-eval-cases.json`, `test_skill_triggers.py` | Guards flagship/sibling routing vocabulary. Offline lint only; it does not measure model behaviour. |
 | Package lint: relative-link and frontmatter checks | `test_skill_links.py` | Broken reference links silently remove guidance that the skills load on demand. |
 
+### Third-party-derived items: re-implemented as new logic (ideas only, nothing copied)
+
+The three skills in the reviewed repository that carry third-party terms were not copied. The owner asked
+for their ideas to be re-implemented here as new logic. Each upstream project is MIT-licensed; only the
+general idea was taken, and no upstream text, prompt, example, script, or asset is present in this repository.
+Method for all three: **re-implement (ideas only)**; no notice file is required because no expression was reused,
+and the upstream is credited here anyway.
+
+| Upstream idea (source, license) | New implementation here | What is different |
+|---|---|---|
+| Edit prose for clarity while preserving facts, uncertainty and protected spans ([blader/humanizer](https://github.com/blader/humanizer), MIT) | `skills/create-proposal-document/scripts/edit_preservation.py` | A mechanical before/after inventory (figures with Korean units, dates, requirement IDs, links, quotations, code spans, hedges, negation counts) that blocks on lost or invented facts. Upstream is a prompt; this is a checker. |
+| Staged, gated deck workflow with a locked design spec and a source-of-truth intermediate ([hugohe3/ppt-master](https://github.com/hugohe3/ppt-master), MIT) | `skills/create-proposal-document/scripts/deck_stage_gate.py` | A manifest-driven gate: approval is bound to the spec file's SHA-256 so later edits invalidate it, plan titles must be claims, and `slides.json` content titles must match the page plan. No SVG or PPTX tooling is involved. |
+| Verify the saved artifact itself and report which checks really ran, with their depth ([alchaincyf/huashu-design](https://github.com/alchaincyf/huashu-design), MIT) | `skills/create-best-proposal/scripts/verification_report.py` | A validator that ties a report to the delivered file by hash, requires a tool and evidence for rendered or live passes, requires not-inspected checks to be listed, and refuses numeric scores. |
+
+Tests: `test_reimplemented_workflows.py`. Pointers: `review-checklist.md` and `deck-production.md`.
+
 ## Considered and not adopted
 
 | Item | Reason |
 |---|---|
-| Design-evidence skill (carries its own MIT license from a third-party author) | Third-party license; unrelated to Korean proposals. |
-| PPT staged-workflow skill (adapted from a third-party MIT project) | Third-party derivative; this project already has its own deck pipeline (`build_deck.py`, `deck_check.py`). |
-| Evidence-preserving editor skill | Its license grant is not documented by a local license file (the source's own provenance note flags this). Not reused until the owner clarifies. |
+| Design-evidence skill (carries its own MIT license from a third-party author) | The skill text itself is not copied. Its idea is re-implemented as `verification_report.py` (see the re-implementation table above). |
+| PPT staged-workflow skill (adapted from a third-party MIT project) | The skill text itself is not copied. Its idea is re-implemented as `deck_stage_gate.py`; the existing deck pipeline (`build_deck.py`, `deck_check.py`) is unchanged. |
+| Evidence-preserving editor skill | The skill text itself is not copied (its license grant is undocumented locally). Its idea is re-implemented as `edit_preservation.py`. |
 | Generic writing, document, coding, design, security, and observability skills | Duplicate or weaker than this project's proposal-specific guidance (`writing-style.md`, `review-checklist.md`, `quality_gate.py`). |
 | Phase-gate workflow, hook templates, tool broker, dashboard, task-graph and accounting tools | Solve long-running coding-agent supervision, not proposal authoring; they would add a Node runtime dependency and attack surface to a stdlib-only Python project. |
 | Paired-evaluation and usage-accounting experiments | Need real model runs to mean anything; the source itself labels them proposals, not measured results. |
