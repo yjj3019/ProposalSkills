@@ -217,6 +217,8 @@ class XlsxCheckTests(unittest.TestCase):
             z.writestr("xl/_rels/workbook.xml.rels", '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
                        f'<Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>')
             z.writestr("xl/worksheets/sheet1.xml", sheet('<c r="A1"><f>1+1</f><v>5</v></c>'))
+        if xlsx_check.recalc(path) is None:  # e.g. Impress installed without the Calc component
+            self.skipTest("LibreOffice cannot open spreadsheets here")
         out = io.StringIO()
         with redirect_stdout(out):
             code = xlsx_check.main([str(path), "--recalc"])
