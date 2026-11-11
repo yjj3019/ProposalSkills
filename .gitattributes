@@ -1,0 +1,2 @@
+# Pin line endings so Windows (autocrlf) and Linux checkouts produce identical diffs and hashes.
+* text=auto eol=lf
