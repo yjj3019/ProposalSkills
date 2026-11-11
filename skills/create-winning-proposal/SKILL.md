@@ -1,5 +1,6 @@
 ---
 name: create-winning-proposal
+license: MIT
 description: "Evidence, approval, and submission-review layer loaded by create-best-proposal. Covers bid/no-bid decisions, atomic requirements, evidence ledgers, approval chains, audit JSON, and proposal_gate.py for PPTX/DOCX/PDF. Use directly only for explicitly requested layer work or when create-best-proposal is unavailable."
 disable-model-invocation: true
 ---

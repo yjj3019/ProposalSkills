@@ -8,7 +8,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
 
-# Exclude this file itself (it contains pattern strings) and binary files.
+# Exclude this file itself (it contains pattern strings), .mailmap (maps legacy author emails; the
+# addresses already exist in commit history), and binary files.
 SELF = Path(__file__).name
 BINARY_SUFFIXES = {".pptx", ".docx", ".xlsx", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".zip"}
 
@@ -37,7 +38,7 @@ def tracked_files() -> list[Path]:
     files = []
     for line in out.stdout.splitlines():
         path = REPO / line
-        if not path.is_file() or path.name == SELF or path.suffix.lower() in BINARY_SUFFIXES:
+        if not path.is_file() or path.name in {SELF, ".mailmap"} or path.suffix.lower() in BINARY_SUFFIXES:
             continue
         files.append(path)
     return files
@@ -89,6 +90,34 @@ class RepoHygieneTests(unittest.TestCase):
                     line = text.count("\n", 0, m.start()) + 1
                     hits.append(f"{rel}:{line} [{name}] {m.group(0)[:60]} — {why}")
         self.assertEqual(hits, [], "공개 저장소에 두면 안 되는 내용:\n" + "\n".join(hits))
+
+    def test_no_secret_tokens_or_resident_numbers(self):
+        """Known credential formats, checksum-valid resident registration numbers, and Luhn-valid card numbers
+        are never legitimate repository content. Reuses the proposal scanner so the rules stay single-sourced."""
+        if not self.files:
+            self.skipTest("git 추적 파일 목록을 얻을 수 없다")
+        scanner_dir = REPO / "skills" / "create-best-proposal" / "scripts"
+        if not (scanner_dir / "sensitive_scan.py").is_file():
+            self.skipTest("sensitive_scan.py가 없는 설치 트리")
+        import sys
+        sys.path.insert(0, str(scanner_dir))
+        try:
+            import sensitive_scan
+        finally:
+            sys.path.remove(str(scanner_dir))
+        secret_kinds = {name for name, _, _ in sensitive_scan.SECRET_PATTERNS}
+        secret_kinds |= {"resident-registration-number", "payment-card-number"}
+        hits: list[str] = []
+        for path in self.files:
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            rel = path.relative_to(REPO)
+            for found in sensitive_scan.scan_text(text, str(rel)):
+                if found.kind in secret_kinds:
+                    hits.append(f"{rel} ({found.where}) [{found.kind}] {found.sample}")
+        self.assertEqual(hits, [], "저장소에 두면 안 되는 자격증명·식별번호 형식:\n" + "\n".join(hits))
 
     def test_no_real_looking_customer_fixtures(self):
         """Fixture buyers must use fictional notation (○○·가상), preventing actual customer names."""

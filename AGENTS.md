@@ -117,13 +117,19 @@ Use fictitious buyers (Korean example: `○○공사`) and synthetic figures for
 Transfer only **structural generalizations** from real documents (Korean example:
 "요구가 100건을 넘으면 조견표가 9장이 된다"); do not transfer anything that identifies the source document.
 
-`test_repo_hygiene.py` mechanically checks local paths, email addresses, credential patterns, and fixture buyers.
+`test_repo_hygiene.py` mechanically checks local paths, email addresses, credential and resident-number formats, and fixture buyers.
 It cannot decide whether a name belongs to a real customer; that judgment relies on these rules and human review.
 
 ## When modifying this repository
 
 - After changes, `python -m unittest discover -s . -p "test_*.py" -q` must pass.
 - If gate behavior changes, add a reproduction test to `test_gate_integrity.py`.
+- After weakening-prone gate edits, run `python gate_mutation_probe.py` (minutes; needs the dependencies in
+  `requirements.txt`). Every catalogued mutation must be KILLED; a SURVIVED result is a test gap. Add a test, not an
+  exemption. `test_gate_mutation_probe.py` keeps the catalog valid.
+- Skills declare `license:` in frontmatter; `python skill_audit.py` must stay clean. Before adopting content from another
+  repository, record its license and your use in `references/` first (see `provenance-harness-review-2026-11.md`);
+  never copy third-party text or code without its notice.
 - Follow the public-repository rules above. Retain only structural generalizations from real proposal material.
 - The gate contract (submission-decision rules) is documented in `README.md` and
   `skills/create-winning-proposal/references/audit-schema.md`. Update code and documentation together.

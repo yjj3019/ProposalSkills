@@ -1,5 +1,6 @@
 ---
 name: create-proposal-document
+license: MIT
 description: "Content, writing, and visual layer loaded by create-best-proposal. Provides type-specific outlines, leads, compliance matrices, content patterns, visual specifications, the slides.json-based PPTX generator (build_deck.py), layout lint (deck_check.py), and text review (quality_gate.py) for Korean IT proposals. Use directly only when the user explicitly requests writing, structure, or slide layout alone, or when create-best-proposal is unavailable."
 disable-model-invocation: true
 ---

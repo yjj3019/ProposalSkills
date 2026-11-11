@@ -57,3 +57,7 @@ Keep customer materials and generated output outside this public repository.
 [Slide specifications](skills/create-proposal-document/references/deck-production.md) ·
 [Submission checks](skills/create-winning-proposal/references/audit-schema.md) ·
 [Development and contribution](AGENTS.md)
+
+## License
+
+[MIT](LICENSE)

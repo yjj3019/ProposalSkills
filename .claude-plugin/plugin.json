@@ -1,6 +1,7 @@
 {
   "name": "proposal-skills",
   "version": "1.2.5",
+  "license": "MIT",
   "description": "Korean IT proposal workflows for RFP analysis, editable slide decks, evidence review, and submission checks.",
   "author": {
     "name": "ProposalSkills"
