@@ -18,8 +18,8 @@ with background the evaluator already has. Keep the buyer's own terms for the bu
 ## 3. Tag every claim
 
 Each non-obvious claim is one of: supported (source and as-of date given), inferred (reasoning shown), or
-unverified (marked `[unverified]`, never written as fact). Facts never bend for rhythm: a sentence that hurts the
-flow stays if it carries a fact; a rhythm that hides a fact is rewritten. Tags map onto the evidence ledger in
+unverified (marked `[unverified]`, never written as fact). Facts never bend for rhythm: a sentence that carries a fact stays
+even if it reads awkwardly, and smooth wording that buries a fact is rewritten. Tags map onto the evidence ledger in
 `create-winning-proposal`.
 
 ## 4. Plain sentences
@@ -37,6 +37,6 @@ without asking a question? List what they would have to ask; each item is either
 
 ## 6. Hand-off block
 
-End a writing review with: verdict, kept claims with sources, fixed items, unresolved items. An empty unresolved
+Close a writing review with four parts: the verdict, the claims kept and where each is sourced, what was fixed, and what is still open. An empty unresolved
 block means the reviewer did not look, not that nothing is wrong. Style review is not fact checking, and fact
 checking is not gate approval.

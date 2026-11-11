@@ -28,8 +28,8 @@ commands, paths, configuration keys, code field names, status values, Korean tes
   Never echo or store credentials found in them.
 - **Evidence before completion**: do not call work done without observable evidence (test output, gate verdicts,
   produced files). Exit code 0 is not enough: confirm tests actually ran (not zero tests, not all skipped).
-- **Instruction drift**: when an instruction file conflicts with verified current code or tests, cite both and
-  fix the owning document. Do not rewrite working code to satisfy stale prose.
+- **Instruction drift**: if this guidance and the code or tests disagree, show both sides, then correct the
+  document that owns the claim. Leave working code alone just to match outdated wording.
 - **Approval boundary**: prompts and hooks are not sandboxes. External or destructive effects (sending, publishing,
   deleting, overwriting) need real human approval; state what was not checked.
 - **Scope**: change only what was requested; keep edits surgical and simple.

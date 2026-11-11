@@ -17,8 +17,8 @@ buyer prescribes a template, the template wins over taste.
 
 ## 3. Honest marks
 
-- Length and position carry exact values; area and color only suggest. Do not draw a bar or box whose size
-  contradicts its figure.
+- Exact values belong in lengths and positions; area and color give only a rough impression. A bar or box must
+  never be sized against the figure it shows.
 - A chart or table that carries a figure shows its unit, as-of date and source on the slide.
 - Axes start at zero, or the break is shown and stated. No metric appears that the source material lacks.
 - A diagram's arrows and groupings must match the text claim beside it (a "phased migration" slide shows phases).
@@ -34,7 +34,7 @@ buyer prescribes a template, the template wins over taste.
 ## 5. Critique-and-revise loop
 
 1. Render the saved deck (`deck_check.py --render`) and look at every page image, not the source file.
-2. List findings, each with a one-line reason and a one-line fix, ranked Critical / Major / Minor (same scale as
+2. List findings, each with why it matters and the smallest fix, ranked Critical / Major / Minor (same scale as
    `review-checklist.md`). Do not assign a numeric score.
 3. Revise once against that list, then render and list again. A revision that leaves the findings list unchanged
    did not fix anything; say so instead of claiming progress.

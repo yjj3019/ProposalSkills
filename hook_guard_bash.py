@@ -101,7 +101,7 @@ def main(stdin=None) -> int:
         return 2
     reason = deny_reason(command)
     if reason:
-        print(f"Blocked by hook_guard_bash.py: {reason}. Ask the user to run it or approve it explicitly.", file=sys.stderr)
+        print(f"Blocked by hook_guard_bash.py: {reason}. Have the user run it, or approve it, themselves.", file=sys.stderr)
         return 2
     return 0
 

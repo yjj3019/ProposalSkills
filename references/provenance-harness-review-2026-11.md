@@ -12,7 +12,8 @@ linked here because it is private. The review read its tooling, skills, and docu
 ## Licensing position
 
 - Everything adopted is **independently implemented in Python** for this repository's standard-library
-  toolchain. No source file, prompt text, test, fixture, or asset was copied or translated line by line.
+  toolchain. No source file, test, fixture, or asset was copied or translated line by line. A later 8-word-sequence comparison
+  against the source found only a few short stock phrases in prose (under 1% of the new text); those were reworded.
   Only well-known public formats were reused as data (for example credential prefixes such as `AKIA` or
   `ghp_`, and the public resident-registration and Luhn checksum algorithms).
 - This repository is MIT. The source repository is Apache-2.0 and owned by the same author, so adopting its

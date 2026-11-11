@@ -7,10 +7,10 @@ tries to beat an AI detector.
 
 ## Principles
 
-1. **Purpose test**: for each repeated technique (a three-card row, a slogan opener, an emphasis phrase), write one
-   honest sentence on why it serves this proposal. If it fits any proposal, cut it or give it a reason.
-2. **Specificity test**: a pattern that recurs in unrelated places (same opener, same closer, always three items)
-   is a candidate, not proof. A pattern with a real reason stays.
+1. **Purpose test**: when a device repeats (a three-card row, a slogan opener, an emphasis phrase), state in one plain
+   sentence what it does for this proposal. A device that would suit any proposal is cut or justified.
+2. **Specificity test**: a habit that shows up in unrelated places (same opener, same closer, always three items)
+   only raises a suspicion. If there is a genuine reason for it, keep it.
 3. **Facts stay**: figures, quotes, certifications and commitments are the payload. Restate them or remove the
    sentence. Never add a metric, reference or source that the supplied material does not contain.
 4. **Direction stays**: remove the tell and stop. A flat result means the buyer-specific message is missing; add
