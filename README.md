@@ -61,3 +61,5 @@ PPTX 생성·검사는 Python 3.10+와 `python-pptx`, 자동 렌더는 LibreOffi
 ## 라이선스
 
 [MIT](LICENSE)
+
+[Third-party notices](THIRD-PARTY-NOTICES.md)

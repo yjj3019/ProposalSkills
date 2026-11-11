@@ -61,3 +61,5 @@ Keep customer materials and generated output outside this public repository.
 ## License
 
 [MIT](LICENSE)
+
+[Third-party notices](THIRD-PARTY-NOTICES.md)
