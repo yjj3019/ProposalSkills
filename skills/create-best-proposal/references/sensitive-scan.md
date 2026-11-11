@@ -24,7 +24,7 @@ Exit codes: `0` clean, `1` findings, `2` incomplete (something could not be read
 
 ## What it reads
 
-Plain text and code files, plus the text of `.pptx`, `.docx`, and `.xlsx` (slides, notes, comments,
+Plain text and code files, plus the text of `.pptx`, `.docx`, `.xlsx`, and Hancom `.hwpx` (paragraphs, table cells, headers/footers, metadata; embedded `BinData/` objects are reported as not inspected; the binary `.hwp` is not read, so save it as HWPX) (slides, notes, comments,
 headers/footers, shared strings, chart caches, and author/company metadata). Text split across runs is
 joined first, so a number cannot hide between two formatting runs. XML with DTD/entity declarations is
 refused, and unzipped size and part count are capped.

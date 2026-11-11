@@ -7,7 +7,7 @@ pasted into an appendix. This scanner reports them with masked samples; it never
 and never modifies a file.
 
 Reads plain text (.md .txt .json .csv .yml .yaml .xml .html .py .sh) and, with the standard library
-only, the text of Office files (.pptx .docx .xlsx). Anything it cannot read is reported as UNSCANNED,
+only, the text of Office files (.pptx .docx .xlsx) and Hancom HWPX (.hwpx; the older binary .hwp is not read). Anything it cannot read is reported as UNSCANNED,
 never silently treated as clean.
 
 Exit codes: 0 clean, 1 findings, 2 usage error or incomplete scan (unreadable/unsupported/oversized).
@@ -33,10 +33,11 @@ from xml.etree import ElementTree
 
 TEXT_SUFFIXES = {".md", ".txt", ".json", ".csv", ".tsv", ".yml", ".yaml", ".xml", ".html", ".htm",
                  ".py", ".sh", ".js", ".ts", ".ini", ".cfg", ".toml", ".env"}
-OFFICE_SUFFIXES = {".pptx", ".docx", ".xlsx"}
+OFFICE_SUFFIXES = {".pptx", ".docx", ".xlsx", ".hwpx"}
 # Document formats that carry text but are not read here. A directory walk reports them as UNSCANNED
-# instead of skipping them, so a folder holding an RFP .pdf or a .hwpx resume is never called CLEAN.
-UNREADABLE_DOC_SUFFIXES = {".pdf", ".hwp", ".hwpx", ".doc", ".ppt", ".xls", ".pptm", ".docm", ".xlsm",
+# instead of skipping them, so a folder holding an RFP .pdf or a binary .hwp resume is never called CLEAN.
+# (.hwpx is read; the older binary .hwp is not.)
+UNREADABLE_DOC_SUFFIXES = {".pdf", ".hwp", ".doc", ".ppt", ".xls", ".pptm", ".docm", ".xlsm",
                            ".odt", ".odp", ".ods", ".rtf", ".zip"}
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".pytest_cache"}
 MAX_FILE_BYTES = 32 * 1024 * 1024
@@ -183,8 +184,8 @@ def scan_text(text: str, path: str, where_of=None, allow: frozenset[str] = froze
     return findings
 
 
-def _xml_text(data: bytes) -> str:
-    """Concatenate all text nodes, one line per paragraph-ish element, without resolving entities."""
+def _safe_root(data: bytes) -> ElementTree.Element:
+    """Parse XML after refusing inputs that could expand entities or hide from the byte search."""
     # defusedxml is not in the standard library; reject DTDs outright to avoid entity-expansion attacks.
     # The byte search below is ASCII-only, so UTF-16/32 (NUL bytes) is refused instead of slipping past it.
     if b"\0" in data:
@@ -192,7 +193,63 @@ def _xml_text(data: bytes) -> str:
     upper = data.upper()
     if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
         raise ValueError("XML with DTD/entity declarations is not read")
-    root = ElementTree.fromstring(data)
+    return ElementTree.fromstring(data)
+
+
+def _hwpx_text(data: bytes) -> str:
+    """Text of an HWPX section or master page: one line per paragraph, including table cells and text boxes.
+
+    A paragraph is `p` with `run` children holding `t` text. Nested paragraphs (table cells, footnotes, drawn text) are
+    separate `p` elements, so each paragraph reads only its own direct runs and nothing is counted twice.
+    """
+    lines: list[str] = []
+    for paragraph in _safe_root(data).iter():
+        if paragraph.tag.rsplit("}", 1)[-1] != "p":
+            continue
+        pieces = ["".join(t.itertext()) for run in paragraph if run.tag.rsplit("}", 1)[-1] == "run"
+                  for t in run if t.tag.rsplit("}", 1)[-1] == "t"]
+        if any(pieces):
+            lines.append("".join(pieces))
+    return "\n".join(lines)
+
+
+def _hwpx_metadata(data: bytes) -> str:
+    """Title, language and author-style `meta` values from Contents/content.hpf (travel with the file)."""
+    return "\n".join(e.text.strip() for e in _safe_root(data).iter()
+                     if e.tag.rsplit("}", 1)[-1] in {"title", "meta"} and e.text and e.text.strip())
+
+
+def read_hwpx(path: Path) -> list[tuple[str, str]]:
+    """Return [(part name, text)] for an HWPX package (a ZIP of XML), with the same size limits as Office files."""
+    parts: list[tuple[str, str]] = []
+    with zipfile.ZipFile(path) as archive:
+        infos = archive.infolist()
+        if len(infos) > MAX_ZIP_PARTS:
+            raise ValueError(f"too many parts ({len(infos)})")
+        if sum(i.file_size for i in infos) > MAX_UNZIPPED_BYTES:
+            raise ValueError("unzipped size exceeds the safety limit")
+        names = [i.filename for i in infos if not i.is_dir()]
+        if "mimetype" not in names or not archive.read("mimetype").startswith(b"application/hwp+zip"):
+            raise ValueError("not an HWPX package (mimetype)")
+        sections = sorted(n for n in names if re.fullmatch(r"Contents/(?:section|masterpage)\d+\.xml", n))
+        if not any("section" in n for n in sections):
+            raise ValueError("HWPX package has no section part")
+        for name in sections:
+            parts.append((name, _hwpx_text(archive.read(name))))
+        if "Contents/content.hpf" in names:
+            parts.append(("Contents/content.hpf", _hwpx_metadata(archive.read("Contents/content.hpf"))))
+        if "Preview/PrvText.txt" in names:  # a plain-text copy of the first page; can differ from the body
+            raw = archive.read("Preview/PrvText.txt")
+            parts.append(("Preview/PrvText.txt", raw.decode("utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8", "replace")))
+        embedded = [n for n in names if n.startswith("BinData/")]
+    if embedded:
+        parts.append(("<embedded>", "\0" + "\n".join(embedded)))
+    return parts
+
+
+def _xml_text(data: bytes) -> str:
+    """Concatenate all text nodes, one line per paragraph-ish element, without resolving entities."""
+    root = _safe_root(data)
 
     def local(element: ElementTree.Element) -> str:
         return element.tag.rsplit("}", 1)[-1]
@@ -214,6 +271,8 @@ def _xml_text(data: bytes) -> str:
 
 def read_office(path: Path) -> list[tuple[str, str]]:
     """Return [(part name, text)] for readable XML parts, enforcing size and part-count limits."""
+    if path.suffix.lower() == ".hwpx":
+        return read_hwpx(path)
     parts: list[tuple[str, str]] = []
     with zipfile.ZipFile(path) as archive:
         infos = archive.infolist()
