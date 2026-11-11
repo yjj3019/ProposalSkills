@@ -130,6 +130,15 @@ Distinguish stages:
 Before the final gate run, apply [anti-ai-tells.md](anti-ai-tells.md). It removes machine-generic phrasing while
 keeping facts, and reports Changed / Kept / Evidence / Uncovered. It does not replace any gate above.
 
+### Design and writing review
+
+- Deck story: run `python scripts/deck_story_check.py slides.json` and read the printed ghost deck (titles only). BLOCKED
+  means a title is a label, too short, missing or duplicated; WARN covers noun-phrase titles and unsourced figures.
+  Then critique the rendered pages with [visual-critique.md](visual-critique.md).
+- Writing: apply [plain-writing.md](plain-writing.md) (reader and job, tagged claims, fresh-reader check) and run
+  `python scripts/plain_language_check.py FILE` for long sentences, unexpanded acronyms, self-narration, filler and
+  passive stacks. Warnings are leads for a person; the script does not judge truth or persuasiveness.
+
 ### Fact-preserving edits and verification reports
 
 - After any wording-only edit, run `python scripts/edit_preservation.py original.md revised.md`. BLOCKED means a figure,

@@ -56,6 +56,22 @@ and the upstream is credited here anyway.
 
 Tests: `test_reimplemented_workflows.py`. Pointers: `review-checklist.md` and `deck-production.md`.
 
+### Design and writing gaps (third pass; the reviewed repository's own syntheses, ideas only)
+
+The reviewed repository's design, visual, writing and document skills are owner-authored syntheses of public
+practices (action titles with a ghost-deck test, art direction and honest marks, plain-language and fresh-reader
+review, editorial gates). None is copied; each idea is rebuilt for proposal decks and Korean evaluator reading.
+The existing `quality_gate.py` already covers exaggeration, slop phrases and ambiguous commitments, so those lists
+were not duplicated.
+
+| Idea | Implementation here | Method |
+|---|---|---|
+| Action titles and ghost-deck test | `skills/create-proposal-document/scripts/deck_story_check.py` | New: prints the titles-only deck, blocks labels, short and duplicate titles, warns on noun-phrase titles and unsourced figures. |
+| Art direction, honest marks, critique-and-revise (no numeric score) | `references/visual-critique.md` in `create-proposal-document` | New text for proposal decks; consistent with `verification_report.py` refusing scores. |
+| Plain-language pass, reader-and-job first, tagged claims, fresh-reader check | `plain-writing.md` and `scripts/plain_language_check.py` | New: lint for long sentences, unexpanded acronyms, self-narration, filler and passive stacks. |
+
+Tests: `test_design_writing_checks.py`.
+
 ## Considered and not adopted
 
 | Item | Reason |
