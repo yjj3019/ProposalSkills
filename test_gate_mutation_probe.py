@@ -52,6 +52,13 @@ class ReplaceOnceTests(unittest.TestCase):
         self.assertEqual(probe.replace_once("x > 0", "> 0", ">= 0"), "x >= 0")
 
 
+class LineEndingTests(unittest.TestCase):
+    def test_multiline_mutation_matches_and_keeps_crlf(self):
+        mutation = probe.Mutation("m", "f.py", "a\nb", "a\nc", "why")
+        self.assertEqual(probe.apply_mutation("x\r\na\r\nb\r\n", mutation), "x\r\na\r\nc\r\n")
+        self.assertEqual(probe.apply_mutation("x\na\nb\n", mutation), "x\na\nc\n")
+
+
 class ClassifyTests(unittest.TestCase):
     def test_outcomes(self):
         self.assertEqual(probe.classify(0, "Ran 3 tests in 0.1s\n\nOK\n"), ("survived", []))

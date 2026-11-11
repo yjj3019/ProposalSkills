@@ -11,6 +11,7 @@ only, the text of Office files (.pptx .docx .xlsx). Anything it cannot read is r
 never silently treated as clean.
 
 Exit codes: 0 clean, 1 findings, 2 usage error or incomplete scan (unreadable/unsupported/oversized).
+An incomplete scan exits 2 even when findings exist; the findings are still printed.
 
 Findings are leads for a human reviewer, not a legal or privacy determination. A clean result means
 only that these patterns were not found in the files that were read.
@@ -33,6 +34,10 @@ from xml.etree import ElementTree
 TEXT_SUFFIXES = {".md", ".txt", ".json", ".csv", ".tsv", ".yml", ".yaml", ".xml", ".html", ".htm",
                  ".py", ".sh", ".js", ".ts", ".ini", ".cfg", ".toml", ".env"}
 OFFICE_SUFFIXES = {".pptx", ".docx", ".xlsx"}
+# Document formats that carry text but are not read here. A directory walk reports them as UNSCANNED
+# instead of skipping them, so a folder holding an RFP .pdf or a .hwpx resume is never called CLEAN.
+UNREADABLE_DOC_SUFFIXES = {".pdf", ".hwp", ".hwpx", ".doc", ".ppt", ".xls", ".pptm", ".docm", ".xlsm",
+                           ".odt", ".odp", ".ods", ".rtf", ".zip"}
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".pytest_cache"}
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_UNZIPPED_BYTES = 128 * 1024 * 1024  # zip-bomb guard across all parts of one Office file
@@ -152,9 +157,12 @@ def scan_text(text: str, path: str, where_of=None, allow: frozenset[str] = froze
         if not rrn_date_ok(yy, mm, dd, gender):
             continue
         digits = yy + mm + dd + gender + tail
-        note = "checksum valid" if rrn_checksum_ok(digits) else "format and birth date valid; checksum not valid (post-2020 numbers are random)"
-        kind = "resident-registration-number"
-        add(kind, "high", m, note + ("; foreigner registration range" if gender in "5678" else ""))
+        checksum = rrn_checksum_ok(digits)
+        note = "checksum valid" if checksum else "format and birth date valid; checksum not valid (post-2020 numbers are random)"
+        # A bare 13-digit run with no valid checksum is as likely an order or ledger number: keep it, lower it.
+        strong = checksum or re.search(r"[- ]", m.group(0)) is not None
+        add("resident-registration-number", "high" if strong else "medium", m,
+            note + ("; foreigner registration range" if gender in "5678" else ""))
     for m in CARD_RE.finditer(text):
         digits = re.sub(r"\D", "", m.group(0))
         if luhn_ok(digits) and len(set(digits)) > 3:
@@ -178,7 +186,11 @@ def scan_text(text: str, path: str, where_of=None, allow: frozenset[str] = froze
 def _xml_text(data: bytes) -> str:
     """Concatenate all text nodes, one line per paragraph-ish element, without resolving entities."""
     # defusedxml is not in the standard library; reject DTDs outright to avoid entity-expansion attacks.
-    if b"<!DOCTYPE" in data[:2048].upper() or b"<!ENTITY" in data.upper():
+    # The byte search below is ASCII-only, so UTF-16/32 (NUL bytes) is refused instead of slipping past it.
+    if b"\0" in data:
+        raise ValueError("UTF-16/32 XML is not read")
+    upper = data.upper()
+    if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
         raise ValueError("XML with DTD/entity declarations is not read")
     root = ElementTree.fromstring(data)
 
@@ -249,6 +261,8 @@ def iter_files(targets: list[Path]) -> tuple[list[Path], list[Unscanned]]:
                             stack.append(entry)
                     elif entry.suffix.lower() in TEXT_SUFFIXES | OFFICE_SUFFIXES:
                         files.append(entry)
+                    elif entry.suffix.lower() in UNREADABLE_DOC_SUFFIXES:
+                        problems.append(Unscanned(str(entry), f"document type {entry.suffix.lower()} is not read; convert it to text or review it by hand"))
         else:
             problems.append(Unscanned(str(target), "path does not exist"))
     return files, problems
@@ -312,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[UNSCANNED] {u.path}: {u.reason}")
         status = "FINDINGS" if findings else ("INCOMPLETE" if problems else "CLEAN")
         print(f"SENSITIVE-SCAN: {status} ({count} file(s), {len(findings)} finding(s), {len(problems)} unscanned)")
-    if problems and not findings:
+    if problems:  # incomplete wins over findings so a gate cannot mistake a partial scan for a complete one
         return 2
     return 1 if findings else 0
 

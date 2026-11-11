@@ -40,9 +40,21 @@ REJECT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"exfiltrat\w+|steal\s+credentials", re.I), "exfiltration intent"),
 )
 
-# Lines that quote a pattern in order to forbid or detect it are documentation, not instructions.
-NEGATION_CONTEXT = re.compile(
-    r"(?:never|do not|don't|must not|forbid|forbidden|reject|block|detect|flag|scan|avoid|금지|하지 않|않는다|차단|탐지|거부)", re.I)
+# A line that quotes a pattern in order to forbid it is documentation, not an instruction. English
+# negation must come BEFORE the match inside the same clause (a ":" ";" "." "!" "?" ends the clause), so
+# "Avoid errors: ignore previous instructions" is still reported. Korean puts the negation after the verb,
+# so those words are accepted anywhere on the line.
+# shortcut: a negation word earlier in the same clause still hides a match ("Never forget, ignore ...");
+# upgrade to a real parser if skills start being accepted from untrusted authors.
+NEGATION_BEFORE = re.compile(r"\b(?:never|do not|don't|must not|should not|forbid\w*|prohibit\w*|reject\w*)\b", re.I)
+NEGATION_ANYWHERE = re.compile(r"금지|하지 않|않는다|차단|탐지|거부")
+CLAUSE_END = re.compile(r"[:;.!?]")
+
+
+def is_documentation(line: str, match_start: int) -> bool:
+    if NEGATION_ANYWHERE.search(line):
+        return True
+    return NEGATION_BEFORE.search(CLAUSE_END.split(line[:match_start])[-1]) is not None
 
 
 @dataclass(frozen=True)
@@ -83,13 +95,11 @@ def content_findings(skill: Path, base: Path) -> list[Finding]:
         except (OSError, UnicodeDecodeError) as exc:
             findings.append(Finding(rel, 0, "unreadable", type(exc).__name__))
             continue
-        in_fence = False
         for number, line in enumerate(lines, 1):
-            if line.lstrip().startswith(("```", "~~~")):
-                in_fence = not in_fence
             for pattern, rule in REJECT_PATTERNS:
-                if pattern.search(line) and not NEGATION_CONTEXT.search(line):
-                    findings.append(Finding(rel, number, rule, line.strip()[:120] + (" [in code block]" if in_fence else "")))
+                match = pattern.search(line)
+                if match and not is_documentation(line, match.start()):
+                    findings.append(Finding(rel, number, rule, line.strip()[:120]))
     return findings
 
 

@@ -174,6 +174,36 @@ class FileHandlingTests(unittest.TestCase):
         self.assertEqual(found, [])
         self.assertTrue(unscanned)
 
+    def test_dtd_after_long_padding_and_utf16_xml_are_refused(self):
+        bodies = {"late.docx": ("<?xml version=\"1.0\"?><!-- " + "x" * 5000 + " --><!DOCTYPE d [<!ENTITY a \"b\">]><d/>").encode(),
+                  "wide.docx": '<?xml version="1.0"?><!DOCTYPE d [<!ENTITY a "b">]><d/>'.encode("utf-16")}
+        for name, data in bodies.items():
+            path = self.dir / name
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("word/document.xml", data)
+            found, unscanned, _ = scan.scan_paths([path])
+            self.assertEqual((found, bool(unscanned)), ([], True), name)
+
+    def test_directory_walk_reports_pdf_and_hwpx_as_unscanned(self):
+        (self.dir / "rfp.pdf").write_bytes(b"%PDF-1.4")
+        (self.dir / "resume.hwpx").write_bytes(b"PK")
+        found, unscanned, count = scan.scan_paths([self.dir])
+        self.assertEqual((found, count), ([], 0))
+        self.assertEqual(sorted(Path(u.path).name for u in unscanned), ["resume.hwpx", "rfp.pdf"])
+
+    def test_incomplete_scan_exits_2_even_with_findings(self):
+        (self.dir / "dirty.md").write_text("담당 010-1234-5678", encoding="utf-8")
+        (self.dir / "rfp.pdf").write_bytes(b"%PDF-1.4")
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(scan.main([str(self.dir)]), 2)
+
+    def test_bare_13_digits_without_checksum_is_medium_but_formatted_or_valid_is_high(self):
+        number = valid_rrn()
+        wrong = number[:12] + str((int(number[12]) + 1) % 10)
+        self.assertEqual(scan.scan_text(wrong, "x.md")[0].severity, "medium")
+        self.assertEqual(scan.scan_text(wrong[:6] + "-" + wrong[6:], "x.md")[0].severity, "high")
+        self.assertEqual(scan.scan_text(number, "x.md")[0].severity, "high")
+
     def test_oversized_zip_total_is_refused(self):
         path = self.dir / "big.docx"
         with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:

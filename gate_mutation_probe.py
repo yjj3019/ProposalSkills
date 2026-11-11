@@ -151,6 +151,12 @@ def replace_once(text: str, old: str, new: str) -> str:
     return text[:first] + new + text[first + len(old):]
 
 
+def apply_mutation(text: str, mutation: Mutation) -> str:
+    """replace_once, written for the file's own line endings (the catalog is written with LF)."""
+    eol = "\r\n" if "\r\n" in text else "\n"
+    return replace_once(text, mutation.old.replace("\n", eol), mutation.new.replace("\n", eol))
+
+
 def tracked_files(root: Path) -> list[Path]:
     """Files to copy: tracked plus untracked-but-not-ignored files (a new test must be probed before it is
     committed), else every file outside caches when this is not a git checkout."""
@@ -208,11 +214,11 @@ def run_one(root: Path, scratch: Path, mutation: Mutation, timeout: int) -> Resu
         copy_tree(root, work)
         target = work / mutation.path
         try:
-            original = target.read_text(encoding="utf-8")
-            mutated = replace_once(original, mutation.old, mutation.new)
+            # Bytes in, bytes out: the mutated copy keeps the file's own line endings (CRLF stays CRLF).
+            mutated = apply_mutation(target.read_bytes().decode("utf-8"), mutation)
         except (OSError, ValueError) as exc:
             return Result(mutation.name, "invalid", mutation.why, str(exc), time.monotonic() - started)
-        target.write_text(mutated, encoding="utf-8", newline="")
+        target.write_bytes(mutated.encode("utf-8"))
         try:
             py_compile.compile(str(target), doraise=True, cfile=str(work / "_probe.pyc"))
         except py_compile.PyCompileError as exc:
