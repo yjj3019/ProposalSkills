@@ -57,3 +57,7 @@ PPTX 생성·검사는 Python 3.10+와 `python-pptx`, 자동 렌더는 LibreOffi
 [장표 규격](skills/create-proposal-document/references/deck-production.md) ·
 [제출 검사](skills/create-winning-proposal/references/audit-schema.md) ·
 [개발·기여](AGENTS.md)
+
+## 라이선스
+
+[MIT](LICENSE)

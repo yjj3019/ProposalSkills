@@ -1,5 +1,6 @@
 ---
 name: create-best-proposal
+license: MIT
 description: "Single entry point for proposal writing, review, and submission gates (PPTX default; DOCX/XLSX supported). Route proposal, RFP, bid, compliance-matrix, technical-response, maintenance/implementation, bid/no-bid, submission-gate, and quality-review requests here (siblings require explicit invocation). Execute content (create-proposal-document) and governance (create-winning-proposal) through one path; generate/check PPTX with slides.json→build_deck.py→deck_check.py."
 ---
 
@@ -231,6 +232,7 @@ Each finding: fact to change / owner / deadline / approval / sections to update 
 2. **Control overclaims**: remove/replace without evidence+scope (Korean examples: 최고/완벽/100%/무중단; also zero downtime).
 3. **Exact customer names**: match RFP wording. Residual prior customer names = Critical.
 4. **No sensitive leaks**: zero secrets/other-customer identifiers/internal-cost disclosure.
+   Before sharing or submitting, run `scripts/sensitive_scan.py` ([references/sensitive-scan.md](references/sensitive-scan.md)); UNSCANNED is not clean.
 5. **Anti-optimism**: block approved without evidence, past deadlines, and bid declarations for incurable ineligibility.
 6. **Model-neutral**: never couple logic to a vendor-specific agent syntax.
 7. **Licensing**: no unauthorized external repository code/asset copying.
@@ -242,6 +244,7 @@ Each finding: fact to change / owner / deadline / approval / sections to update 
 | `scripts/build_audit_from_meta.py` | Slide/requirement meta → audit JSON (SI-B1); [references/meta-to-audit.md](references/meta-to-audit.md) |
 | `scripts/bulk_matrix.py` | Type C bulk compliance/response matrices (SI-C1); [references/bulk-matrix.md](references/bulk-matrix.md) |
 | `scripts/unified_gate.py` | proposal_gate + quality_gate + status UX |
+| `scripts/sensitive_scan.py` | Secrets and personal data (resident numbers, cards, contacts, internal IPs) in text and PPTX/DOCX/XLSX; [references/sensitive-scan.md](references/sensitive-scan.md) |
 | `../create-proposal-document/scripts/check_numbers.py` | Numerical ledger ↔ document comparison (format variants recognized) |
 | `fixtures/audit_ready_financial.json` | Financial submission-ready golden fixture (SI-B4) |
 | `fixtures/audit_decision_memo.json` | no-bid DECISION_MEMO_ONLY golden fixture |

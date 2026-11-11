@@ -3,3 +3,5 @@
 # check_numbers)에만 python-pptx가 필요하다. LibreOffice(soffice)는 렌더 검사용 선택
 # 사항이며 pip로 설치하지 않는다 — 없으면 렌더는 NOT INSPECTED로 남는다.
 python-pptx>=0.6.21
+# visual_compare.py가 Pillow를 직접 import한다(python-pptx의 전이 의존성으로도 설치되지만 명시한다).
+Pillow>=9.0
