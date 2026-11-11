@@ -11,7 +11,7 @@ from install_skill import skill_schema_problems
 
 REPO = Path(__file__).resolve().parent
 PACKAGE_FILES = (
-    "LICENSE", "plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json",
+    "LICENSE", "THIRD-PARTY-NOTICES.md", "plugin.json", ".codex-plugin/plugin.json", ".claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json", "requirements.txt",
 )
 CACHE_PARTS = {"__pycache__", ".pytest_cache", ".git"}
