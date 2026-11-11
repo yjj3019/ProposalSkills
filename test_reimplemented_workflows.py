@@ -117,6 +117,14 @@ class DeckStageGateTests(unittest.TestCase):
         self.write_slides(list(reversed(self.titles)))
         self.assertTrue(any("do not match page_plan" in p for p in stage.check(self.dir)))
 
+    def test_buyer_prescribed_label_is_allowed_only_when_marked(self):
+        rows = [{"id": "S1", "action_title": "추진 일정", "prescribed": True}, {"id": "S2", "action_title": "추진 방안"}]
+        (self.dir / "page_plan.json").write_text(json.dumps({"slides": rows}, ensure_ascii=False), encoding="utf-8")
+        self.write_slides(["추진 일정", "추진 방안"])
+        problems = stage.check(self.dir)
+        self.assertEqual(len(problems), 1)
+        self.assertIn("S2", problems[0])
+
     def test_manifest_cannot_point_outside_the_workspace(self):
         data = json.loads((self.dir / "stages.json").read_text(encoding="utf-8"))
         data["stages"]["brief"]["file"] = "../outside.md"

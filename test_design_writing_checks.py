@@ -29,11 +29,11 @@ class GhostDeckTests(unittest.TestCase):
         self.assertEqual(blocked, [])
         self.assertEqual(len(ghost), 2)
 
-    def test_label_short_missing_and_duplicate_titles_block(self):
-        _, blocked, _ = story.check(deck("개요", "짧은 제목", GOOD[0], GOOD[0]))
-        text = "\n".join(blocked)
-        self.assertIn("label", text)
-        self.assertIn("repeats slide", text)
+    def test_missing_and_duplicate_titles_block_but_labels_only_warn(self):
+        _, blocked, warnings = story.check(deck("개요", "짧은 제목", GOOD[0], GOOD[0]))
+        self.assertIn("repeats slide", "\n".join(blocked))
+        self.assertEqual(sum("label, not a claim" in w for w in warnings), 2)
+        self.assertFalse(any("label" in b for b in blocked))
         _, blocked, _ = story.check({"slides": [{"type": "bullets", "title": ""}]})
         self.assertTrue(any("no title" in b for b in blocked))
 

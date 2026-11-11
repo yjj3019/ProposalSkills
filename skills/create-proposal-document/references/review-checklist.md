@@ -133,7 +133,8 @@ keeping facts, and reports Changed / Kept / Evidence / Uncovered. It does not re
 ### Design and writing review
 
 - Deck story: run `python scripts/deck_story_check.py slides.json` and read the printed ghost deck (titles only). BLOCKED
-  means a title is a label, too short, missing or duplicated; WARN covers noun-phrase titles and unsourced figures.
+  means a title is missing or duplicated; WARN covers label or noun-phrase titles (common in buyer-prescribed section
+  names) and unsourced figures. Use `--strict` when claim titles are required.
   Then critique the rendered pages with [visual-critique.md](visual-critique.md).
 - Writing: apply [plain-writing.md](plain-writing.md) (reader and job, tagged claims, fresh-reader check) and run
   `python scripts/plain_language_check.py FILE` for long sentences, unexpanded acronyms, self-narration, filler and

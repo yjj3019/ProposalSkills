@@ -12,6 +12,8 @@ stages.json:
               "page_plan":   {"file": "page_plan.json"},
               "slides":      {"file": "slides.json"}}}
 page_plan.json: {"slides": [{"id": "S1", "action_title": "<one claim per slide>", "req_ids": []}]}
+  A row may set "prescribed": true when the buyer's RFP fixes the section name (common in Korean public bids); the
+  label check is skipped for that row only.
 
 Rules
   - generate/template need all four stages; edit needs slides; quick needs brief and slides (no approval gate).
@@ -91,7 +93,8 @@ def check(workspace: Path) -> list[str]:
         else:
             for row in rows:
                 title = norm(row.get("action_title", "")) if isinstance(row, dict) else ""
-                if len(title) < MIN_TITLE or title.lower() in LABELS:
+                prescribed = isinstance(row, dict) and row.get("prescribed") is True
+                if not prescribed and (len(title) < MIN_TITLE or title.lower() in LABELS):
                     problems.append(f"page_plan {row.get('id', '?') if isinstance(row, dict) else '?'}: "
                                     f"action_title is a label, not a claim: {title!r}")
     if plan and "slides" in files:

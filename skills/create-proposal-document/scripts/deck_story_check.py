@@ -5,10 +5,14 @@ Reads `slides.json` (the source of truth for build_deck.py) and looks only at co
 cover/toc/section/closing). The titles, read in order, are printed as the "ghost deck" so a reviewer can judge the
 argument in one pass.
 
-  BLOCKED  a title is missing, is a bare topic label, is too short to be a claim, or repeats another title
-  WARN     a title looks like a noun phrase rather than a sentence; a title or lead carries a figure but the slide
-           has no `source` (figures need a visible source or an explicit "assumption" marker)
+  BLOCKED  a title is missing or repeats another title
+  WARN     a title is a bare topic label or too short to be a claim, or reads as a noun phrase rather than a sentence;
+           a title or lead carries a figure but the slide has no `source` (figures need a visible source or an explicit
+           "assumption" marker)
   --strict turns WARN into BLOCKED
+
+Topic-label titles are WARN, not BLOCKED, on purpose: Korean public RFPs often prescribe section names, and the
+golden mini-RFP deck itself uses titles such as "추진 일정". Use --strict for decks where claim titles are required.
 
 Heuristics on wording only: they cannot tell whether a claim is true or the story is persuasive. Exit codes:
 0 pass (warnings possible), 1 blocked, 2 usage error.
@@ -47,7 +51,7 @@ def check(deck: dict) -> tuple[list[str], list[str], list[str]]:
             blocked.append(f"slide {index}: no title")
             continue
         if title.lower() in LABELS or len(title) < MIN_TITLE:
-            blocked.append(f"slide {index}: title is a label, not a claim: {title!r}")
+            warnings.append(f"slide {index}: title is a label, not a claim: {title!r}")
         key = title.lower()
         if key in seen:
             blocked.append(f"slide {index}: title repeats slide {seen[key]}")
