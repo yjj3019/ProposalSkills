@@ -1,0 +1,42 @@
+{
+  "_note": "Deterministic routing lint input for test_skill_triggers.py. It checks that each skill description still carries the signal terms real requests use; it does not run a model. Real model trigger runs remain a manual check.",
+  "create-best-proposal": {
+    "route_terms": ["proposal", "rfp", "bid", "compliance", "submission", "technical-response", "quality-review"],
+    "should_trigger": [
+      "Write a technical proposal for this RFP",
+      "Is this bid a go or no-bid?",
+      "Build the compliance matrix for the tender",
+      "Review my proposal before submission",
+      "Run the submission gate on this deck",
+      "Draft the technical-response section for the maintenance bid"
+    ],
+    "should_not_trigger": [
+      "Fix the null pointer in my parser",
+      "Summarize this meeting transcript",
+      "Translate this blog post into English",
+      "Design a logo for my bakery"
+    ]
+  },
+  "create-proposal-document": {
+    "route_terms": ["writing", "outline", "slide", "layout", "pptx", "matrix"],
+    "should_trigger": [
+      "Use create-proposal-document to lay out only the slides",
+      "I only need the outline and slide layout for the proposal"
+    ],
+    "should_not_trigger": [
+      "Fix the null pointer in my parser",
+      "Plan a team offsite"
+    ]
+  },
+  "create-winning-proposal": {
+    "route_terms": ["bid/no-bid", "evidence", "approval", "audit", "ledger", "gate"],
+    "should_trigger": [
+      "Use create-winning-proposal to build the evidence ledger",
+      "I only need the approval chain and the audit JSON"
+    ],
+    "should_not_trigger": [
+      "Fix the null pointer in my parser",
+      "Plan a team offsite"
+    ]
+  }
+}

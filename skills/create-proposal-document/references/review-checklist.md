@@ -125,6 +125,11 @@ Distinguish stages:
 - Rule: could this be sent to the customer unchanged? Yes → submission; no → draft.
   If unclear, inspect strictly as submission, then reclassify warnings under draft criteria.
 
+### Generic-phrasing pass
+
+Before the final gate run, apply [anti-ai-tells.md](anti-ai-tells.md). It removes machine-generic phrasing while
+keeping facts, and reports Changed / Kept / Evidence / Uncovered. It does not replace any gate above.
+
 ### Centralize completeness figures in score_completeness.py
 
 For completeness-score requests, run `create-best-proposal/scripts/score_completeness.py` (same entry point at repository root).

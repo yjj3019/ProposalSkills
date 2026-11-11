@@ -29,6 +29,17 @@ linked here because it is private. The review read its tooling, skills, and docu
 | Skill audit: reject injection patterns, require a `license:` declaration consistent with the repository | `skill_audit.py`, `test_skill_audit.py`, `license: MIT` in the three `SKILL.md` files | Skills are agent instructions that get distributed through marketplaces. |
 | Doc-versus-CI drift lint (stale claims in handoff notes) | `test_release_consistency.py` | Keeps the quoted version and license aligned with manifests and the packaged archive. |
 
+### Second pass (owner asked to absorb as much as practical)
+
+Same source, same licensing position: owner-authored Apache-2.0 ideas, written fresh for this repository.
+
+| Idea in the reviewed repository | Implementation here | Why it fits this project |
+|---|---|---|
+| Constitution principles: data-not-instructions, meaningful verification (tests actually ran), instruction drift, approval boundary | `AGENTS.md` "Operating principles" | RFPs and customer files are untrusted text; the rules were missing from the repository's own agent instructions. |
+| Anti-AI pattern review with a four-block report (changed / kept / evidence / uncovered) | `skills/create-proposal-document/references/anti-ai-tells.md`, linked from `review-checklist.md` | Proposals need generic-phrasing removal that preserves facts; the Korean checklist and report format are proposal-specific. |
+| Skill trigger evaluation (positive and negative phrases) | `references/trigger-eval-cases.json`, `test_skill_triggers.py` | Guards flagship/sibling routing vocabulary. Offline lint only; it does not measure model behaviour. |
+| Package lint: relative-link and frontmatter checks | `test_skill_links.py` | Broken reference links silently remove guidance that the skills load on demand. |
+
 ## Considered and not adopted
 
 | Item | Reason |
