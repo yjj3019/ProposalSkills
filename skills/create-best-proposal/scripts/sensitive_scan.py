@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
 import sys
@@ -269,29 +270,57 @@ def _xml_text(data: bytes) -> str:
     return "\n".join(lines)
 
 
+EMBEDDED_OFFICE = (".xlsx", ".docx", ".pptx")
+OFFICE_PARTS = re.compile(r"(ppt/(slides|notesSlides|comments|charts)/|word/(document|header\d*|footer\d*|comments|footnotes|endnotes)\.xml|word/charts/|xl/(sharedStrings|worksheets/|comments|charts/)|docProps/(core|app|custom)\.xml)")
+
+
+def _office_parts(archive: zipfile.ZipFile, prefix: str = "", depth: int = 0, budget: list[int] | None = None) -> tuple[list[tuple[str, str]], list[str]]:
+    """Readable XML parts of one package, plus names that could not be read.
+
+    An Office package embedded in another (a chart's value workbook, an attached spreadsheet) is read one level deep;
+    its parts are named `outer/part.xlsx!inner/part.xml`. Images, OLE objects and anything nested deeper stay unread
+    and are reported, never assumed clean. `budget` carries the unzipped size across every package read.
+    """
+    budget = budget if budget is not None else [0]
+    infos = archive.infolist()
+    if len(infos) > MAX_ZIP_PARTS:
+        raise ValueError(f"too many parts ({len(infos)})")
+    budget[0] += sum(i.file_size for i in infos)
+    if budget[0] > MAX_UNZIPPED_BYTES:
+        raise ValueError("unzipped size exceeds the safety limit")
+    parts: list[tuple[str, str]] = []
+    unread: list[str] = []
+    for info in infos:
+        if info.is_dir():
+            continue
+        name, low = info.filename, info.filename.lower()
+        if low.endswith((".xml", ".rels")):
+            if OFFICE_PARTS.match(name):   # slides, documents, shared strings, sheets, notes, comments, headers/footers, charts
+                parts.append((prefix + name, _xml_text(archive.read(info))))
+        elif re.search(r"/(media|embeddings)/", name):
+            if "/embeddings/" in name and low.endswith(EMBEDDED_OFFICE) and depth < 1 and info.file_size <= MAX_FILE_BYTES:
+                try:
+                    with zipfile.ZipFile(io.BytesIO(archive.read(info))) as nested:
+                        inner, inner_unread = _office_parts(nested, f"{prefix}{name}!", depth + 1, budget)
+                    parts += inner
+                    unread += inner_unread
+                except zipfile.BadZipFile:
+                    unread.append(f"{prefix}{name} (not a ZIP package)")
+                except (ElementTree.ParseError, RuntimeError):
+                    unread.append(f"{prefix}{name} (unreadable)")
+            else:
+                unread.append(prefix + name)
+    return parts, unread
+
+
 def read_office(path: Path) -> list[tuple[str, str]]:
     """Return [(part name, text)] for readable XML parts, enforcing size and part-count limits."""
     if path.suffix.lower() == ".hwpx":
         return read_hwpx(path)
-    parts: list[tuple[str, str]] = []
     with zipfile.ZipFile(path) as archive:
-        infos = archive.infolist()
-        if len(infos) > MAX_ZIP_PARTS:
-            raise ValueError(f"too many parts ({len(infos)})")
-        if sum(i.file_size for i in infos) > MAX_UNZIPPED_BYTES:
-            raise ValueError("unzipped size exceeds the safety limit")
-        for info in infos:
-            if not info.filename.lower().endswith((".xml", ".rels")) or info.is_dir():
-                continue
-            name = info.filename
-            # Slides, documents, shared strings, sheets, notes, comments, headers/footers, charts.
-            if not re.match(r"(ppt/(slides|notesSlides|comments|charts)/|word/(document|header\d*|footer\d*|comments|footnotes|endnotes)\.xml|word/charts/|xl/(sharedStrings|worksheets/|comments|charts/)|docProps/(core|app|custom)\.xml)", name):
-                continue
-            parts.append((name, _xml_text(archive.read(info))))
-        # Embedded images/OLE can hold data too; say so instead of pretending they were read.
-        embedded = [i.filename for i in infos if re.search(r"/(media|embeddings)/", i.filename)]
-    if embedded:
-        parts.append(("<embedded>", "\0" + "\n".join(embedded)))
+        parts, unread = _office_parts(archive)
+    if unread:
+        parts.append(("<embedded>", "\0" + "\n".join(unread)))
     return parts
 
 

@@ -182,6 +182,71 @@ class BuildDeckMetadataTests(unittest.TestCase):
             self.assertNotIn("Steve Canny", core)
 
 
+class AtAGlanceSlideTypeTests(unittest.TestCase):
+    META = {"title": "T", "subtitle": "s", "doc_name": "d", "buyer": "b", "bidder": "c", "date": "2099-01-01", "require_req_ids": False}
+
+    def build(self, slide: dict):
+        sys.path.insert(0, str(DOC))
+        import build_deck
+        builder = build_deck.DeckBuilder({"meta": self.META, "slides": [slide]}, None, False)
+        builder.build()
+        return builder
+
+    def names(self, builder) -> set[str]:
+        return {shape.name for shape in builder.prs.slides[0].shapes}
+
+    def scoreboard(self, **kw):
+        rows = [{"item": f"항목{i}", "a": "가", "b": "나", "win": w} for i, w in enumerate("ab=a")]
+        return {"type": "scoreboard", "title": "t", "lead": "l", "a_name": "A", "b_name": "B", "rule": "낮은 가격", "rows": rows, **kw}
+
+    def test_scoreboard_marks_one_winner_per_row_and_prints_the_tally(self):
+        builder = self.build(self.scoreboard())
+        self.assertEqual(builder.violations, [])
+        self.assertTrue({"BODY_SCOREITEM1", "BODY_SCORETRACK4", "BODY_SCOREVERDICT3", "BODY_SCORERULE"} <= self.names(builder))
+        rule = next(sh for sh in builder.prs.slides[0].shapes if sh.name == "BODY_SCORERULE")
+        self.assertIn("A 2 · B 1 · 동일 1", rule.text_frame.text)
+
+    def test_scoreboard_without_a_rule_or_with_a_bad_win_is_flagged(self):
+        no_rule = self.build(self.scoreboard(rule=""))
+        self.assertTrue(any("rule" in w for w in no_rule.warnings))
+        bad = self.build(self.scoreboard(rows=[{"item": "x", "a": "1", "b": "2", "win": "z"}]))
+        self.assertTrue(any("win" in v for v in bad.violations))
+        long = self.build(self.scoreboard(rows=[{"item": str(i), "a": "1", "b": "2", "win": "a"} for i in range(11)]))
+        self.assertTrue(any("10" in v for v in long.violations))
+
+    def test_triage_needs_two_or_three_columns_with_items(self):
+        col = lambda n: {"head": f"h{n}", "models": f"m{n}", "items": [{"situation": "s", "evidence": "e"}]}
+        ok = self.build({"type": "triage", "title": "t", "lead": "l", "columns": [col(1), col(2), col(3)]})
+        self.assertEqual(ok.violations, [])
+        self.assertTrue({"BODY_TRIAGEITEM3_1", "BODY_TRIAGEWHY1_1"} <= self.names(ok))
+        self.assertTrue(self.build({"type": "triage", "title": "t", "lead": "l", "columns": [col(1)]}).violations)
+        empty = {"head": "h", "models": "m", "items": []}
+        self.assertTrue(self.build({"type": "triage", "title": "t", "lead": "l", "columns": [col(1), empty]}).violations)
+
+    def test_weights_must_add_up_to_100_and_stay_within_five_segments(self):
+        seg = lambda *p: [{"label": f"L{i}", "pct": v, "note": "n"} for i, v in enumerate(p)]
+        ok = self.build({"type": "weights", "title": "t", "lead": "l", "segments": seg(50, 20, 30)})
+        self.assertEqual(ok.violations, [])
+        self.assertEqual(len([n for n in self.names(ok) if n.startswith("BODY_WEIGHT") and "NOTE" not in n]), 3)
+        self.assertTrue(any("합계" in v for v in self.build({"type": "weights", "title": "t", "lead": "l", "segments": seg(50, 20, 20)}).violations))
+        self.assertTrue(any("5" in v for v in self.build({"type": "weights", "title": "t", "lead": "l", "segments": seg(20, 20, 20, 20, 10, 10)}).violations))
+
+    def test_a_deck_with_all_three_passes_the_layout_lint(self):
+        col = lambda n: {"head": f"h{n}", "models": f"m{n}", "items": [{"situation": "s", "evidence": "e"}]}
+        spec = {"meta": self.META, "slides": [{"type": "cover"}, self.scoreboard(),
+                {"type": "triage", "title": "t", "lead": "l", "columns": [col(1), col(2)]},
+                {"type": "weights", "title": "t", "lead": "l", "segments": [{"label": "a", "pct": 60, "note": "n"}, {"label": "b", "pct": 40, "note": "n"}]}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "s.json").write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            build = subprocess.run([sys.executable, str(DOC / "build_deck.py"), str(tmp / "s.json"), "-o", str(tmp / "o.pptx"), "--strict"],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+            check = subprocess.run([sys.executable, str(DOC / "deck_check.py"), str(tmp / "o.pptx"), "--stage", "draft"],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+
 class ExampleDeckTests(unittest.TestCase):
     def test_example_builds_and_is_orderly(self):
         with tempfile.TemporaryDirectory() as tmp:

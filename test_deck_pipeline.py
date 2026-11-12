@@ -46,7 +46,7 @@ class DeckPipelineTests(unittest.TestCase):
         spec = json.loads((FIX / "slides.json").read_text(encoding="utf-8"))
         used = {s["type"] for s in spec["slides"]}
         self.assertEqual(used | {"bullets"}, build_deck.ALL_TYPES, f"미사용 레이아웃: {build_deck.ALL_TYPES - used}")
-        self.assertIn("17 slides", self.build_out)
+        self.assertIn("20 slides", self.build_out)
 
     def test_roles_named_on_body_slides(self):
         from pptx import Presentation
@@ -120,7 +120,7 @@ class DeckPipelineTests(unittest.TestCase):
         proc = run(DOC / "scripts/deck_check.py", self.pptx, "--max-pages", "40", "--exclude-cover-toc",
                    "--require-req-ids", "--stage", "draft")
         self.assertEqual(proc.returncode, 0, proc.stdout)
-        self.assertIn("본문 14장 / 제한 40장", proc.stdout)
+        self.assertIn("본문 17장 / 제한 40장", proc.stdout)
 
     def test_deck_check_reports_unresolved_body_and_table_fonts(self):
         from pptx import Presentation

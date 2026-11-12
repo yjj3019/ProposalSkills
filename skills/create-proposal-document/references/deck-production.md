@@ -63,7 +63,15 @@ check renders for obscured schedule information and insufficient contrast.
 | `staff` | Staff profiles | `people[{name,role,grade,years,certs[],mm}]` |
 | `cards` | Differentiators/benefits/three-part logic | `items[{title,value,desc[],evidence}]` — 2~4 columns |
 | `bullets` | Text lists (minimize) | `items[]` — always warns; splitting warning beyond 450 characters |
+| `scoreboard` | Head-to-head comparison at a glance | `a_name`, `b_name`, `rows[{item,a,b,win}]` (`win` = `a`/`b`/`=`, at most 10 rows), `rule` (the verdict rule, required) — a three-position track marks the winner; the tally is printed under the rows |
+| `triage` | Which option first, for which situation | `columns[{head,models,items[{situation,evidence}]}]`, 2~3 columns |
+| `weights` | Shares of a whole (evaluation points, effort) | `segments[{label,pct,note}]`, at most 5, `pct` must add to 100 |
 | `closing` | Closing | `title`, `lead` |
+
+`scoreboard`, `triage` and `weights` are the at-a-glance patterns of [editorial-deck-design.md](editorial-deck-design.md) inside the
+standard proposal frame. The second side uses `palette.side_b` (default `A5471F`, dark enough for white text); add it to the
+`--palette` list of `quality_gate.py` when you check palette deviations. State the verdict rule on the slide: a mark is a
+lower price or a documented wider scope, never a quality score.
 
 Pair `support` common codes `O/부분/조건부/X/N/A/확인필요` with text (Korean examples:
 `"O 수용"`, `"△ 조건부"`), implementing the prohibition on color-only statuses.

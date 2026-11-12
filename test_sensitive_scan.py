@@ -253,5 +253,79 @@ class CliTests(unittest.TestCase):
             self.assertNotIn("1234-5678", out.getvalue())
 
 
+class EmbeddedPackageTests(unittest.TestCase):
+    """A chart's value workbook (an .xlsx inside the .pptx) is read; images and anything unreadable stay UNSCANNED."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+
+    @staticmethod
+    def workbook(*strings: str) -> bytes:
+        body = "".join(f"<si><t>{t}</t></si>" for t in strings)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("xl/sharedStrings.xml", '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + body + "</sst>")
+        return buf.getvalue()
+
+    def deck_with(self, name: str, data: bytes) -> Path:
+        path = fixtures.pptx(self.dir / "d.pptx")
+        with zipfile.ZipFile(path, "a") as z:
+            z.writestr(name, data)
+        return path
+
+    def test_a_clean_chart_workbook_is_scanned_and_the_deck_is_not_incomplete(self):
+        path = self.deck_with("ppt/embeddings/Microsoft_Excel_Sheet1.xlsx", self.workbook("GPT-6 Astra", "10"))
+        found, unscanned, _ = scan.scan_paths([path])
+        self.assertEqual((found, unscanned), ([], []))
+
+    def test_personal_data_inside_a_chart_workbook_is_found_with_the_nested_part_name(self):
+        path = self.deck_with("ppt/embeddings/Microsoft_Excel_Sheet1.xlsx", self.workbook(mail("kim", "corp.co.kr")))
+        found, unscanned, _ = scan.scan_paths([path])
+        self.assertEqual(kinds(found), {"email"})
+        self.assertIn("Sheet1.xlsx!xl/sharedStrings.xml", found[0].where)
+        self.assertEqual(unscanned, [])
+
+    def test_a_non_zip_embedded_workbook_is_unscanned_not_clean(self):
+        path = self.deck_with("ppt/embeddings/Microsoft_Excel_Sheet1.xlsx", b"<## DRM ##>")
+        _, unscanned, _ = scan.scan_paths([path])
+        self.assertTrue(any("not a ZIP package" in u.reason for u in unscanned))
+
+    def test_images_and_ole_objects_stay_unscanned(self):
+        path = self.deck_with("ppt/media/image1.png", b"png")
+        with zipfile.ZipFile(path, "a") as z:
+            z.writestr("ppt/embeddings/oleObject1.bin", b"ole")
+        _, unscanned, _ = scan.scan_paths([path])
+        reason = " ".join(u.reason for u in unscanned)
+        self.assertIn("image1.png", reason)
+        self.assertIn("oleObject1.bin", reason)
+
+    def test_nesting_deeper_than_one_level_is_reported_not_followed(self):
+        inner = io.BytesIO()
+        with zipfile.ZipFile(inner, "w") as z:
+            z.writestr("xl/embeddings/deep.xlsx", self.workbook(mail("kim", "corp.co.kr")))
+        path = self.deck_with("ppt/embeddings/outer.xlsx", inner.getvalue())
+        found, unscanned, _ = scan.scan_paths([path])
+        self.assertEqual(found, [])
+        self.assertTrue(any("deep.xlsx" in u.reason for u in unscanned))
+
+    def test_a_real_native_chart_deck_scans_complete(self):
+        from pptx import Presentation
+        from pptx.chart.data import CategoryChartData
+        from pptx.enum.chart import XL_CHART_TYPE
+        from pptx.util import Inches
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        data = CategoryChartData()
+        data.categories = ["a", "b"]
+        data.add_series("s", [1, 2])
+        slide.shapes.add_chart(XL_CHART_TYPE.BAR_CLUSTERED, Inches(1), Inches(1), Inches(4), Inches(3), data)
+        path = self.dir / "chart.pptx"
+        prs.save(str(path))
+        found, unscanned, _ = scan.scan_paths([path])
+        self.assertEqual((found, unscanned), ([], []))
+
+
 if __name__ == "__main__":
     unittest.main()
