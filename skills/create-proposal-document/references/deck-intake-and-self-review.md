@@ -47,6 +47,8 @@ Procedure:
    slide number (more than 12 changed slides split into `changed_sheet_1.png`, `changed_sheet_2.png`, and the output names every
    file). The first run writes `sheet.png` (`sheet_1.png`, ... when split) of all pages. When Office wraps its own exports in DRM, this uses LibreOffice
    (see `editorial-deck-design.md` section 7); `deck_check.py --render --png-dir` remains for a one-off check.
+   `-o` must be a new or empty folder (or one the tool made): it refuses any other folder and deletes only the files it recorded as
+   its own. Slides whose content is unchanged but whose picture differs (a font or engine change) are reported as `render_changed`.
 2. Look at the sheet first: repeated or broken patterns, empty slides, an odd one out. Then open single pages for the slides you
    doubt and every changed page that carries a chart or a diagram. Do not look at unchanged slides again.
 3. Run `tidy_audit.py`, `deck_check.py`, `quality_gate.py`, `package_inspect.py` and, for decks with text, `deck_story_check.py`.

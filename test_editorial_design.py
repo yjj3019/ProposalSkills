@@ -616,45 +616,162 @@ class SlideDeltaTests(unittest.TestCase):
         resized.save(str(resized_path))
         self.assertTrue(all(a != b for a, b in zip(before, review_ledger.slide_hashes(resized_path))))
 
-    def test_more_than_twelve_changed_slides_report_every_sheet_and_stale_sheets_are_removed(self):
+    def mocked_render(self, deck, out, *, pages=None, environment=None, extra=()):
+        """Run render_delta.main with the engines replaced: pages are generated, never rendered."""
         from unittest import mock
         from PIL import Image
-        from pptx import Presentation
         import render_delta
-        deck = self.dir / "many.pptx"
-        prs = Presentation()
-        for i in range(13):
-            slide = prs.slides.add_slide(prs.slide_layouts[6])
-            slide.shapes.add_textbox(0, 0, 100, 100).text_frame.text = f"slide {i}"
-        prs.save(str(deck))
-        out = self.dir / "render"
-        out.mkdir()
-        (out / "changed_sheet_9.png").write_bytes(b"stale")
-        (out / "sheet_9.png").write_bytes(b"stale")
+        from pptx import Presentation
+        count = len(Presentation(str(deck)).slides)
 
         def fake_pngs(pdf, pages_dir, dpi):
             pages_dir.mkdir(parents=True, exist_ok=True)
+            for old in pages_dir.iterdir():
+                if old.is_file() and render_delta.OWN_PAGE.match(old.name):
+                    old.unlink()
             made = []
-            for n in range(1, 14):
+            for n in range(1, count + 1):
+                shade = (pages or {}).get(n, 255)
                 path = pages_dir / f"page-{n:02d}.png"
-                Image.new("RGB", (160, 90), "white").save(path)
+                Image.new("RGB", (160, 90), (shade, shade, shade)).save(path)
                 made.append(path)
             return made
 
+        env = environment or {"soffice": "LibreOffice test", "converter": "fake"}
         buffer = io.StringIO()
         with mock.patch.object(render_delta, "find_soffice", return_value="soffice"), \
+                mock.patch.object(render_delta, "environment", return_value=env), \
                 mock.patch.object(render_delta, "to_pdf", return_value=self.dir / "x.pdf"), \
-                mock.patch.object(render_delta, "to_pngs", side_effect=fake_pngs), redirect_stdout(buffer):
-            self.assertEqual(render_delta.main([str(deck), "-o", str(out)]), 0)
-        result = json.loads((out / "delta.json").read_text(encoding="utf-8"))
-        self.assertEqual([Path(p).name for p in result["changed_sheets"]], ["changed_sheet_1.png", "changed_sheet_2.png"])
-        self.assertEqual([Path(p).name for p in result["sheets"]], ["sheet_1.png", "sheet_2.png"])
-        for path in result["changed_sheets"] + result["sheets"]:
+                mock.patch.object(render_delta, "to_pngs", side_effect=fake_pngs), redirect_stdout(buffer), redirect_stderr(buffer):
+            code = render_delta.main([str(deck), "-o", str(out), *extra])
+        return code, buffer.getvalue()
+
+    def many_slides_deck(self, name="many.pptx", count=13):
+        from pptx import Presentation
+        deck = self.dir / name
+        prs = Presentation()
+        for i in range(count):
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            slide.shapes.add_textbox(0, 0, 100, 100).text_frame.text = f"slide {i}"
+        prs.save(str(deck))
+        return deck
+
+    def test_more_than_twelve_changed_slides_report_every_sheet_and_only_its_own_sheets_are_replaced(self):
+        deck = self.many_slides_deck()
+        out = self.dir / "render"
+        code, text = self.mocked_render(deck, out)
+        self.assertEqual(code, 0, text)
+        first = json.loads((out / "delta.json").read_text(encoding="utf-8"))
+        self.assertEqual([Path(p).name for p in first["changed_sheets"]], ["changed_sheet_1.png", "changed_sheet_2.png"])
+        self.assertEqual([Path(p).name for p in first["sheets"]], ["sheet_1.png", "sheet_2.png"])
+        for path in first["changed_sheets"] + first["sheets"]:
             self.assertTrue(Path(path).is_file(), path)
-        self.assertFalse((out / "changed_sheet_9.png").exists())
-        self.assertFalse((out / "sheet_9.png").exists())
-        self.assertIn("changed_sheet_1.png", buffer.getvalue())
-        self.assertIn("changed_sheet_2.png", buffer.getvalue())
+        self.assertIn("changed_sheet_1.png", text)
+        self.assertIn("changed_sheet_2.png", text)
+        # things the user keeps in the folder must survive, even with a matching name
+        for name in ("changed_sheet_9.png", "sheet_mine.png", "notes.png"):
+            (out / name).write_bytes(b"mine")
+        (out / "pages" / "keep.txt").write_text("mine", encoding="utf-8")
+        (out / "pages" / "cover.png").write_bytes(b"mine")
+        from pptx import Presentation
+        prs = Presentation(str(deck))
+        prs.slides[4].shapes[0].text_frame.paragraphs[0].runs[0].text += " edited"
+        prs.save(str(deck))
+        code, text = self.mocked_render(deck, out)
+        self.assertEqual(code, 0, text)
+        second = json.loads((out / "delta.json").read_text(encoding="utf-8"))
+        self.assertEqual(second["changed"], [5])
+        self.assertEqual([Path(p).name for p in second["changed_sheets"]], ["changed_sheet.png"])
+        self.assertFalse((out / "changed_sheet_1.png").exists())      # its own earlier sheet is replaced
+        self.assertFalse((out / "changed_sheet_2.png").exists())
+        self.assertTrue((out / "sheet_1.png").is_file())               # the full sheet is not rewritten, so it stays
+        for name in ("changed_sheet_9.png", "sheet_mine.png", "notes.png"):
+            self.assertEqual((out / name).read_bytes(), b"mine", name)
+        self.assertEqual((out / "pages" / "keep.txt").read_text(encoding="utf-8"), "mine")
+        self.assertEqual((out / "pages" / "cover.png").read_bytes(), b"mine")
+
+    def test_a_folder_that_is_not_this_tools_is_refused_before_anything_is_written(self):
+        deck = self.many_slides_deck("few.pptx", 3)
+        foreign = self.dir / "photos"
+        foreign.mkdir()
+        (foreign / "holiday.png").write_bytes(b"mine")
+        code, text = self.mocked_render(deck, foreign)
+        self.assertEqual(code, 2)
+        self.assertIn("not created by render_delta", text)
+        self.assertEqual([p.name for p in foreign.iterdir()], ["holiday.png"])
+        empty = self.dir / "empty"
+        empty.mkdir()
+        self.assertEqual(self.mocked_render(deck, empty)[0], 0)
+        self.assertEqual(self.mocked_render(deck, self.dir / "brand-new")[0], 0)
+
+    def test_the_real_page_converter_removes_only_its_own_page_images(self):
+        try:
+            import pymupdf
+        except ImportError:
+            self.skipTest("PyMuPDF is needed to make a PDF here")
+        import render_delta
+        pdf = self.dir / "one.pdf"
+        doc = pymupdf.open()
+        doc.new_page()
+        doc.save(str(pdf))
+        doc.close()
+        pages = self.dir / "pages"
+        pages.mkdir()
+        (pages / "page-01.png").write_bytes(b"old")
+        (pages / "page-07.png").write_bytes(b"old")
+        (pages / "cover.png").write_bytes(b"mine")
+        (pages / "keep.txt").write_text("mine", encoding="utf-8")
+        made = render_delta.to_pngs(pdf, pages, 40)
+        self.assertEqual([p.name for p in made], ["page-01.png"])
+        self.assertNotEqual((pages / "page-01.png").read_bytes(), b"old")
+        self.assertFalse((pages / "page-07.png").exists())
+        self.assertEqual((pages / "cover.png").read_bytes(), b"mine")
+        self.assertEqual((pages / "keep.txt").read_text(encoding="utf-8"), "mine")
+
+    def test_a_changed_render_environment_or_a_changed_picture_makes_the_slide_count_as_changed(self):
+        deck = self.many_slides_deck("few.pptx", 3)
+        out = self.dir / "render"
+        self.assertEqual(self.mocked_render(deck, out)[0], 0)
+        code, text = self.mocked_render(deck, out)
+        self.assertEqual(json.loads((out / "delta.json").read_text(encoding="utf-8"))["changed"], [])
+        code, text = self.mocked_render(deck, out, pages={2: 200})          # same content, a different picture (font or engine)
+        result = json.loads((out / "delta.json").read_text(encoding="utf-8"))
+        self.assertEqual((result["changed"], result["render_changed"]), ([2], [2]))
+        self.assertIn("rendered differently", text)
+        code, text = self.mocked_render(deck, out, environment={"soffice": "LibreOffice newer", "converter": "fake"})
+        result = json.loads((out / "delta.json").read_text(encoding="utf-8"))
+        self.assertEqual(result["changed"], [1, 2, 3])
+        self.assertTrue(result["environment_changed"])
+        self.assertIn("render environment changed", text)
+
+    def test_the_ledger_ties_a_verdict_to_the_image_that_was_viewed(self):
+        from PIL import Image
+        deck = self.dir / "led.pptx"
+        make_body_deck(deck, "chart")
+        png = self.dir / "png"
+        png.mkdir()
+        for i in (1, 2, 3):
+            Image.new("RGB", (160, 90), "white").save(png / f"page-{i}.png")
+        ledger = self.dir / "ledger.json"
+        self.assertEqual(self.cli("init", deck, "-o", ledger, "--png-dir", png, "--engine", "LibreOffice")[0], 0)
+        for n in (1, 2, 3):
+            for key in ("--plain", "--busy", "--glance", "--unfinished"):
+                self.cli("set", ledger, "--slide", n, key, "pass")
+            self.cli("set", ledger, "--slide", n, "--viewed", "full")
+        self.cli("set", ledger, "--slide", 1, "--revisions", 1)
+        self.assertEqual(self.cli("check", ledger)[0], 0)
+        Image.new("RGB", (160, 90), "black").save(png / "page-2.png")    # same deck, but slide 2 renders differently now
+        status, report = self.cli("check", ledger)
+        self.assertEqual(status, 1)
+        self.assertIn("slide 2: the image changed after it was viewed", report)
+        code, out = self.cli("sync", ledger, "--png-dir", png)
+        self.assertEqual(code, 0)
+        self.assertIn("[2] render differently", out)
+        self.assertIn("slide 2: not viewed", self.cli("check", ledger)[1])
+        # recording a rung later does not re-record the image hash, only viewing does
+        before = json.loads(ledger.read_text(encoding="utf-8"))["slides"][1].get("image_sha256")
+        self.cli("set", ledger, "--slide", 2, "--plain", "pass")
+        self.assertEqual(json.loads(ledger.read_text(encoding="utf-8"))["slides"][1].get("image_sha256"), before)
 
     def test_render_delta_reports_only_the_edited_slide(self):
         import importlib.util

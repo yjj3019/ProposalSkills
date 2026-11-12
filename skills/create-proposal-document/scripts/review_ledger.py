@@ -11,11 +11,15 @@ rendered-level check.
 ledger.json (created by `init`):
   {"deck": "deck.pptx", "deck_sha256": "...", "engine": "LibreOffice 24.8", "revisions": 1,
    "slides": [{"slide": 3, "title": "...", "kind": "content", "visual": true, "viewed": "full|sheet|none",
-               "image": "png/page-03.png",
+               "image": "png/page-03.png", "image_sha256": "...",
                "rungs": {"plain": "pass|fail|waived", "busy": "...", "glance": "...", "unfinished": "..."},
                "waived_reason": "", "findings": [{"severity": "Critical|Major|Minor", "text": "...",
                                                    "status": "open|fixed|accepted", "reason": ""}]}],
    "not_inspected": ["what could not be checked"]}
+
+A verdict is tied to the image that was looked at: `set --viewed ...` records the image's SHA-256, `check` refuses a slide whose image
+now differs (a changed font or render engine makes the same slide look different), and `sync` does not carry a verdict onto a slide
+whose newly rendered image differs from the one that was judged.
 
 Each slide also carries a content hash (its XML plus the parts it uses: layout, master, charts, images). After the deck is rebuilt,
 `sync` keeps the verdicts of slides whose hash is unchanged and resets only the changed or new ones, so only those need to be looked at
@@ -31,7 +35,8 @@ Rules enforced by `check`
   - the ledger matches the deck's SHA-256 and every slide's hash (a changed deck needs `sync` and a look at the changed slides) and
     names the engine that produced the images
   - every slide is viewed; a content slide with a chart or diagram is viewed at full size (`full`), the cover and closing
-    slide may be seen on a contact sheet; `full` needs an image that exists and is not older than the deck
+    slide may be seen on a contact sheet; `full` needs an image that exists, is not older than the deck and still has the SHA-256 it
+    had when it was viewed
   - every content slide has all four rungs pass or waived (a waiver needs a reason); none is fail
   - no Critical or Major finding is open; an accepted finding needs a reason
   - at least one revision is recorded, `not_inspected` is present, and no score fields exist
@@ -143,15 +148,23 @@ def sync(ledger: dict, base: Path, png_dir: Path | None) -> tuple[dict, dict]:
     old_by_hash: dict[str, list[dict]] = {}
     for old in ledger.get("slides", []):
         old_by_hash.setdefault(old.get("hash", ""), []).append(old)
-    kept, reset = [], []
+    kept, reset, rendered = [], [], []
     for slide, digest in zip(fresh["slides"], new_hashes):
         pool = old_by_hash.get(digest) or []
         if digest and pool:
             old = pool.pop(0)
+            image = (base / slide["image"]) if slide["image"] else None
+            new_sha = sha256(image) if image is not None and image.is_file() else ""
+            old_sha = old.get("image_sha256", "")
+            if old.get("viewed") == "full" and old_sha and new_sha and new_sha != old_sha:
+                reset.append(slide["slide"])          # same content, but it renders differently now: the verdict was about another picture
+                rendered.append(slide["slide"])
+                continue
             for key in ("viewed", "rungs", "waived_reason", "findings"):
                 slide[key] = old.get(key, slide[key])
             if not slide["image"] and old.get("image"):
                 slide["image"] = old["image"]
+            slide["image_sha256"] = new_sha or old_sha
             kept.append(slide["slide"])
         else:
             reset.append(slide["slide"])
@@ -159,7 +172,7 @@ def sync(ledger: dict, base: Path, png_dir: Path | None) -> tuple[dict, dict]:
     fresh["deck"] = ledger["deck"]
     fresh["revisions"] = ledger.get("revisions", 0)
     fresh["not_inspected"] = ledger.get("not_inspected", [])
-    return fresh, {"kept": kept, "reset": reset, "removed": removed}
+    return fresh, {"kept": kept, "reset": reset, "removed": removed, "render_changed": rendered}
 
 
 def problems_in(ledger: dict, base: Path) -> list[str]:
@@ -203,6 +216,10 @@ def problems_in(ledger: dict, base: Path) -> list[str]:
                 out.append(f"slide {n}: viewed at full size but the rendered image is missing")
             elif deck is not None and deck.is_file() and image.stat().st_mtime + MTIME_SLACK < deck.stat().st_mtime:
                 out.append(f"slide {n}: the image is older than the deck; render again")
+            elif not s.get("image_sha256"):
+                out.append(f"slide {n}: the viewed image's hash is not recorded; run set --viewed full again after looking at it")
+            elif sha256(image) != s["image_sha256"]:
+                out.append(f"slide {n}: the image changed after it was viewed (it renders differently now); look again")
         if content:
             for rung in RUNGS:
                 value = (s.get("rungs") or {}).get(rung)
@@ -258,7 +275,8 @@ def main(argv: list[str] | None = None) -> int:
             deck = (base / str(ledger["deck"])).resolve()
             fresh["deck_sha256"] = sha256(deck)
             a.ledger.write_text(json.dumps(fresh, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"kept {len(summary['kept'])} slide(s) {summary['kept']}; look again at {summary['reset']}; "
+            note = f" ({summary['render_changed']} render differently now)" if summary["render_changed"] else ""
+            print(f"kept {len(summary['kept'])} slide(s) {summary['kept']}; look again at {summary['reset']}{note}; "
                   f"{summary['removed']} removed. Set revisions to at least 1 once you have revised.")
             return 0
         if a.cmd == "set":
@@ -270,6 +288,10 @@ def main(argv: list[str] | None = None) -> int:
             for key in ("viewed", "image"):
                 if getattr(a, key):
                     s[key] = getattr(a, key)
+            if (a.viewed or a.image) and s.get("viewed") in {"full", "sheet"} and s.get("image"):
+                shown = a.ledger.resolve().parent / s["image"]       # recorded only when viewing is recorded, never on a later edit
+                if shown.is_file():
+                    s["image_sha256"] = sha256(shown)
             for rung in RUNGS:
                 if getattr(a, rung):
                     s["rungs"][rung] = getattr(a, rung)

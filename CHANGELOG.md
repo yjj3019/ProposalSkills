@@ -20,7 +20,15 @@ Fixed (found by an independent review of the review loop)
 - `review_ledger.py`: slide hashes now reach the theme (slide, layout, master, theme) and include the slide size and the table styles, so a
   theme colour or font change or a resize resets every verdict; before, an earlier verdict survived a visible change.
 - `render_delta.py`: more than 12 changed slides split the sheet, and the output and `delta.json` (`changed_sheets`, `sheets`) now name every
-  file; sheets left by an earlier run are deleted first, so a named file always belongs to this run.
+  file.
+- `render_delta.py` deletes only what it created: the output folder must be new, empty or its own (`render_state.json`), otherwise it is
+  refused before anything is written; it removes only the sheets and page images it recorded, never a folder and never another file
+  that matches a name (before, files named like `sheet*.png` and the whole `pages` folder could be deleted).
+- `render_delta.py` also compares each rendered image's own hash and the render environment (LibreOffice build read from the install
+  folder, the PDF converter): a slide whose content is unchanged but whose picture differs after a font or engine change is reported in
+  `render_changed`, and a changed environment re-checks every slide. An unknown part of the environment is not treated as a change.
+- `review_ledger.py` ties a verdict to the image that was looked at (its SHA-256 is recorded when viewing is recorded): `check` refuses an
+  image that changed since, and `sync` does not carry a verdict onto a slide whose picture differs.
 
 Added (cheap review loop)
 - `scripts/render_delta.py`: renders every page, compares each slide's content hash with the last run and builds a numbered contact sheet
