@@ -11,6 +11,9 @@ This is a lexical guardrail, NOT a security boundary and not a sandbox. It split
   - `find` with `-delete` and no filter, `dd of=/dev/...`, `mkfs`, `shred`, `xargs rm -r`, `chmod/chown -R` or `mv` on a
     broad target, a redirect into /etc and similar system folders, a fork bomb, `format C:`, and PowerShell
     `Remove-Item -Recurse` on a broad target
+  - a download piped into `python`/`node`/`perl`/`ruby`/`php` with no script, PowerShell `iwr ... | iex`, `-EncodedCommand`,
+    `git filter-branch`, `git reflog expire`, `git gc --prune=now`, `find -exec rm|shred` without a filter, `tee` into a
+    system folder, `rm -rf $PWD`
 Aliases, functions, variables, other substitutions and encoded payloads can still evade it; real approval and host
 permissions are required for external or destructive effects. Unparsable input is denied (fail closed).
 `--force-with-lease` is denied on purpose: it is still a history rewrite on a shared branch, so the user decides.
@@ -32,8 +35,11 @@ SPLIT = re.compile(r"\|\||&&|;|\||\n")
 PIPE_TO_SHELL = re.compile(
     r"\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b"
     r"|\b(?:(?:ba|z|da|k)?sh|source|eval)\b[^\n]*(?:<\(|\$\(|`)\s*(?:curl|wget)\b", re.I)
+PIPE_TO_INTERPRETER = re.compile(r"\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:python[0-9.]*|node|perl|ruby|php)(?:\s+-)?\s*(?:$|[;&])", re.I | re.M)
+PS_DOWNLOAD_EXEC = re.compile(r"\b(?:iwr|irm|invoke-webrequest|invoke-restmethod)\b[^\n|]*\|\s*(?:iex|invoke-expression)\b"
+                              r"|\b(?:iex|invoke-expression)\b[^\n]*\b(?:iwr|irm|invoke-webrequest|invoke-restmethod|downloadstring)\b", re.I)
 SYSTEM_REDIRECT = re.compile(r"(?:^|\s)\d?>>?\s*/(?:etc|boot|bin|sbin|usr|lib|dev/(?!null\b|stderr\b|stdout\b|tty\b))", re.I)
-BROAD = re.compile(r"^(?:/|/\*|~|~/.*|\$HOME(?:/.*)?|\$\{HOME\}(?:/.*)?|\.|\./?|\.\.|\*|\.\*|\./\.\*|\./\*|\.\./\*|[A-Za-z]:[\\/]?|/[A-Za-z0-9._-]+/?)$")
+BROAD = re.compile(r"^(?:/|/\*|~|~/.*|\$HOME(?:/.*)?|\$\{HOME\}(?:/.*)?|\$\{?PWD\}?/?|\.|\./?|\.\.|\*|\.\*|\./\.\*|\./\*|\.\./\*|[A-Za-z]:[\\/]?|/[A-Za-z0-9._-]+/?)$")
 WRAPPERS = {"sudo", "command", "env", "nohup", "time", "nice", "ionice", "timeout", "exec", "busybox", "setsid", "stdbuf"}
 # options of a wrapper that take a value: `sudo -u root rm ...`, `env -u X ...`, `nice -n 5 ...`, `timeout -s KILL 5 ...`
 WRAPPER_VALUE_OPTIONS = {"-u", "-g", "-n", "-s", "-k", "-c", "-C", "--user", "--group", "--signal", "--kill-after"}
@@ -113,6 +119,12 @@ def git_denied(words: list[str]) -> str | None:
         return f"git {sub} that discards all working-tree changes"
     if sub == "stash" and rest[:1] and rest[0] in {"drop", "clear"}:
         return f"git stash {rest[0]} (unrecoverable)"
+    if sub == "filter-branch":
+        return "git filter-branch rewrites history"
+    if sub == "reflog" and "expire" in rest:
+        return "git reflog expire (unrecoverable)"
+    if sub == "gc" and any(w.startswith("--prune") and "now" in w for w in rest):
+        return "git gc --prune=now (unrecoverable)"
     if sub == "branch" and any(w == "--delete" or re.fullmatch(r"-[a-zA-Z]*D[a-zA-Z]*", w) for w in rest):
         return "git branch -D"
     return None
@@ -131,6 +143,16 @@ def other_denied(name: str, words: list[str]) -> str | None:
         return deny_reason(" ".join(args))
     if name == "find" and "-delete" in args and not FIND_FILTERS & set(args):
         return "find -delete without a filter"
+    exec_at = next((k for k, w in enumerate(args) if w in {"-exec", "-execdir"}), None)
+    if name == "find" and exec_at is not None and args[exec_at + 1:exec_at + 2]:
+        runner = args[exec_at + 1].rsplit("/", 1)[-1]
+        start = targets[0] if targets else "."
+        if runner == "shred" or (runner == "rm" and (not FIND_FILTERS & set(args) or (is_broad(start) and start not in {".", "./"}))):
+            return f"find -exec {runner} without a filter or from a broad start"
+    if name == "tee" and any(re.match(r"/(?:etc|boot|bin|sbin|usr|lib)(?:/|$)", t) for t in targets):
+        return "tee into a system folder"
+    if name in {"powershell", "pwsh"} and any(w.lower() in {"-enc", "-ec", "-encodedcommand"} for w in args):
+        return "encoded PowerShell command"
     if name == "dd" and any(w.startswith("of=/dev/") for w in args):
         return "dd onto a device"
     if name.startswith("mkfs") or name == "shred":
@@ -151,6 +173,10 @@ def other_denied(name: str, words: list[str]) -> str | None:
 def deny_reason(command: str) -> str | None:
     if PIPE_TO_SHELL.search(command):
         return "download piped into a shell"
+    if PIPE_TO_INTERPRETER.search(command):
+        return "download piped into an interpreter"
+    if PS_DOWNLOAD_EXEC.search(command):
+        return "PowerShell download executed with iex"
     if SYSTEM_REDIRECT.search(command):
         return "redirect into a system folder"
     if UPLOAD.search(command):

@@ -16,6 +16,15 @@ Added
 - Optional `Dockerfile` and `runtime_check.py` (python-pptx, Pillow, LibreOffice, Poppler) that follow `requirements.txt`.
 - `writing-style.md` section 7 (translationese and mechanical phrasing) and a matching review-checklist item.
 
+Fixed (third simulation round, closed later)
+- `hook_guard_bash.py`: also denies a download piped into `python`/`node`/`perl`/`ruby`/`php` with no script (`curl ... | python -m json.tool`
+  stays allowed), PowerShell `iwr ... | iex` and `-EncodedCommand`, `git filter-branch`, `git reflog expire`, `git gc --prune=now`,
+  `find -exec rm` without a filter or from a broad start, `find -exec shred`, `tee` into a system folder and `rm -rf $PWD`.
+
+Added (simulation catalog)
+- `references/harness-simulation-catalog.md` (how to run a round, what three rounds found, documented limits) and a testing-pitfalls
+  section in `AGENTS.md` (hygiene tests read tracked files only, Windows 8.3 temp paths, exit codes behind pipes, patch-script discipline).
+
 Added (slide types)
 - `build_deck.py`: three at-a-glance slide types inside the standard frame: `scoreboard` (head-to-head with a winner track and a
   required verdict rule), `triage` (which option first, per situation) and `weights` (one stacked bar that must add to 100).
