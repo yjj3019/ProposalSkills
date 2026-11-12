@@ -100,7 +100,10 @@ or evidence. Do not write a heading that needs its description to mean anything.
 2. If Office is installed, also ask the real engine: for each shape compare `TextFrame2.TextRange.BoundHeight` with
    `Shape.Height` and test whether the shape lies inside the slide. This catches overflow the PDF path can hide.
 3. Run `scripts/tidy_audit.py deck.pptx`. Defaults: at most 9 font sizes, 10 near-misses, 24 thin rules and 700
-   characters on one slide. Thresholds are advisory; a slide that exceeds them needs a reason.
+   characters on one slide, at least 50% body fill on every content slide and at most half of the content slides
+   without a picture or diagram. Thresholds are advisory; a slide that exceeds them needs a reason. Tile the rendered
+   pages with `scripts/contact_sheet.py` and look at the sheet before single pages.
+   The full ask-first and self-review procedure is in [deck-intake-and-self-review.md](deck-intake-and-self-review.md).
 4. Revise once against the findings list, render again and compare. A revision that leaves the list unchanged did not
    fix anything.
 

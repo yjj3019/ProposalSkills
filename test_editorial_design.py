@@ -15,6 +15,7 @@ ROOT = Path(__file__).parent
 DOC = ROOT / "skills/create-proposal-document/scripts"
 EXAMPLE = ROOT / "skills/create-proposal-document/assets/examples/ai-model-comparison/make_deck.py"
 sys.path.insert(0, str(DOC))
+import contact_sheet  # noqa: E402,F401
 import mapping_check  # noqa: E402
 import package_inspect  # noqa: E402
 import tidy_audit  # noqa: E402
@@ -45,6 +46,31 @@ def make_deck(path: Path, *, sizes=(11,), misalign=False, rules=0, hidden=False,
     prs.save(str(path))
 
 
+def make_body_deck(path: Path, kind: str) -> None:
+    """Three slides: cover, one content slide of the given kind, closing."""
+    from pptx import Presentation
+    from pptx.chart.data import CategoryChartData
+    from pptx.enum.chart import XL_CHART_TYPE
+    from pptx.util import Inches, Pt
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    for index in range(3):
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        if index != 1:
+            continue
+        rows = 1 if kind == "sparse" else 5
+        for i in range(rows):
+            box = slide.shapes.add_textbox(Inches(1), Inches(2.0 + i * 1.0), Inches(8), Inches(0.9 if kind != "sparse" else 0.4))
+            box.text_frame.paragraphs[0].add_run().text = f"row {i}"
+            box.text_frame.paragraphs[0].runs[0].font.size = Pt(11)
+        if kind == "chart":
+            data = CategoryChartData()
+            data.categories = ["a", "b"]
+            data.add_series("s", [1, 2])
+            slide.shapes.add_chart(XL_CHART_TYPE.BAR_CLUSTERED, Inches(9.2), Inches(2.0), Inches(3.4), Inches(4.5), data)
+    prs.save(str(path))
+
+
 class TidyAuditTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -60,7 +86,7 @@ class TidyAuditTests(unittest.TestCase):
         report = self.report(sizes=(11, 11, 13))
         self.assertEqual(report["font_sizes"], [11.0, 13.0])
         self.assertEqual(report["near_miss"], 0)
-        self.assertEqual(tidy_audit.warnings(report, 9, 10, 24, 700), [])
+        self.assertEqual(tidy_audit.warnings(report, 9, 10, 24, 700, min_fill=0.0, max_text_only=1.0), [])
 
     def test_too_many_sizes_are_reported(self):
         report = self.report(sizes=(8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20))
@@ -76,6 +102,31 @@ class TidyAuditTests(unittest.TestCase):
         self.assertTrue(any("thin rules" in w for w in tidy_audit.warnings(report, 9, 10, 24, 700)))
         self.assertTrue(any("characters" in w for w in tidy_audit.warnings(report, 9, 10, 24, 3)))
 
+    def test_a_half_empty_slide_is_reported_as_sparse(self):
+        deck = self.dir / "s.pptx"
+        make_body_deck(deck, "sparse")
+        report = tidy_audit.measure(deck)
+        self.assertLess(report["slides"][1]["fill"], 0.2)
+        self.assertTrue(any("fills" in w for w in tidy_audit.warnings(report, 9, 10, 24, 700)))
+
+    def test_a_full_text_only_slide_is_reported_but_a_chart_makes_it_visual(self):
+        text_deck, chart_deck = self.dir / "t.pptx", self.dir / "c.pptx"
+        make_body_deck(text_deck, "text")
+        make_body_deck(chart_deck, "chart")
+        text = tidy_audit.measure(text_deck)
+        self.assertGreaterEqual(text["slides"][1]["fill"], 0.8)
+        self.assertFalse(text["slides"][1]["visual"])
+        self.assertTrue(any("text or table only" in w for w in tidy_audit.warnings(text, 9, 10, 24, 700)))
+        chart = tidy_audit.measure(chart_deck)
+        self.assertTrue(chart["slides"][1]["visual"])
+        self.assertEqual(tidy_audit.warnings(chart, 9, 10, 24, 700), [])
+
+    def test_cover_and_closing_are_not_judged_for_fill(self):
+        deck = self.dir / "t.pptx"
+        make_body_deck(deck, "chart")
+        report = tidy_audit.measure(deck)
+        self.assertEqual([s["slide"] for s in tidy_audit.content_slides(report)], [2])
+
     def test_cli_exit_codes(self):
         deck = self.dir / "d.pptx"
         make_deck(deck, sizes=tuple(range(8, 20)))
@@ -90,6 +141,49 @@ class TidyAuditTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("NOT INSPECTED", result.stderr)
         self.assertEqual(run(str(self.dir / "missing.pptx")).returncode, 2)
+
+
+class ContactSheetTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        from PIL import Image
+        for name, color in (("page-10.png", "red"), ("page-2.png", "green"), ("page-1.png", "blue"), ("page-3.png", "white"), ("page-4.png", "gray")):
+            Image.new("RGB", (160, 90), color).save(self.dir / name)
+
+    def run_cli(self, *args):
+        import contact_sheet
+        return contact_sheet.main([str(a) for a in args])
+
+    def test_pages_are_taken_in_natural_order(self):
+        import contact_sheet
+        self.assertEqual([p.name for p in contact_sheet.page_images(self.dir)],
+                         ["page-1.png", "page-2.png", "page-3.png", "page-4.png", "page-10.png"])
+
+    def test_one_sheet_holds_all_pages_and_splits_when_asked(self):
+        out = self.dir / "out" / "sheet.png"
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(self.run_cli(self.dir, "-o", out, "--cols", 3, "--thumb", 200), 0)
+        from PIL import Image
+        with Image.open(out) as sheet:
+            self.assertGreater(sheet.width, 3 * 200)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(self.run_cli(self.dir, "-o", self.dir / "split.png", "--per-sheet", 2), 0)
+        self.assertEqual(sorted(p.name for p in self.dir.glob("split_*.png")), ["split_1.png", "split_2.png", "split_3.png"])
+
+    def test_a_missing_folder_an_empty_folder_and_an_unreadable_image_exit_2(self):
+        empty = self.dir / "empty"
+        empty.mkdir()
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(self.run_cli(self.dir / "nope"), 2)
+            self.assertEqual(self.run_cli(empty), 2)
+            (self.dir / "page-5.png").write_bytes(b"<## DRM ##>")
+            err = io.StringIO()
+            with redirect_stderr(err):
+                self.assertEqual(self.run_cli(self.dir, "-o", self.dir / "x.png"), 2)
+            self.assertIn("NOT INSPECTED", err.getvalue())
+        self.assertFalse((self.dir / "x.png").exists())
 
 
 class PackageInspectDefectTests(unittest.TestCase):
@@ -259,6 +353,7 @@ class ExampleDeckTests(unittest.TestCase):
             self.assertEqual(report["runs_without_size"], 0)
             self.assertLessEqual(report["near_miss"], 10)
             self.assertLessEqual(report["chars_max"], 700)
+            self.assertEqual(tidy_audit.warnings(report, 9, 10, 24, 700), [])   # body fill and text-only share too
 
     def test_example_without_an_output_path_prints_usage(self):
         run = subprocess.run([sys.executable, str(EXAMPLE)], capture_output=True, text=True, encoding="utf-8", errors="replace")

@@ -16,6 +16,13 @@ Added
 - Optional `Dockerfile` and `runtime_check.py` (python-pptx, Pillow, LibreOffice, Poppler) that follow `requirements.txt`.
 - `writing-style.md` section 7 (translationese and mechanical phrasing) and a matching review-checklist item.
 
+Added (self-review without user feedback)
+- `references/deck-intake-and-self-review.md`: up to five questions with defaults before building, one direction checkpoint, a four-rung
+  self-review (plain, busy, not at a glance, unfinished) with a report format, and the rule to write assumptions down when nobody can answer.
+- `scripts/tidy_audit.py` also measures body fill per slide and the share of text-only content slides; `scripts/contact_sheet.py` tiles
+  rendered pages into one view (exit 2 for an unreadable or DRM-wrapped image).
+- `AGENTS.md`: "Look before you deliver, ask before you guess".
+
 Fixed (third simulation round, closed later)
 - `hook_guard_bash.py`: also denies a download piped into `python`/`node`/`perl`/`ruby`/`php` with no script (`curl ... | python -m json.tool`
   stays allowed), PowerShell `iwr ... | iex` and `-EncodedCommand`, `git filter-branch`, `git reflog expire`, `git gc --prune=now`,
