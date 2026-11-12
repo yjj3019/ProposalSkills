@@ -68,6 +68,8 @@ PPTX 생성·검사는 Python 3.10+와 `python-pptx`, 자동 렌더는 LibreOffi
 | [`edit_preservation.py`](skills/create-proposal-document/scripts/edit_preservation.py) | 문장 다듬기에서 수치·날짜·ID·링크·인용·불확실 표시가 사라지거나 생기면 차단 |
 | [`deck_story_check.py`](skills/create-proposal-document/scripts/deck_story_check.py) | 제목만 이어 읽는 "고스트 덱" 출력, 중복 제목과 출처 없는 수치 표시 |
 | [`plain_language_check.py`](skills/create-proposal-document/scripts/plain_language_check.py) | 긴 문장, 풀이 없는 약어, 자기 해설, 군더더기, 이중 피동 |
+| [`mapping_check.py`](skills/create-proposal-document/scripts/mapping_check.py) | 요구사항 조견표(MD/JSON) ↔ 본문 REQ-ID 양방향 일치, 페이지 미기재 |
+| [`package_inspect.py`](skills/create-proposal-document/scripts/package_inspect.py) | PPTX/DOCX 패키지 힌트: 작성자 메타데이터, 노트, 댓글, 숨김 슬라이드, 외부 링크, 임베드, 매크로 |
 | [`deck_stage_gate.py`](skills/create-proposal-document/scripts/deck_stage_gate.py) | 덱 작업 폴더 게이트: 승인된 디자인 명세를 해시에 묶고 계획과 `slides.json` 일치 확인 |
 | [`verification_report.py`](skills/create-best-proposal/scripts/verification_report.py) | 검사 보고서가 납품 파일과 일치하고 검사 깊이를 과장하지 않는지 검증 |
 | [`retry_guard.py`](skills/create-best-proposal/scripts/retry_guard.py), [`evidence_chain.py`](skills/create-best-proposal/scripts/evidence_chain.py), [`handoff_lint.py`](skills/create-best-proposal/scripts/handoff_lint.py) | 수정·재검증 반복 중단 규칙, 변조 흔적이 남는 검사 기록, 인계 노트 점검 |

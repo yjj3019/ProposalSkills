@@ -5,6 +5,12 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Added
+- `mapping_check.py` (requirements matrix vs REQ-IDs in the document, both directions) and `package_inspect.py` (PPTX/DOCX
+  package hints: author metadata, notes, comments, hidden slides, external links, embeddings, macros); a DRM-wrapped file is
+  NOT INSPECTED (exit 2).
+- Optional `Dockerfile` and `runtime_check.py` (python-pptx, Pillow, LibreOffice, Poppler) that follow `requirements.txt`.
+
 Fixed (found by a 10-scenario simulation of the skills and harness)
 - `hook_guard_bash.py`: also denies commands wrapped in `bash -c`/`sh -c`/`eval`, `bash <(curl ...)` and `eval $(curl ...)`,
   `git checkout .`, `git stash drop|clear`, `git branch -D`, `git push --delete`/`:branch`, unfiltered `find -delete`,
