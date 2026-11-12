@@ -129,6 +129,9 @@ Submission requires closed Critical/Major/BLOCKING INPUT plus confirmed rehearsa
 - `scripts/build_deck.py` — slides.json → PPTX generator (15 layouts incl. scoreboard, triage, weights; role names for shapes).
 - `references/editorial-deck-design.md` — type scale, grid, decluttering and at-a-glance patterns for decks that must look finished;
   `scripts/tidy_audit.py` measures it (font sizes, near-miss alignment, rules, density). Read it before restyling a deck.
+- `references/deck-intake-and-self-review.md` — ask up to five questions before building (with defaults), show an outline and sample
+  slides once, then review your own render against four rungs (plain, busy, not at a glance, unfinished) before delivering; do not
+  wait for the user to point these out. `scripts/contact_sheet.py` tiles the rendered pages into one view.
 - `references/ai-vendor-comparison-playbook.md` — how to compare AI vendors or models from their own documentation, with a
   dated 2026-11-12 snapshot (re-verify before quoting); `assets/examples/ai-model-comparison/make_deck.py` is the 17-slide example.
 - `scripts/deck_check.py` — layout lint, render checks, audit render block output.

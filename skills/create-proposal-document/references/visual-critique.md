@@ -38,7 +38,8 @@ nothing or contradict the text claim; text too small or too low in contrast to r
 whose drawn size contradicts its value. These are checked on the rendered page. `deck_check.py` covers font size,
 density and page counts; overlap and arrow meaning still need a person looking at the render.
 
-Measurable tidiness (font sizes, near-miss alignment, rule clutter) and the at-a-glance patterns are in
+The ask-first questions and the four-rung self-review (plain, busy, not at a glance, unfinished) are in
+[deck-intake-and-self-review.md](deck-intake-and-self-review.md). Measurable tidiness (font sizes, near-miss alignment, rule clutter) and the at-a-glance patterns are in
 [editorial-deck-design.md](editorial-deck-design.md); `scripts/tidy_audit.py` reports them.
 
 ## 5. Critique-and-revise loop
