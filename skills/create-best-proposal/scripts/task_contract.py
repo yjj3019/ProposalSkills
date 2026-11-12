@@ -35,7 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 STATES = ("Planned", "Running", "Verifying", "Verified", "Failed", "Blocked", "Not Verified")
 MOVES = {"Planned": {"Running"}, "Running": {"Verifying", "Failed", "Blocked"},
@@ -45,11 +45,32 @@ ACTIONS = {"read", "write-workspace", "run-checks", "render", "network", "extern
 OUTWARD = {"network", "external-send", "publish"}
 
 
+def boundary_problem(value: object) -> str | None:
+    """The write boundary must name one specific folder: not the current directory, a drive or filesystem root, the home
+    folder, a wildcard, or a path that climbs out with `..`."""
+    text = str(value).strip()
+    if not text:
+        return None  # reported as empty elsewhere
+    path = PureWindowsPath(text)  # understands both / and \
+    if ".." in path.parts:
+        return "write_boundary must not contain '..'"
+    if text in {"~", "*"} or text.startswith(("~/", "~\\")) and not path.parts[1:]:
+        return "write_boundary must not be the home folder or a wildcard"
+    if not path.parts:
+        return "write_boundary must name a specific folder, not the current directory"
+    if path.anchor and len(path.parts) <= 1:
+        return "write_boundary must not be a drive or filesystem root"
+    return None
+
+
 def validate(contract: dict) -> list[str]:
     problems: list[str] = []
     for key in ("goal", "write_boundary", "recovery"):
         if not str(contract.get(key, "")).strip():
             problems.append(f"{key} is empty")
+    reason = boundary_problem(contract.get("write_boundary", ""))
+    if reason:
+        problems.append(reason)
     for key in ("scope", "non_goals", "outputs", "test_oracle", "stop_conditions"):
         value = contract.get(key)
         if not isinstance(value, list) or not value or not all(isinstance(x, str) and x.strip() for x in value):

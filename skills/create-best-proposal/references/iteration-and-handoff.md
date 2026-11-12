@@ -102,6 +102,8 @@ These turn the rules above into checks. None adds an approval field, and none re
   actions (outward-facing ones need a named approver), write boundary, test oracle, attempt and time budgets, and the state
   (Planned, Running, Verifying, Verified, Failed, Blocked, Not Verified). It refuses `Verified` without evidence and a
   passing result for every oracle check, and refuses another retry once `max_attempts` is used up.
+- **Anchor the log**: write the `head=` hash and record count that `verify` prints into the hand-off note, and next time run
+  `evidence_chain.py verify LOG --expect-head HASH --expect-count N`; a truncated or rebuilt log then fails.
 - **Rerun only what changed**: `evidence_chain.py rerun LOG` lists the checks whose artifacts changed since they ran.
   `--seconds` and `--cost` on `append` let `verify` total the effort per verified check.
 - **Same facts in every format**: `cross_format_numbers.py DOC... --audit audit.json` runs the numbers ledger on each

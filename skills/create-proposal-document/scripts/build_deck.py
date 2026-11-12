@@ -635,6 +635,8 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     try:
         spec = json.loads(a.spec.read_text(encoding="utf-8-sig"))
+        if not isinstance(spec, dict):
+            raise ValueError("slides.json의 최상위는 {\"meta\":..., \"slides\":[...]} 객체여야 한다")
         if a.template and not a.template.is_file():
             raise ValueError(f"템플릿 없음: {a.template}")
         b = DeckBuilder(spec, a.template, a.strict, a.profile)
@@ -643,6 +645,12 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except Exception as exc:  # noqa: BLE001 - python-pptx raises its own type for a damaged default template
+        if type(exc).__name__ == "PackageNotFoundError":
+            print("error: python-pptx가 열 수 없는 패키지(템플릿)다. 설치가 손상됐을 수 있다 — "
+                  "`pip install --force-reinstall python-pptx`로 복구하고, --template을 쓴 경우 그 파일을 확인한다", file=sys.stderr)
+            return 2
+        raise
     print(f"wrote {a.output} ({b.page} slides, {b.style['label']} 규격"
           + (f", 발주처 지정 규격: {b.output_spec['source']}" if b.output_spec else "") + ")")
     limit_mb = b.output_spec.get("file_size_limit_mb")

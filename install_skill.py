@@ -106,7 +106,7 @@ def available_skills() -> list[str]:
 
 
 # Exclude caches; retain skill test_*.py files for installed self-checks.
-COPY_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache")
+COPY_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache", "test_*.py")
 
 
 def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:

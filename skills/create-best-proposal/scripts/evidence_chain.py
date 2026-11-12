@@ -4,14 +4,15 @@
 Each record stores the command, its exit code, the SHA-256 of every artifact, and the hash of the previous record.
 Editing or removing a record from the middle breaks the chain; changing an artifact afterwards is reported by
 `verify --check-artifacts`. Cutting records off the END of the log is not detectable from the file alone: keep the
-`head` hash from `verify` in the hand-off note and compare it later.
+`head` hash from `verify` in the hand-off note and pass it back with `--expect-head` (or the record count with
+`--expect-count`): a truncated log or one rebuilt from scratch then fails the comparison.
 
 This is tamper-evidence for honest mistakes and casual edits, not authentication: anyone who can rewrite the whole
 file can rebuild the chain.
 
   python evidence_chain.py append LOG --command "..." --exit-code N [--artifact FILE ...] [--note TEXT]
                                        [--seconds S] [--cost AMOUNT]
-  python evidence_chain.py verify LOG [--check-artifacts]
+  python evidence_chain.py verify LOG [--check-artifacts] [--expect-head HASH] [--expect-count N]
   python evidence_chain.py rerun LOG        list the commands whose artifacts changed or vanished (nothing else to redo)
 
 `--seconds` and `--cost` are optional; `verify` totals them so cost per verified check can be read off. `rerun` reads the
@@ -87,6 +88,17 @@ def verify(records: list[dict], check_artifacts: bool = False, base: Path = Path
     return problems
 
 
+def anchor_problems(records: list[dict], expect_head: str | None, expect_count: int | None) -> list[str]:
+    """Compare the log with a head hash / record count that was written down outside the log."""
+    problems = []
+    head = records[-1]["hash"] if records else GENESIS
+    if expect_count is not None and len(records) != expect_count:
+        problems.append(f"log has {len(records)} record(s) but {expect_count} were recorded (truncated or extended)")
+    if expect_head is not None and head != expect_head.strip().lower():
+        problems.append("head hash differs from the recorded one (log truncated, extended or rebuilt)")
+    return problems
+
+
 def stale_commands(records: list[dict], base: Path = Path(".")) -> list[str]:
     """Commands (latest record each) that ran on an artifact that is now missing or different."""
     latest = {r["command"]: r for r in records}
@@ -116,6 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     check = sub.add_parser("verify")
     check.add_argument("log", type=Path)
     check.add_argument("--check-artifacts", action="store_true")
+    check.add_argument("--expect-head", help="head hash recorded earlier (hand-off note); detects truncation or a rebuilt log")
+    check.add_argument("--expect-count", type=int, help="record count recorded earlier")
     args = parser.parse_args(argv)
     try:
         if args.action == "append":
@@ -135,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"EVIDENCE-CHAIN: {len(stale)} check(s) to rerun")
             return 1 if stale else 0
         problems = verify(records, args.check_artifacts)
+        problems += anchor_problems(records, args.expect_head, args.expect_count)
     except (OSError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
