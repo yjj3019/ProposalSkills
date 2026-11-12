@@ -458,7 +458,9 @@ class ReviewLedgerTests(unittest.TestCase):
 
     def test_a_chart_slide_on_a_contact_sheet_only_is_refused(self):
         self.init()
-        self.fill({2: {"viewed": "sheet"}})
+        self.fill()
+        (self.png / "sheet.png").write_bytes(b"sheet")
+        self.assertEqual(self.run_cli("set", self.ledger, "--slide", 2, "--viewed", "sheet", "--sheet", "png/sheet.png")[0], 0)
         code, out = self.run_cli("check", self.ledger)
         self.assertEqual(code, 1)
         self.assertIn("full size", out)
@@ -693,6 +695,17 @@ class SlideDeltaTests(unittest.TestCase):
         self.assertEqual((out / "pages" / "page-99.png").read_bytes(), b"mine")
         self.assertFalse((out / "_pdf").exists())                       # the PDF lives in a temporary folder, not in the user's folder
 
+    def test_a_recorded_page_the_user_has_since_edited_is_never_overwritten_or_deleted(self):
+        deck = self.many_slides_deck("three.pptx", 3)
+        out = self.dir / "render"
+        self.assertEqual(self.mocked_render(deck, out)[0], 0)
+        (out / "pages" / "page-02.png").write_bytes(b"my retouched copy")
+        code, text = self.mocked_render(self.many_slides_deck("four.pptx", 4), out)
+        self.assertEqual(code, 2)
+        self.assertIn("changed after render_delta wrote it", text)
+        self.assertEqual((out / "pages" / "page-02.png").read_bytes(), b"my retouched copy")
+        self.assertFalse((out / "pages" / "page-04.png").exists())
+
     def test_a_file_the_tool_is_about_to_write_but_did_not_record_is_never_overwritten(self):
         deck = self.many_slides_deck("five.pptx", 3)
         out = self.dir / "render"
@@ -780,6 +793,7 @@ class SlideDeltaTests(unittest.TestCase):
         make_body_deck(deck, deck_kind)
         png = self.dir / "png"
         png.mkdir()
+        (png / "sheet.png").write_bytes(b"the overview that was looked at")
         for i in (1, 2, 3):
             Image.new("RGB", (160, 90), "white").save(png / f"page-{i}.png")
         ledger = self.dir / "ledger.json"
@@ -787,7 +801,10 @@ class SlideDeltaTests(unittest.TestCase):
         for n in (1, 2, 3):
             for key in ("--plain", "--busy", "--glance", "--unfinished"):
                 self.cli("set", ledger, "--slide", n, key, "pass")
-            self.cli("set", ledger, "--slide", n, "--viewed", "full" if n == 2 else "sheet")
+            if n == 2:
+                self.cli("set", ledger, "--slide", n, "--viewed", "full")
+            else:
+                self.cli("set", ledger, "--slide", n, "--viewed", "sheet", "--sheet", "png/sheet.png")
         self.cli("set", ledger, "--slide", 1, "--revisions", 1)
         self.assertEqual(self.cli("check", ledger)[0], 0)
         return deck, png, ledger
@@ -835,6 +852,33 @@ class SlideDeltaTests(unittest.TestCase):
         Image.new("RGB", (160, 90), "green").save(png / "other.png")
         self.cli("set", ledger, "--slide", 2, "--viewed", "full")
         self.assertIsNone(self.slide_state(ledger, 2)["rungs"]["busy"])
+
+    def test_a_sheet_verdict_is_tied_to_the_sheet_file_that_was_looked_at(self):
+        deck, png, ledger = self.judged_ledger()
+        state = self.slide_state(ledger, 1)
+        self.assertEqual(state["sheet_image"], "png/sheet.png")
+        self.assertTrue(state["sheet_sha256"])
+        self.assertEqual(self.cli("set", ledger, "--slide", 3, "--viewed", "sheet")[0], 2)   # the recorded sheet is not enough: name the file
+        self.assertEqual(self.cli("set", ledger, "--slide", 3, "--viewed", "sheet", "--sheet", "png/missing.png")[0], 2)
+        (png / "sheet.png").write_bytes(b"a different overview")
+        status, report = self.cli("check", ledger)
+        self.assertEqual(status, 1)
+        self.assertIn("the sheet changed after it was viewed", report)
+        self.cli("set", ledger, "--slide", 1, "--viewed", "full")
+        self.assertNotIn("sheet_image", self.slide_state(ledger, 1))
+
+    def test_viewing_an_old_ledger_slide_again_clears_a_verdict_that_has_no_image_proof(self):
+        deck, png, ledger = self.judged_ledger()
+        data = json.loads(ledger.read_text(encoding="utf-8"))
+        for slide in data["slides"]:
+            slide["image_sha256"] = ""
+        ledger.write_text(json.dumps(data), encoding="utf-8")
+        self.cli("set", ledger, "--slide", 2, "--viewed", "full")
+        state = self.slide_state(ledger, 2)
+        self.assertEqual(state["viewed"], "full")
+        self.assertTrue(state["image_sha256"])
+        self.assertIsNone(state["rungs"]["plain"])
+        self.assertIn("rung 'plain'", self.cli("check", ledger)[1])
 
     def test_a_cover_seen_on_a_sheet_is_held_to_the_same_image_proof(self):
         from PIL import Image

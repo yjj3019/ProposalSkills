@@ -191,10 +191,14 @@ def sheet_names(base: str, tiles: int, per_sheet: int = 12) -> list[str]:
     return [f"{base}.png"] if count == 1 else [f"{base}_{i}.png" for i in range(1, count + 1)]
 
 
-def install_pages(staged: list[Path], pages_dir: Path, recorded: list[str]) -> list[Path]:
+def install_pages(staged: list[Path], pages_dir: Path, recorded: list[str], hashes: dict[str, str] | None = None) -> list[Path]:
     """Copy staged page images into `pages_dir`. Raises FileExistsError, before changing anything, when a target exists and was not
     recorded as this tool's; then removes only the recorded page images it replaces."""
     own = {n for n in recorded if OWN_PAGE.match(n)}
+    for name in sorted(own):            # a recorded file the user has since edited or replaced is theirs now
+        have = pages_dir / name
+        if hashes and name in hashes and have.is_file() and file_sha256(have) != hashes[name]:
+            raise FileExistsError(f"{have} was changed after render_delta wrote it; move or rename it (nothing was changed)")
     for path in staged:
         if (pages_dir / path.name).exists() and path.name not in own:
             raise FileExistsError(f"{pages_dir / path.name} exists and was not created by render_delta; move or rename it "
@@ -275,7 +279,7 @@ def _finish(a, out: Path, state_file: Path, state: dict, env: dict, staged: list
               file=sys.stderr)
         return 2
     try:
-        pages = install_pages(staged, out / "pages", state.get("pages", []))
+        pages = install_pages(staged, out / "pages", state.get("pages", []), state.get("page_hashes"))
     except FileExistsError as exc:
         print(f"NOT INSPECTED: {exc}", file=sys.stderr)
         return 2
@@ -290,7 +294,8 @@ def _finish(a, out: Path, state_file: Path, state: dict, env: dict, staged: list
         sheets = contact_sheet.build_sheets(pages, out / "sheet.png", cols=4, thumb=480, per_sheet=12)
     created = kept + [p.name for p in changed_sheets + sheets]
     state_file.write_text(json.dumps({"tool": TOOL, "slides": new, "dpi": a.dpi, "environment": env, "created": created,
-                                      "pages": [p.name for p in pages]}), encoding="utf-8")
+                                      "pages": [p.name for p in pages],
+                                      "page_hashes": {p.name: file_sha256(p) for p in pages}}), encoding="utf-8")
     result = {"changed": changed, "unchanged": unchanged, "render_changed": render_changed, "removed": removed,
               "environment_changed": environment_changed, "engine": env["soffice"], "dpi": a.dpi, "pages": str(out / "pages"),
               "changed_sheets": [str(p) for p in changed_sheets], "sheets": [str(p) for p in sheets]}
