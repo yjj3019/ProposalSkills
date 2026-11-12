@@ -16,7 +16,14 @@ Added
 - Optional `Dockerfile` and `runtime_check.py` (python-pptx, Pillow, LibreOffice, Poppler) that follow `requirements.txt`.
 - `writing-style.md` section 7 (translationese and mechanical phrasing) and a matching review-checklist item.
 
+Added (slide types)
+- `build_deck.py`: three at-a-glance slide types inside the standard frame: `scoreboard` (head-to-head with a winner track and a
+  required verdict rule), `triage` (which option first, per situation) and `weights` (one stacked bar that must add to 100).
+
 Fixed (found while building the AI model comparison deck)
+- `sensitive_scan.py`: an Office package embedded one level deep (a native chart's value workbook) is now read, so a deck with
+  charts is no longer INCOMPLETE for that reason; nested parts are named `outer.xlsx!inner/part.xml`. Images, OLE objects, an
+  embedded file that is not a ZIP and nesting deeper than one level are still reported UNSCANNED.
 - `build_deck.py`: the generated file no longer carries python-pptx's template author or its "generated using python-pptx"
   comment; the author is empty unless `meta.author` is set and the title comes from `meta.title`.
 - `package_inspect.py`: hidden slides are read from the slide part (PowerPoint stores `show="0"` there, not in

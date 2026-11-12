@@ -126,7 +126,7 @@ Submission requires closed Critical/Major/BLOCKING INPUT plus confirmed rehearsa
 - `assets/approved-examples/` — place the organization's approved/winning proposals here.
   Empty in the distribution to exclude sensitive information.
 - `assets/brand-assets/` — organization's logos/templates; installed brand-document skill tokens are the single source.
-- `scripts/build_deck.py` — slides.json → PPTX generator (12 layouts, role names for shapes).
+- `scripts/build_deck.py` — slides.json → PPTX generator (15 layouts incl. scoreboard, triage, weights; role names for shapes).
 - `references/editorial-deck-design.md` — type scale, grid, decluttering and at-a-glance patterns for decks that must look finished;
   `scripts/tidy_audit.py` measures it (font sizes, near-miss alignment, rules, density). Read it before restyling a deck.
 - `references/ai-vendor-comparison-playbook.md` — how to compare AI vendors or models from their own documentation, with a

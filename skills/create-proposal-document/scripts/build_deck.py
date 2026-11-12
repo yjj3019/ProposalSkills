@@ -8,7 +8,7 @@ Draw a fixed slide structure (header breadcrumb → title → lead → body → 
 
 slides.json schema summary (details: references/deck-production.md):
   {"meta": {"title","subtitle","buyer","bidder","date","doc_name","page_limit","palette":{...},"font"},
-   "slides": [ {"type": "cover|toc|section|matrix|table|process|zones|gantt|staff|cards|bullets|closing",
+   "slides": [ {"type": "cover|toc|section|matrix|table|process|zones|gantt|staff|cards|bullets|scoreboard|triage|weights|closing",
                 "breadcrumb","title","lead","caption","source","req_ids":[...],"notes","status_tag", ...} ]}
 
 Exit codes: 0=generated, 1=--strict violation (such as a body slide without a lead), 2=input error.
@@ -42,6 +42,7 @@ except ImportError:  # pragma: no cover
 DEFAULT_PALETTE = {
     "primary": "1F3864", "tint1": "8FAADC", "tint2": "D6E0F0", "tint3": "EDF1F8",
     "text": "202020", "muted": "595959", "warn": "C00000", "ok": "1F7A3D", "white": "FFFFFF",
+    "side_b": "A5471F",   # second side of scoreboard / triage / weights; dark enough for white text (color_contrast)
 }
 DEFAULT_FONT = "맑은 고딕"
 # Define specifications only in deck_profiles.py so generator and checker read the same values
@@ -64,7 +65,7 @@ FOOTER_Y, FOOTER_H = int(6.95 * IN), int(0.3 * IN)
 BODY_H = CAPTION_Y - BODY_Y - int(0.1 * IN)
 BODY_W = W - 2 * M
 
-BODY_TYPES = {"matrix", "table", "process", "zones", "gantt", "staff", "cards", "bullets"}
+BODY_TYPES = {"matrix", "table", "process", "zones", "gantt", "staff", "cards", "bullets", "scoreboard", "triage", "weights"}
 ALL_TYPES = BODY_TYPES | {"cover", "toc", "section", "closing"}
 
 
@@ -540,6 +541,136 @@ class DeckBuilder:
                 body_lines.append(f"근거: {it['evidence']}")
             self._text(slide, f"BODY_CARDTXT{i + 1}", x, y + int(0.5 * IN), cw, ch - int(0.55 * IN), body_lines,
                        self.size["body"] - 1)
+        return slide
+
+    def scoreboard(self, s):
+        """Head-to-head scoreboard: item, value A, a three-position track with the winner marked, value B, verdict.
+
+        rows[{item, a, b, win}] with win in "a" / "b" / "=". The verdict rule must be stated (`rule`) so the marks are
+        not read as a score of quality.
+        """
+        slide = self._frame(s)
+        rows = s.get("rows", [])
+        a_name, b_name = str(s.get("a_name", "A")), str(s.get("b_name", "B"))
+        if not rows:
+            self.violations.append(f"슬라이드 {self.page}: scoreboard에 rows 없음")
+            return slide
+        if len(rows) > 10:
+            self.violations.append(f"슬라이드 {self.page}: scoreboard {len(rows)}행 > 10 — 장표를 분리한다")
+        if not s.get("rule"):
+            self.warnings.append(f"슬라이드 {self.page}: scoreboard에 판정 기준(rule) 없음 — 우위가 품질 점수로 읽힌다")
+        bad = [r for r in rows if r.get("win") not in {"a", "b", "="}]
+        if bad:
+            self.violations.append(f"슬라이드 {self.page}: scoreboard win은 a, b, = 중 하나여야 한다")
+        cols = [int(v * IN) for v in (2.9, 3.0, 1.7, 3.0, 1.7)]
+        xs = [M]
+        for w in cols[:-1]:
+            xs.append(xs[-1] + w)
+        head_h = int(0.35 * IN)
+        for i, (label, color, al) in enumerate(((s.get("item_label", "항목"), self.pal["muted"], PP_ALIGN.LEFT),
+                                                (a_name, self.pal["primary"], PP_ALIGN.RIGHT), ("", self.pal["muted"], PP_ALIGN.LEFT),
+                                                (b_name, self.pal["side_b"], PP_ALIGN.LEFT), ("판정", self.pal["muted"], PP_ALIGN.RIGHT))):
+            if label:
+                self._text(slide, f"BODY_SCOREHEAD{i + 1}", xs[i], BODY_Y, cols[i], head_h, label, self.size["body"] - 1,
+                           bold=True, color=color, align=al, anchor=MSO_ANCHOR.MIDDLE)
+        top = BODY_Y + head_h + int(0.05 * IN)
+        rule_h = int(0.3 * IN) if s.get("rule") else 0
+        row_h = min(int(0.5 * IN), int((BODY_H - head_h - int(0.05 * IN) - rule_h) / max(len(rows), 1)))
+        tally = {"a": 0, "b": 0, "=": 0}
+        for i, r in enumerate(rows):
+            y = top + i * row_h
+            win = r.get("win")
+            tally[win] = tally.get(win, 0) + 1
+            self._rect(slide, f"BODY_SCORELINE{i + 1}", M, y + row_h - int(0.015 * IN), BODY_W, int(0.01 * IN), self.pal["tint2"])
+            self._text(slide, f"BODY_SCOREITEM{i + 1}", xs[0], y, cols[0], row_h - int(0.02 * IN), str(r.get("item", "")), self.size["body"],
+                       bold=True, anchor=MSO_ANCHOR.MIDDLE)
+            self._text(slide, f"BODY_SCOREA{i + 1}", xs[1], y, cols[1], row_h - int(0.02 * IN), str(r.get("a", "")), self.size["body"],
+                       bold=win == "a", align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE)
+            self._text(slide, f"BODY_SCOREB{i + 1}", xs[3], y, cols[3], row_h - int(0.02 * IN), str(r.get("b", "")), self.size["body"],
+                       bold=win == "b", anchor=MSO_ANCHOR.MIDDLE)
+            yc = y + row_h // 2
+            self._rect(slide, f"BODY_SCORETRACK{i + 1}", xs[2] + int(0.2 * IN), yc, cols[2] - int(0.4 * IN), int(0.015 * IN), self.pal["tint1"])
+            for k, (key, color) in enumerate((("a", self.pal["primary"]), ("=", self.pal["muted"]), ("b", self.pal["side_b"]))):
+                d = int((0.2 if win == key else 0.08) * IN)
+                cx = xs[2] + int(0.3 * IN) + k * int((cols[2] - int(0.6 * IN)) / 2)
+                self._rect(slide, f"BODY_SCOREDOT{i + 1}_{k + 1}", cx - d // 2, yc - d // 2, d, d,
+                           color if win == key else self.pal["tint1"], shape=MSO_SHAPE.OVAL)
+            verdict = {"a": f"{a_name} 우위", "b": f"{b_name} 우위", "=": "동일"}.get(win, "")
+            self._text(slide, f"BODY_SCOREVERDICT{i + 1}", xs[4], y, cols[4], row_h - int(0.02 * IN), verdict, self.size["body"], bold=True,
+                       color={"a": self.pal["primary"], "b": self.pal["side_b"]}.get(win, self.pal["muted"]),
+                       align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE)
+        if s.get("rule"):
+            self._text(slide, "BODY_SCORERULE", M, top + len(rows) * row_h + int(0.05 * IN), BODY_W, rule_h,
+                       f"판정 기준: {s['rule']}   (우위 {a_name} {tally['a']} · {b_name} {tally['b']} · 동일 {tally['=']})",
+                       self.size["body"] - 1, color=self.pal["muted"])
+        return slide
+
+    def triage(self, s):
+        """Three-way (or two-way) triage: which option first for which situation, each with one line of evidence.
+
+        columns[{head, models, items[{situation, evidence}]}], 2 or 3 columns.
+        """
+        slide = self._frame(s)
+        columns = s.get("columns", [])
+        if not 2 <= len(columns) <= 3:
+            self.violations.append(f"슬라이드 {self.page}: triage는 2~3열이어야 한다 (현재 {len(columns)})")
+            return slide
+        n = len(columns)
+        gap = int(0.3 * IN)
+        cw = int((BODY_W - gap * (n - 1)) / n)
+        colors = [self.pal["primary"], self.pal["side_b"], self.pal["text"]]
+        for c, col in enumerate(columns):
+            x = M + c * (cw + gap)
+            color = colors[c]
+            self._text(slide, f"BODY_TRIAGEHEAD{c + 1}", x, BODY_Y, cw, int(0.3 * IN), col.get("head", ""), self.size["body"] - 1,
+                       bold=True, color=color, anchor=MSO_ANCHOR.MIDDLE)
+            self._text(slide, f"BODY_TRIAGEMODELS{c + 1}", x, BODY_Y + int(0.3 * IN), cw, int(0.5 * IN), col.get("models", ""),
+                       self.size["body"] + 2, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+            self._rect(slide, f"BODY_TRIAGERULE{c + 1}", x, BODY_Y + int(0.85 * IN), cw, int(0.025 * IN), color)
+            items = col.get("items", [])
+            if not items:
+                self.violations.append(f"슬라이드 {self.page}: triage {c + 1}열에 items 없음")
+                continue
+            pitch = min(int(1.05 * IN), int((BODY_H - int(1.05 * IN)) / len(items)))
+            for k, it in enumerate(items):
+                y = BODY_Y + int(1.05 * IN) + k * pitch
+                self._rect(slide, f"BODY_TRIAGEDOT{c + 1}_{k + 1}", x, y + int(0.08 * IN), int(0.12 * IN), int(0.12 * IN), color,
+                           shape=MSO_SHAPE.OVAL)
+                self._text(slide, f"BODY_TRIAGEITEM{c + 1}_{k + 1}", x + int(0.25 * IN), y, cw - int(0.25 * IN), int(0.32 * IN),
+                           str(it.get("situation", "")), self.size["body"], bold=True)
+                self._text(slide, f"BODY_TRIAGEWHY{c + 1}_{k + 1}", x + int(0.25 * IN), y + int(0.34 * IN), cw - int(0.25 * IN),
+                           max(pitch - int(0.4 * IN), int(0.3 * IN)), str(it.get("evidence", "")), self.size["body"] - 1,
+                           color=self.pal["muted"])
+        return slide
+
+    def weights(self, s):
+        """One stacked bar split by weight (evaluation points, scoring weights, effort shares).
+
+        segments[{label, pct, note}]; the percentages must add up to 100. Mark example weights with `caption`.
+        """
+        slide = self._frame(s)
+        segs = s.get("segments", [])
+        if not segs:
+            self.violations.append(f"슬라이드 {self.page}: weights에 segments 없음")
+            return slide
+        total = sum(float(g.get("pct", 0)) for g in segs)
+        if abs(total - 100) > 0.5:
+            self.violations.append(f"슬라이드 {self.page}: weights 합계 {total:g}% ≠ 100%")
+        if len(segs) > 5:
+            self.violations.append(f"슬라이드 {self.page}: weights {len(segs)}구간 > 5 — 묶거나 장표를 분리한다")
+        tones = [self.pal["primary"], self.pal["side_b"], self.pal["ok"], self.pal["muted"], self.pal["text"]]
+        x = M
+        bar_y, bar_h = BODY_Y + int(0.9 * IN), int(1.1 * IN)
+        for i, g in enumerate(segs):
+            w = int(BODY_W * float(g.get("pct", 0)) / 100)
+            box = self._rect(slide, f"BODY_WEIGHT{i + 1}", x, bar_y, max(w - int(0.04 * IN), 1), bar_h, tones[i % len(tones)])
+            wide = w >= int(1.6 * IN)
+            self._shape_text(box, [f"{g.get('label', '')}  {g.get('pct', 0):g}%" if wide else f"{g.get('pct', 0):g}%"],
+                             self.size["body"] + 1, bold=True, color=self.pal["white"])
+            note = str(g.get("note", "")) if wide or not g.get("label") else f"{g.get('label')}: {g.get('note', '')}"
+            self._text(slide, f"BODY_WEIGHTNOTE{i + 1}", x, bar_y + bar_h + int(0.12 * IN), max(w - int(0.12 * IN), int(1.2 * IN)),
+                       int(1.4 * IN), note, self.size["body"] - 1, color=self.pal["text"])
+            x += w
         return slide
 
     def bullets(self, s):
