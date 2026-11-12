@@ -44,8 +44,11 @@ Procedure:
 
 1. Render with `scripts/render_delta.py <deck> -o out/render`. It renders every page (cheap) but compares each slide's content
    hash with the last run and writes `changed_sheet.png`, a contact sheet of **only the slides that changed**, numbered with the real
-   slide number. The first run writes `sheet.png` of all pages. When Office wraps its own exports in DRM, this uses LibreOffice
+   slide number (more than 12 changed slides split into `changed_sheet_1.png`, `changed_sheet_2.png`, and the output names every
+   file). The first run writes `sheet.png` (`sheet_1.png`, ... when split) of all pages. When Office wraps its own exports in DRM, this uses LibreOffice
    (see `editorial-deck-design.md` section 7); `deck_check.py --render --png-dir` remains for a one-off check.
+   `-o` must be a new or empty folder (or one the tool made): it refuses any other folder and deletes only the files it recorded as
+   its own. Slides whose content is unchanged but whose picture differs (a font or engine change) are reported as `render_changed`.
 2. Look at the sheet first: repeated or broken patterns, empty slides, an odd one out. Then open single pages for the slides you
    doubt and every changed page that carries a chart or a diagram. Do not look at unchanged slides again.
 3. Run `tidy_audit.py`, `deck_check.py`, `quality_gate.py`, `package_inspect.py` and, for decks with text, `deck_story_check.py`.
@@ -53,7 +56,8 @@ Procedure:
    render again. Revise at least once even when the first pass looks clean: the first pass is where the rungs are found.
 5. Record the review in the ledger, page by page: `scripts/review_ledger.py init <deck> -o ledger.json --png-dir out/render/pages --engine <name>`,
    then `set` each slide (viewed full or on the sheet, the four rungs, findings) and `check ledger.json` until it prints COMPLETE.
-   `check` refuses a slide that was never viewed, a chart or diagram seen only on the sheet, an image older than the deck,
+   `check` refuses a slide that was never viewed, a chart or diagram seen only on the sheet, an image older than the deck or changed
+   since it was viewed (the cover and closing slide seen on a sheet are held to the same proof),
    a rung that is not pass or waived with a reason, an open Critical or Major finding, no revision, or a deck that changed after
    the review. It proves every page was recorded as seen, not that the judgments are right; the measures above are proxies and
    the ledger is what keeps the looking from being skipped. Cite the ledger as the evidence of a rendered-level check in
