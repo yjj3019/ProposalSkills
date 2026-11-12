@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +42,8 @@ REJECT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"base64\s+(?:-d|--decode)\b", re.I), "obfuscated decode"),
     (re.compile(r"(?:send|upload|post|forward|email)\s+(?:the\s+|your\s+|all\s+)?(?:api[_ -]?keys?|tokens?|secrets?|credentials?|\.env)\b", re.I),
      "secret exfiltration"),
+    (re.compile(r"이전\s*(?:의\s*)?(?:지시|지침|명령|규칙)(?:사항)?[을를]?\s*(?:모두\s*|전부\s*)?(?:무시|잊어)"), "prompt injection"),
+    (re.compile(r"시스템\s*프롬프트[를을]?\s*(?:그대로\s*)?(?:출력|공개|알려|보여)"), "prompt injection"),
     (re.compile(r"unrestricted\s+(?:shell|network|file)\s+access", re.I), "over-broad permission claim"),
     (re.compile(r"exfiltrat\w+|steal\s+credentials", re.I), "exfiltration intent"),
 )
@@ -89,6 +92,12 @@ def license_findings(skill: Path, root_license: str) -> list[Finding]:
     return []
 
 
+def fold(line: str) -> str:
+    """Undo cheap obfuscation before matching: fullwidth letters (NFKC) and invisible format characters (zero-width
+    space/joiner, bidi marks) that split a phrase without changing how a reader or an agent sees it."""
+    return "".join(c for c in unicodedata.normalize("NFKC", line) if unicodedata.category(c) != "Cf")
+
+
 def content_findings(skill: Path, base: Path) -> list[Finding]:
     findings: list[Finding] = []
     for path in sorted(skill.rglob("*.md")):
@@ -101,6 +110,7 @@ def content_findings(skill: Path, base: Path) -> list[Finding]:
             findings.append(Finding(rel, 0, "unreadable", type(exc).__name__))
             continue
         for number, line in enumerate(lines, 1):
+            line = fold(line)
             for pattern, rule in REJECT_PATTERNS:
                 match = pattern.search(line)
                 if match and not is_documentation(line, match.start()):

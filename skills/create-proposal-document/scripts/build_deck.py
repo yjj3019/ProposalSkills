@@ -618,6 +618,19 @@ class DeckBuilder:
         self.prs.save(str(out))
 
 
+
+def drm_hint() -> str:
+    """Enterprise DRM agents encrypt .pptx files (including python-pptx's bundled default template) in place."""
+    try:
+        import pptx
+        head = (Path(pptx.__file__).parent / "templates" / "default.pptx").read_bytes()[:3]
+    except (ImportError, OSError):
+        return ""
+    if head == b"<##":
+        return (" [원인: python-pptx 기본 템플릿이 사내 DRM 헤더('<##')로 암호화돼 있다. 재설치해도 DRM이 다시 암호화할 수 있으니 "
+                "DRM 제외 경로의 가상환경(python -m venv)에 python-pptx를 설치해 쓴다]")
+    return ""
+
 def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -648,7 +661,8 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001 - python-pptx raises its own type for a damaged default template
         if type(exc).__name__ == "PackageNotFoundError":
             print("error: python-pptx가 열 수 없는 패키지(템플릿)다. 설치가 손상됐을 수 있다 — "
-                  "`pip install --force-reinstall python-pptx`로 복구하고, --template을 쓴 경우 그 파일을 확인한다", file=sys.stderr)
+                  "`pip install --force-reinstall python-pptx`로 복구하고, --template을 쓴 경우 그 파일을 확인한다"
+                  + drm_hint(), file=sys.stderr)
             return 2
         raise
     print(f"wrote {a.output} ({b.page} slides, {b.style['label']} 규격"

@@ -23,6 +23,7 @@ Opt-in setup (nothing is installed automatically), in .claude/settings.json:
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 import shlex
 import sys
@@ -33,7 +34,10 @@ PIPE_TO_SHELL = re.compile(
     r"|\b(?:(?:ba|z|da|k)?sh|source|eval)\b[^\n]*(?:<\(|\$\(|`)\s*(?:curl|wget)\b", re.I)
 SYSTEM_REDIRECT = re.compile(r"(?:^|\s)\d?>>?\s*/(?:etc|boot|bin|sbin|usr|lib|dev/(?!null\b|stderr\b|stdout\b|tty\b))", re.I)
 BROAD = re.compile(r"^(?:/|/\*|~|~/.*|\$HOME(?:/.*)?|\$\{HOME\}(?:/.*)?|\.|\./?|\.\.|\*|\.\*|\./\.\*|\./\*|\.\./\*|[A-Za-z]:[\\/]?|/[A-Za-z0-9._-]+/?)$")
-WRAPPERS = {"sudo", "command", "env", "nohup", "time"}
+WRAPPERS = {"sudo", "command", "env", "nohup", "time", "nice", "ionice", "timeout", "exec", "busybox", "setsid", "stdbuf"}
+# options of a wrapper that take a value: `sudo -u root rm ...`, `env -u X ...`, `nice -n 5 ...`, `timeout -s KILL 5 ...`
+WRAPPER_VALUE_OPTIONS = {"-u", "-g", "-n", "-s", "-k", "-c", "-C", "--user", "--group", "--signal", "--kill-after"}
+UPLOAD = re.compile(r"\b(?:curl|wget)\b[^\n|;&]*(?:\s-d\s*@|--data(?:-binary|-raw|-urlencode)?[ =]@|\s-F\s*\S*=@|\s-T\s|--upload-file|--post-file)", re.I)
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
 GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 FIND_FILTERS = {"-name", "-iname", "-path", "-ipath", "-regex", "-type", "-newer", "-mtime", "-mmin", "-size", "-empty", "-user"}
@@ -41,7 +45,30 @@ PS_REMOVE = {"remove-item", "ri", "rd", "rmdir", "del", "erase"}
 
 
 def is_broad(target: str) -> bool:
-    return bool(BROAD.match(target.replace("\\", "/")) or BROAD.match(target))
+    flat = target.replace("\\", "/")
+    if BROAD.match(flat) or BROAD.match(target):
+        return True
+    if not flat.startswith(("$", "~")) and "*" not in flat and flat:
+        return bool(BROAD.match(posixpath.normpath(re.sub(r"/{2,}", "/", flat))))  # `//` and `/tmp/..` are the root
+    return False
+
+
+def strip_wrappers(words: list[str]) -> list[str]:
+    """Drop leading wrappers, their options and VAR=value words, so `nice -n 5 rm -rf /` is judged as `rm -rf /`."""
+    words = [w for w in words if w not in {"(", ")", "{", "}"}]
+    while words:
+        head = words[0]
+        if head in WRAPPERS:
+            words = words[1:]
+            while words and words[0].startswith("-"):
+                words = words[2:] if words[0] in WRAPPER_VALUE_OPTIONS else words[1:]
+            if head == "timeout" and words and re.fullmatch(r"\d+[smhd]?", words[0]):
+                words = words[1:]
+        elif re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", head):
+            words = words[1:]
+        else:
+            break
+    return words
 
 
 def rm_denied(words: list[str]) -> str | None:
@@ -74,6 +101,8 @@ def git_denied(words: list[str]) -> str | None:
                           or any(w.startswith("+") and len(w) > 1 for w in rest)
                           or any(re.fullmatch(r"-[a-zA-Z]*f[a-zA-Z]*", w) for w in rest)):
         return "git push with force"
+    if sub == "push" and "--mirror" in rest:
+        return "git push --mirror"
     if sub == "push" and ("--delete" in rest or any(w.startswith(":") and len(w) > 1 for w in rest)):
         return "git push that deletes a remote branch"
     if sub == "reset" and "--hard" in rest:
@@ -96,6 +125,8 @@ def other_denied(name: str, words: list[str]) -> str | None:
     broad = [t for t in targets if is_broad(t)]
     if name in SHELLS and "-c" in args[:-1]:
         return deny_reason(args[args.index("-c") + 1])
+    if name == "kill" and any(w in {"-1", "0"} for w in targets + args):
+        return "kill of every process"
     if name == "eval":
         return deny_reason(" ".join(args))
     if name == "find" and "-delete" in args and not FIND_FILTERS & set(args):
@@ -122,6 +153,8 @@ def deny_reason(command: str) -> str | None:
         return "download piped into a shell"
     if SYSTEM_REDIRECT.search(command):
         return "redirect into a system folder"
+    if UPLOAD.search(command):
+        return "upload of a local file to a remote host"
     if ":(){" in command.replace(" ", ""):
         return "fork bomb"
     for part in SPLIT.split(command):
@@ -131,8 +164,7 @@ def deny_reason(command: str) -> str | None:
             words = shlex.split(part, posix=True)
         except ValueError:
             return "command could not be parsed (unbalanced quote)"
-        while words and (words[0] in WRAPPERS or re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", words[0])):
-            words = words[1:]
+        words = strip_wrappers(words)
         if not words:
             continue
         name = words[0].replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")

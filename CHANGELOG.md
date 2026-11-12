@@ -17,6 +17,17 @@ Fixed (found by a 10-scenario simulation of the skills and harness)
 - `evidence_chain.py verify`: `--expect-head` / `--expect-count` compare the log with a value written down elsewhere, so a
   truncated or rebuilt log is caught.
 
+Fixed (second simulation round)
+- `hook_guard_bash.py`: judges the command inside wrappers (`nice`, `timeout`, `exec`, `busybox`, `sudo -u`, `env -i`) and
+  groupings `( )`/`{ }`; treats `//` and `/tmp/..` as the root; also denies `git push --mirror`, `kill -9 -1`, and uploading a
+  local file with `curl`/`wget` (`-d @file`, `-F x=@file`, `-T`).
+- `skill_audit.py`: folds fullwidth letters and invisible format characters before matching, and recognises Korean
+  "ignore the previous instructions" and "print the system prompt" phrasings.
+- `unified_gate.py --bundle`: a file in the submission folder that `attachments[]` does not list (and that is not the checked
+  document or audit) is reported as a warning, and an unlisted executable or script (.exe, .bat, .ps1, .js ...) blocks.
+- `build_deck.py`: when python-pptx's default template has been encrypted by an enterprise DRM agent (header `<##`), the error says
+  so and suggests a virtual environment outside the DRM-managed paths.
+
 ## 1.3.0
 
 Added
