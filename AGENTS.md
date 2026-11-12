@@ -144,6 +144,15 @@ It cannot decide whether a name belongs to a real customer; that judgment relies
 - Skills declare `license:` in frontmatter; `python skill_audit.py` must stay clean. Before adopting content from another
   repository, record its license and your use in `references/` first (see `provenance-harness-review-2026-11.md`);
   never copy third-party text or code without its notice.
+- Hygiene tests (`test_license_hygiene.py`, `test_repo_hygiene.py`) read `git ls-files`, so a new file is invisible to them until
+  it is added. Run the full suite after `git add -A`, before pushing (a new `Dockerfile` failed CI only that way).
+- Temporary folders are 8.3 short paths on Windows runners. Call `.resolve()` on a temp root before comparing it with a path
+  the code resolves (see `references/harness-simulation-catalog.md` in `create-best-proposal`).
+- Do not pipe a gate through `| tail` when its exit code matters. When patching a file by script, anchor on text that occurs
+  exactly once (assert the count) and rerun that file's tests: a first-match slice once deleted unrelated functions. Doubled
+  backslashes can collapse inside a typed shell command, so write patch files with the file tool instead of a heredoc.
+- After changing a gate, reader or the hook guard, run a simulation round ([catalog](skills/create-best-proposal/references/harness-simulation-catalog.md))
+  and add each finding as a regression test with its allowed look-alike.
 - Follow the public-repository rules above. Retain only structural generalizations from real proposal material.
 - The gate contract (submission-decision rules) is documented in `README.md` and
   `skills/create-winning-proposal/references/audit-schema.md`. Update code and documentation together.

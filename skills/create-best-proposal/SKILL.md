@@ -72,6 +72,8 @@ With only a summary, apply the current value while disclosing the limitation (Ko
 
 Follow [references/iteration-and-handoff.md](references/iteration-and-handoff.md) for design pilots,
 rechecks, and multisession work. No separate progress file for short reviews.
+To attack the tools and gates on purpose (what each round found, how to run one, documented limits), see
+[references/harness-simulation-catalog.md](references/harness-simulation-catalog.md).
 Work records never replace submission approval or gate results.
 
 ## 1. Full workflow (fixed order)
