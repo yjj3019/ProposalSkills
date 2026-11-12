@@ -57,7 +57,8 @@ Procedure:
 5. Record the review in the ledger, page by page: `scripts/review_ledger.py init <deck> -o ledger.json --png-dir out/render/pages --engine <name>`,
    then `set` each slide (viewed full or on the sheet, the four rungs, findings) and `check ledger.json` until it prints COMPLETE.
    `check` refuses a slide that was never viewed, a chart or diagram seen only on the sheet, an image older than the deck or changed
-   since it was viewed (the cover and closing slide seen on a sheet are held to the same proof),
+   since it was viewed (the cover and closing slide seen on a sheet are held to the same proof: `set --viewed sheet --sheet <the sheet file
+   you looked at>` records that file's hash),
    a rung that is not pass or waived with a reason, an open Critical or Major finding, no revision, or a deck that changed after
    the review. It proves every page was recorded as seen, not that the judgments are right; the measures above are proxies and
    the ledger is what keeps the looking from being skipped. Cite the ledger as the evidence of a rendered-level check in

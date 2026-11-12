@@ -28,7 +28,9 @@ gate, a reader or the hook guard, and before a release.
 11. A fingerprint that can be "unknown" must not report a change just because it was unknown once (a flaky `--version` call made
     every slide look changed); the reverse is also true: missing proof is never evidence of sameness. Carry a record forward only when
     you can show it still applies (both hashes present and equal), otherwise reset it.
-12. Recording something new must never keep an old claim alive: changing the object a verdict is about clears the verdict, and a
+12. A file recorded as the tool's own can still have been edited since: record its hash and refuse to overwrite or delete it when the
+    hash differs. Proof of "looked at the overview" is the overview file's hash, not a page image that happens to be the default.
+13. Recording something new must never keep an old claim alive: changing the object a verdict is about clears the verdict, and a
     reset must not drop an open serious finding.
 
 ## 2. Scenario families and what they found

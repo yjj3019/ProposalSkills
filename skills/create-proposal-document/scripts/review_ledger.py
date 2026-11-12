@@ -170,8 +170,9 @@ def sync(ledger: dict, base: Path, png_dir: Path | None) -> tuple[dict, dict]:
                 if old_sha and new_sha:
                     rendered.append(slide["slide"])
             else:
-                for key in ("viewed", "rungs", "waived_reason"):
-                    slide[key] = old.get(key, slide[key])
+                for key in ("viewed", "rungs", "waived_reason", "sheet_image", "sheet_sha256"):
+                    if key in old:
+                        slide[key] = old[key]
                 slide["image_sha256"] = new_sha
                 kept.append(slide["slide"])
         else:
@@ -235,6 +236,12 @@ def problems_in(ledger: dict, base: Path) -> list[str]:
                 out.append(f"slide {n}: the viewed image's hash is not recorded; run set --viewed {viewed} again after looking at it")
             elif sha256(image) != s["image_sha256"]:
                 out.append(f"slide {n}: the image changed after it was viewed (it renders differently now); look again")
+            if viewed == "sheet":
+                sheet = (base / str(s.get("sheet_image", ""))) if s.get("sheet_image") else None
+                if sheet is None or not sheet.is_file():
+                    out.append(f"slide {n}: viewed on a sheet but the sheet file is not recorded or missing; run set --viewed sheet --sheet <file>")
+                elif not s.get("sheet_sha256") or sha256(sheet) != s["sheet_sha256"]:
+                    out.append(f"slide {n}: the sheet changed after it was viewed; look again")
         if content:
             for rung in RUNGS:
                 value = (s.get("rungs") or {}).get(rung)
@@ -272,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     st.add_argument("--slide", type=int, required=True)
     st.add_argument("--viewed", choices=["full", "sheet", "none"])
     st.add_argument("--image")
+    st.add_argument("--sheet", help="the contact sheet file actually looked at (required with --viewed sheet)")
     for rung in RUNGS:
         st.add_argument(f"--{rung}", choices=["pass", "fail", "waived"])
     st.add_argument("--waived-reason")
@@ -307,6 +315,12 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             s = slides[a.slide]
             old_image, old_sha = s.get("image", ""), s.get("image_sha256", "")
+            unproven = s.get("viewed") in {"full", "sheet"} and not old_sha     # an older ledger: the verdict was never tied to a picture
+            sheet_file = a.ledger.resolve().parent / a.sheet if a.sheet else None
+            if a.viewed == "sheet" or a.sheet:
+                if sheet_file is None or not sheet_file.is_file():
+                    print("--viewed sheet needs --sheet <the contact sheet file you looked at>", file=sys.stderr)
+                    return 2
             if a.image:
                 s["image"] = a.image
             if a.viewed:
@@ -321,8 +335,16 @@ def main(argv: list[str] | None = None) -> int:
                     s["rungs"] = {r: None for r in RUNGS}
                     s["waived_reason"] = ""
                     s["image_sha256"] = ""
+                if (a.viewed or a.image) and unproven and any(v for v in s["rungs"].values()):
+                    s["rungs"] = {r: None for r in RUNGS}                   # the old verdict cannot be shown to be about this picture
+                    s["waived_reason"] = ""
                 if s.get("viewed") in {"full", "sheet"} and now:
                     s["image_sha256"] = now
+                if s.get("viewed") == "sheet":
+                    s["sheet_image"], s["sheet_sha256"] = a.sheet or s.get("sheet_image", ""), sha256(sheet_file) if a.sheet else s.get("sheet_sha256", "")
+                else:
+                    s.pop("sheet_image", None)
+                    s.pop("sheet_sha256", None)
             for rung in RUNGS:
                 if getattr(a, rung):
                     s["rungs"][rung] = getattr(a, rung)
