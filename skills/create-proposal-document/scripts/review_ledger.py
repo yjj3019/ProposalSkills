@@ -69,11 +69,16 @@ def natural(path: Path) -> list:
 
 
 def slide_hashes(deck: Path) -> list[str]:
-    """One content hash per slide: the slide part plus the parts it uses, two levels deep (layout and master, charts and their
-    workbooks, images). Changing the layout or master therefore changes every slide, which is correct. Part names are left out so
-    inserting or deleting a slide does not change the hash of the slides after it."""
+    """One content hash per slide: the slide part plus the parts it uses, three levels deep (layout, master and theme; charts and
+    their workbooks; images), the slide size and the table styles. Changing the layout, master, theme, slide size or table styles
+    therefore changes every slide, which is correct: a theme colour or font change alters how a slide looks. Part names are left
+    out so inserting or deleting a slide does not change the hash of the slides after it."""
     from pptx import Presentation
     prs = Presentation(str(deck))
+    common = hashlib.sha256(f"{prs.slide_width}x{prs.slide_height}".encode())
+    for rel_ in prs.part.rels.values():
+        if str(rel_.reltype).endswith("/tableStyles") and not rel_.is_external:
+            common.update(rel_.target_part.blob)
 
     def feed(part, digest, depth, seen):
         if id(part) in seen:
@@ -91,8 +96,8 @@ def slide_hashes(deck: Path) -> list[str]:
 
     out = []
     for slide in prs.slides:
-        digest = hashlib.sha256()
-        feed(slide.part, digest, 2, set())
+        digest = hashlib.sha256(common.digest())
+        feed(slide.part, digest, 3, set())
         out.append(digest.hexdigest())
     return out
 

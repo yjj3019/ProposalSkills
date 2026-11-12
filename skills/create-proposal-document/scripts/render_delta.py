@@ -12,9 +12,12 @@ Usage:
 
 Writes under -o:
     pages/page-NN.png        every page, current
-    changed_sheet.png        contact sheet of the changed slides only, tiles numbered with the real slide number
-    sheet.png                contact sheet of all pages (first run, --full-sheet, or --force)
-    delta.json               {"changed": [...], "unchanged": [...], "removed": n, "engine": "...", "dpi": 80}
+    changed_sheet.png        contact sheet of the changed slides only, tiles numbered with the real slide number; more than
+                             12 changed slides split into changed_sheet_1.png, changed_sheet_2.png, ...
+    sheet.png                contact sheet of all pages (first run, --full-sheet, or --force); sheet_1.png, ... when split
+    delta.json               {"changed": [...], "unchanged": [...], "removed": n, "engine": "...", "dpi": 80,
+                              "changed_sheets": [paths], "sheets": [paths]}
+Sheets from an earlier run are deleted first, so a file named in the output always belongs to this run.
     render_state.json        hashes of the last run
 
 The first run, a different --dpi, or --force treats every slide as changed. A changed layout or master changes every slide hash.
@@ -129,24 +132,24 @@ def main(argv: list[str] | None = None) -> int:
     previous = state.get("hashes", []) if (state.get("dpi") == a.dpi and not a.force) else []
     changed, unchanged, removed = delta(previous, hashes)
     first = not previous
-    sheet_changed = sheet_all = None
+    changed_sheets: list[Path] = []
+    sheets: list[Path] = []
+    for stale in out.glob("changed_sheet*.png"):
+        stale.unlink()
     if changed:
-        sheet_changed = out / "changed_sheet.png"
-        contact_sheet.build_sheets([pages[n - 1] for n in changed], sheet_changed, cols=4, thumb=480, per_sheet=12,
-                                   labels=[str(n) for n in changed])
+        changed_sheets = contact_sheet.build_sheets([pages[n - 1] for n in changed], out / "changed_sheet.png", cols=4, thumb=480,
+                                                    per_sheet=12, labels=[str(n) for n in changed])
     if first or a.full_sheet:
-        sheet_all = out / "sheet.png"
-        contact_sheet.build_sheets(pages, sheet_all, cols=4, thumb=480, per_sheet=12)
-    elif (out / "changed_sheet.png").exists() and not changed:
-        (out / "changed_sheet.png").unlink()
+        for stale in out.glob("sheet*.png"):
+            stale.unlink()
+        sheets = contact_sheet.build_sheets(pages, out / "sheet.png", cols=4, thumb=480, per_sheet=12)
     state_file.write_text(json.dumps({"hashes": hashes, "dpi": a.dpi}), encoding="utf-8")
     result = {"changed": changed, "unchanged": unchanged, "removed": removed, "engine": "LibreOffice", "dpi": a.dpi,
-              "pages": str(out / "pages"), "changed_sheet": str(sheet_changed) if sheet_changed else None,
-              "sheet": str(sheet_all) if sheet_all else None}
+              "pages": str(out / "pages"), "changed_sheets": [str(p) for p in changed_sheets], "sheets": [str(p) for p in sheets]}
     (out / "delta.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"{len(pages)} page(s) rendered; changed: {changed or 'none'}; unchanged: {len(unchanged)}; removed: {removed}")
-    if sheet_changed:
-        print(f"look at {sheet_changed} (changed slides only, numbered); open single pages in {out / 'pages'} for detail")
+    if changed_sheets:
+        print("look at " + ", ".join(str(p) for p in changed_sheets) + f" (changed slides only, numbered); open single pages in {out / 'pages'} for detail")
     else:
         print("no slide changed since the last render: nothing to look at again")
     return 0

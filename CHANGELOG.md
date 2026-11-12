@@ -16,6 +16,12 @@ Added
 - Optional `Dockerfile` and `runtime_check.py` (python-pptx, Pillow, LibreOffice, Poppler) that follow `requirements.txt`.
 - `writing-style.md` section 7 (translationese and mechanical phrasing) and a matching review-checklist item.
 
+Fixed (found by an independent review of the review loop)
+- `review_ledger.py`: slide hashes now reach the theme (slide, layout, master, theme) and include the slide size and the table styles, so a
+  theme colour or font change or a resize resets every verdict; before, an earlier verdict survived a visible change.
+- `render_delta.py`: more than 12 changed slides split the sheet, and the output and `delta.json` (`changed_sheets`, `sheets`) now name every
+  file; sheets left by an earlier run are deleted first, so a named file always belongs to this run.
+
 Added (cheap review loop)
 - `scripts/render_delta.py`: renders every page, compares each slide's content hash with the last run and builds a numbered contact sheet
   of only the changed slides (`changed_sheet.png`, `delta.json`); exit 2 without LibreOffice or a PDF-to-PNG converter.

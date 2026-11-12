@@ -587,6 +587,75 @@ class SlideDeltaTests(unittest.TestCase):
         ledger.write_text(json.dumps(data), encoding="utf-8")
         self.assertIn("slide 3: changed since it was judged", self.cli("check", ledger)[1])
 
+    def test_a_theme_colour_or_slide_size_change_changes_every_slide_hash(self):
+        import re
+        from pptx import Presentation
+        from pptx.enum.dml import MSO_THEME_COLOR
+        from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+        from pptx.util import Inches
+        prs = Presentation()
+        for _ in range(3):
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            shape = slide.shapes.add_shape(1, Inches(1), Inches(1), Inches(2), Inches(1))
+            shape.fill.solid()
+            shape.fill.fore_color.theme_color = MSO_THEME_COLOR.ACCENT_1
+        base = self.dir / "base.pptx"
+        prs.save(str(base))
+        before = review_ledger.slide_hashes(base)
+        themed = Presentation(str(base))
+        part = themed.slide_master.part.part_related_by(RT.THEME)
+        changed = re.sub(rb'(<a:accent1>\s*<a:srgbClr val=")[0-9A-Fa-f]{6}', rb'\g<1>112233', part.blob, count=1)
+        self.assertNotEqual(changed, part.blob)
+        part._blob = changed
+        themed_path = self.dir / "themed.pptx"
+        themed.save(str(themed_path))
+        self.assertTrue(all(a != b for a, b in zip(before, review_ledger.slide_hashes(themed_path))))
+        resized = Presentation(str(base))
+        resized.slide_width = resized.slide_width + Inches(1)
+        resized_path = self.dir / "resized.pptx"
+        resized.save(str(resized_path))
+        self.assertTrue(all(a != b for a, b in zip(before, review_ledger.slide_hashes(resized_path))))
+
+    def test_more_than_twelve_changed_slides_report_every_sheet_and_stale_sheets_are_removed(self):
+        from unittest import mock
+        from PIL import Image
+        from pptx import Presentation
+        import render_delta
+        deck = self.dir / "many.pptx"
+        prs = Presentation()
+        for i in range(13):
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            slide.shapes.add_textbox(0, 0, 100, 100).text_frame.text = f"slide {i}"
+        prs.save(str(deck))
+        out = self.dir / "render"
+        out.mkdir()
+        (out / "changed_sheet_9.png").write_bytes(b"stale")
+        (out / "sheet_9.png").write_bytes(b"stale")
+
+        def fake_pngs(pdf, pages_dir, dpi):
+            pages_dir.mkdir(parents=True, exist_ok=True)
+            made = []
+            for n in range(1, 14):
+                path = pages_dir / f"page-{n:02d}.png"
+                Image.new("RGB", (160, 90), "white").save(path)
+                made.append(path)
+            return made
+
+        buffer = io.StringIO()
+        with mock.patch.object(render_delta, "find_soffice", return_value="soffice"), \
+                mock.patch.object(render_delta, "to_pdf", return_value=self.dir / "x.pdf"), \
+                mock.patch.object(render_delta, "to_pngs", side_effect=fake_pngs), redirect_stdout(buffer):
+            self.assertEqual(render_delta.main([str(deck), "-o", str(out)]), 0)
+        result = json.loads((out / "delta.json").read_text(encoding="utf-8"))
+        self.assertEqual([Path(p).name for p in result["changed_sheets"]], ["changed_sheet_1.png", "changed_sheet_2.png"])
+        self.assertEqual([Path(p).name for p in result["sheets"]], ["sheet_1.png", "sheet_2.png"])
+        for path in result["changed_sheets"] + result["sheets"]:
+            self.assertTrue(Path(path).is_file(), path)
+        self.assertFalse((out / "changed_sheet_9.png").exists())
+        self.assertFalse((out / "sheet_9.png").exists())
+        self.assertIn("changed_sheet_1.png", buffer.getvalue())
+        self.assertIn("changed_sheet_2.png", buffer.getvalue())
+
     def test_render_delta_reports_only_the_edited_slide(self):
         import importlib.util
         import shutil
@@ -604,6 +673,7 @@ class SlideDeltaTests(unittest.TestCase):
             self.assertEqual(render_delta.main([str(self.edited_copy(deck, 1, " edited")), "-o", str(out)]), 0)
         second = json.loads((out / "delta.json").read_text(encoding="utf-8"))
         self.assertEqual((second["changed"], second["unchanged"]), ([2], [1, 3]))
+        self.assertEqual([Path(p).name for p in second["changed_sheets"]], ["changed_sheet.png"])
         self.assertTrue((out / "changed_sheet.png").is_file())
         self.assertEqual(len(list((out / "pages").glob("page-*.png"))), 3)
 

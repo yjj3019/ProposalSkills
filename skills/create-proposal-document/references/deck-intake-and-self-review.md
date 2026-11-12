@@ -44,7 +44,8 @@ Procedure:
 
 1. Render with `scripts/render_delta.py <deck> -o out/render`. It renders every page (cheap) but compares each slide's content
    hash with the last run and writes `changed_sheet.png`, a contact sheet of **only the slides that changed**, numbered with the real
-   slide number. The first run writes `sheet.png` of all pages. When Office wraps its own exports in DRM, this uses LibreOffice
+   slide number (more than 12 changed slides split into `changed_sheet_1.png`, `changed_sheet_2.png`, and the output names every
+   file). The first run writes `sheet.png` (`sheet_1.png`, ... when split) of all pages. When Office wraps its own exports in DRM, this uses LibreOffice
    (see `editorial-deck-design.md` section 7); `deck_check.py --render --png-dir` remains for a one-off check.
 2. Look at the sheet first: repeated or broken patterns, empty slides, an odd one out. Then open single pages for the slides you
    doubt and every changed page that carries a chart or a diagram. Do not look at unchanged slides again.

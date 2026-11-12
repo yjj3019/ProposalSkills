@@ -19,6 +19,10 @@ gate, a reader or the hook guard, and before a release.
 6. Treat environment problems as findings (an enterprise DRM agent encrypting python-pptx's template looked like a
    corrupted install for two rounds).
 7. Say what a fix does not cover. A lexical guard is a guardrail, not a sandbox.
+8. For every hash, cache or "unchanged" shortcut, list each input that can change the output and test that **each one** invalidates it.
+   A test that only edits the obvious input (a slide's text) passes while a theme colour, a layout or the slide size is ignored.
+9. Run the tool at the sizes where it changes behaviour (a 13th page splits a contact sheet at 12) and check that every path it
+   prints exists.
 
 ## 2. Scenario families and what they found
 
@@ -34,6 +38,7 @@ gate, a reader or the hook guard, and before a release.
 | Submission bundle | unlisted executable or script in the folder, tampered or missing attachment, path escape | strays unnoticed | #44 |
 | Readers | hidden slides, ids split across runs, 5-6 digit ids, DOCX headers, chart workbooks, tracked changes | missed or mis-read | #48 |
 | Scanner | personal data inside an embedded chart workbook | deck reported INCOMPLETE | #49 |
+| Review loop (found by an independent review) | a theme colour or slide-size change, and thirteen changed slides | slide hashes ignored the theme, so earlier verdicts survived a visible change; the printed sheet path did not exist | this change |
 | Verified working | leak detection (resident number, cloud key, IP, email, phone), hash-bound tamper detection, HWPX and the zip-bomb guard, cross-format number divergence, concurrent chain appends, cp949 and ASCII encodings, Hangul and space paths, the English gate, determinism, profiles | no change needed | n/a |
 
 ## 3. Limits that are documented, not fixable by this repository
