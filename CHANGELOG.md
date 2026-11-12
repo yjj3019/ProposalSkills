@@ -25,6 +25,7 @@ Fixed (found by an independent review of the review loop)
   refused before anything is written; it removes only the sheets and page images it recorded, never a folder and never another file
   that matches a name (before, files named like `sheet*.png` and the whole `pages` folder could be deleted).
 - `render_delta.py` records the hash of each page image it writes and refuses (exit 2, nothing changed) to overwrite or delete a recorded page the user has since edited or replaced.
+- `render_delta.py` also records the hash of each sheet it writes and refuses (nothing changed) to delete a recorded sheet that was edited, a state written before hashes existed (no recorded hash), or a symbolic link as the output or pages folder.
 - `review_ledger.py set --viewed sheet` now needs `--sheet <file>` and records that overview's hash (checked by `check`); the page image is no longer passed off as the overview. Viewing again a slide whose old verdict has no image hash clears the four rungs.
 - `render_delta.py` also compares each rendered image's own hash and the render environment (LibreOffice build read from the install
   folder, the PDF converter): a slide whose content is unchanged but whose picture differs after a font or engine change is reported in

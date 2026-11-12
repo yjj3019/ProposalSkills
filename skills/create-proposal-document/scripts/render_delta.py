@@ -136,6 +136,8 @@ def delta(old: list[str], new: list[str]) -> tuple[list[int], list[int], int]:
 
 def claim_output(out: Path) -> str | None:
     """None when `out` may be used (absent, empty, or created by this tool), else the reason it was refused."""
+    if out.is_symlink():
+        return f"{out} is a symbolic link: use a real output directory"
     if out.is_file():
         return f"{out} is a file"
     if not out.exists() or not any(out.iterdir()):
@@ -194,11 +196,18 @@ def sheet_names(base: str, tiles: int, per_sheet: int = 12) -> list[str]:
 def install_pages(staged: list[Path], pages_dir: Path, recorded: list[str], hashes: dict[str, str] | None = None) -> list[Path]:
     """Copy staged page images into `pages_dir`. Raises FileExistsError, before changing anything, when a target exists and was not
     recorded as this tool's; then removes only the recorded page images it replaces."""
+    if pages_dir.is_symlink():
+        raise FileExistsError(f"{pages_dir} is a symbolic link; use a real pages directory (nothing was changed)")
     own = {n for n in recorded if OWN_PAGE.match(n)}
     for name in sorted(own):            # a recorded file the user has since edited or replaced is theirs now
         have = pages_dir / name
-        if hashes and name in hashes and have.is_file() and file_sha256(have) != hashes[name]:
-            raise FileExistsError(f"{have} was changed after render_delta wrote it; move or rename it (nothing was changed)")
+        if have.is_symlink():
+            raise FileExistsError(f"{have} is a symbolic link; use a new output folder (nothing was changed)")
+        if have.exists():
+            if not have.is_file() or not isinstance(hashes, dict) or not hashes.get(name):
+                raise FileExistsError(f"{have} has no recorded content hash; use a new output folder (nothing was changed)")
+            if file_sha256(have) != hashes[name]:
+                raise FileExistsError(f"{have} was changed after render_delta wrote it; move or rename it (nothing was changed)")
     for path in staged:
         if (pages_dir / path.name).exists() and path.name not in own:
             raise FileExistsError(f"{pages_dir / path.name} exists and was not created by render_delta; move or rename it "
@@ -278,6 +287,18 @@ def _finish(a, out: Path, state_file: Path, state: dict, env: dict, staged: list
         print(f"NOT INSPECTED: {out / clashes[0]} exists and was not created by render_delta; move or rename it (nothing was changed)",
               file=sys.stderr)
         return 2
+    # A recorded name is not proof that its current bytes are still ours. Refuse
+    # legacy state without hashes rather than removing an unverifiable file.
+    sheet_hashes = state.get("sheet_hashes")
+    for name in to_delete:
+        path = out / name
+        if path.is_symlink() or (path.exists() and (
+            not path.is_file() or not isinstance(sheet_hashes, dict) or not sheet_hashes.get(name)
+            or file_sha256(path) != sheet_hashes[name]
+        )):
+            print(f"NOT INSPECTED: {path} changed or has no recorded content hash; use a new output folder (nothing was changed)",
+                  file=sys.stderr)
+            return 2
     try:
         pages = install_pages(staged, out / "pages", state.get("pages", []), state.get("page_hashes"))
     except FileExistsError as exc:
@@ -293,9 +314,12 @@ def _finish(a, out: Path, state_file: Path, state: dict, env: dict, staged: list
     if rewrite_full:
         sheets = contact_sheet.build_sheets(pages, out / "sheet.png", cols=4, thumb=480, per_sheet=12)
     created = kept + [p.name for p in changed_sheets + sheets]
+    retained_hashes = {name: sheet_hashes[name] for name in kept if isinstance(sheet_hashes, dict) and name in sheet_hashes}
+    retained_hashes.update({p.name: file_sha256(p) for p in changed_sheets + sheets})
     state_file.write_text(json.dumps({"tool": TOOL, "slides": new, "dpi": a.dpi, "environment": env, "created": created,
                                       "pages": [p.name for p in pages],
-                                      "page_hashes": {p.name: file_sha256(p) for p in pages}}), encoding="utf-8")
+                                      "page_hashes": {p.name: file_sha256(p) for p in pages},
+                                      "sheet_hashes": retained_hashes}), encoding="utf-8")
     result = {"changed": changed, "unchanged": unchanged, "render_changed": render_changed, "removed": removed,
               "environment_changed": environment_changed, "engine": env["soffice"], "dpi": a.dpi, "pages": str(out / "pages"),
               "changed_sheets": [str(p) for p in changed_sheets], "sheets": [str(p) for p in sheets]}
