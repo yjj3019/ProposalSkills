@@ -166,10 +166,33 @@ def run_check_numbers(doc: Path, audit_path: Path) -> tuple[int, str]:
     return _run_check([sys.executable, str(cn), str(doc), "--audit", str(audit_path)])
 
 
-def verify_bundle(data: dict, root: Path) -> list[str]:
+IGNORED_BUNDLE_FILES = {"thumbs.db", ".ds_store", "desktop.ini"}
+RISKY_SUFFIXES = {".exe", ".dll", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".jar", ".scr", ".lnk", ".sh", ".msi", ".com"}
+
+
+def stray_files(data: dict, root: Path, allow: tuple[Path, ...] = ()) -> list[Path]:
+    """Files in the submission folder that the audit does not list (and that are not the checked inputs)."""
+    root = root.resolve()
+    listed = {p.resolve() for p in allow}
+    for item in data.get("attachments", []):
+        if isinstance(item, dict) and item.get("present") is True:
+            name = item["file"] if isinstance(item.get("file"), str) and item["file"].strip() else str(item.get("name", ""))
+            try:
+                listed.add(root.joinpath(name).resolve())
+            except (OSError, RuntimeError, ValueError):
+                continue  # an unresolvable path is reported by verify_bundle
+    return sorted(p for p in root.rglob("*") if p.is_file() and p.resolve() not in listed
+                  and p.name.lower() not in IGNORED_BUNDLE_FILES)
+
+
+def verify_bundle(data: dict, root: Path, allow: tuple[Path, ...] = ()) -> list[str]:
     """Verify every submission attachment exists at its recorded location with its recorded contents. The audit attachments[] is a human record; hashing only the main file cannot detect changed or missing attachments still marked 'present: true'."""
     problems: list[str] = []
     root = root.resolve()
+    for extra in stray_files(data, root, allow):
+        if extra.suffix.lower() in RISKY_SUFFIXES:
+            problems.append(f"bundle: 목록에 없는 실행 파일 — {extra.relative_to(root).as_posix()} "
+                            "(제출 폴더에 audit attachments[]로 확인되지 않은 실행·스크립트 파일이 있다. 아니면 뺀다)")
     for item in data.get("attachments", []):
         if not isinstance(item, dict) or not item.get("present") is True:
             continue
@@ -364,13 +387,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"INVALID: 묶음 폴더 없음: {args.bundle}", file=sys.stderr)
             return 2
         try:
-            bundle_problems = verify_bundle(data, args.bundle)
+            bundle_problems = verify_bundle(data, args.bundle, tuple(p for p in (args.doc, args.audit) if p))
         except OSError:
             print("INVALID: 첨부 파일을 읽을 수 없다", file=sys.stderr)
             return 2
         print("=== bundle ===")
         print("\n".join(f"- {p}" for p in bundle_problems)
               or f"첨부 해시가 모두 일치한다 ({args.bundle})")
+        for extra in stray_files(data, args.bundle, tuple(p for p in (args.doc, args.audit) if p)):
+            if extra.suffix.lower() not in RISKY_SUFFIXES:
+                print(f"[WARN] 목록에 없는 파일: {extra.resolve().relative_to(args.bundle.resolve()).as_posix()} "
+                      "— 제출 폴더에 둘 파일인지 확인한다")
         doc_failures.extend(bundle_problems)
     # Bind the verdict to the bytes loaded/checked, not just to an earlier hash observation.
     if _inputs_changed(inputs):
