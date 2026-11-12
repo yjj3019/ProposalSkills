@@ -6,6 +6,10 @@ official-directory publication (see `references/marketplace-management.md`).
 ## Unreleased
 
 Added
+- `mapping_check.py` (requirements matrix vs REQ-IDs in the document, both directions) and `package_inspect.py` (PPTX/DOCX
+  package hints: author metadata, notes, comments, hidden slides, external links, embeddings, macros); a DRM-wrapped file is
+  NOT INSPECTED (exit 2).
+- Optional `Dockerfile` and `runtime_check.py` (python-pptx, Pillow, LibreOffice, Poppler) that follow `requirements.txt`.
 - `writing-style.md` section 7 (translationese and mechanical phrasing) and a matching review-checklist item.
 
 Fixed (found by a 10-scenario simulation of the skills and harness)

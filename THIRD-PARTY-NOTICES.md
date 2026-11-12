@@ -19,6 +19,8 @@ without being recorded here first.
 python-pptx in turn installs lxml (BSD-3-Clause), XlsxWriter (BSD-2-Clause) and typing_extensions (PSF-2.0). Their
 licenses apply to those packages when a user installs them; none of their code is included in this repository.
 Optional tools (LibreOffice for rendering) are installed separately by the user under their own licenses.
+The optional `Dockerfile` only lists packages (python:3.12-slim, LibreOffice, Poppler, Noto CJK fonts) that `docker build`
+downloads under their own licenses; no image or package is redistributed from this repository.
 
 ## Ideas credited, nothing reused
 
