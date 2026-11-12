@@ -27,6 +27,8 @@ The following schema preserves Korean example values and comments as source exam
   "meta": {
     "title": "…제안서", "subtitle": "…", "doc_name": "헤더 표기 문서명",
     "author": "",                     // File property; empty by default (the template's own author name is always cleared)
+    "theme": "standard",              // "editorial": paper background, serif title, no title rule, hairline tables, flat cards (briefings and comparisons)
+    "title_font": "",                 // Title face; the editorial theme uses Noto Serif KR SemiBold, the body Noto Sans KR (named, not bundled)
     "buyer": "발주처(RFP 표기 그대로)", "bidder": "제안사", "date": "YYYY-MM-DD",
     "page_limit": 40,                 // If set, excess fails --strict; mismatch with output_spec.page_limit refuses generation
     "output_spec": {"source": "…"},   // Buyer-prescribed output specification — §1-2

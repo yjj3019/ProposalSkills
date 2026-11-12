@@ -70,6 +70,8 @@ PPTX 생성·검사는 Python 3.10+와 `python-pptx`, 자동 렌더는 LibreOffi
 | [`plain_language_check.py`](skills/create-proposal-document/scripts/plain_language_check.py) | 긴 문장, 풀이 없는 약어, 자기 해설, 군더더기, 이중 피동 |
 | [`mapping_check.py`](skills/create-proposal-document/scripts/mapping_check.py) | 요구사항 조견표(MD/JSON) ↔ 본문 REQ-ID 양방향 일치, 페이지 미기재 |
 | [`tidy_audit.py`](skills/create-proposal-document/scripts/tidy_audit.py) | 덱의 정돈도 측정: 글자 크기 종류, 거의 맞았지만 어긋난 정렬, 가는 선 개수, 슬라이드별 글자 수 (python-pptx 필요) |
+| [`render_delta.py`](skills/create-proposal-document/scripts/render_delta.py) | 덱을 렌더하고 마지막 렌더 이후 **바뀐 슬라이드만** 번호가 붙은 개요 한 장으로 만들어 줌 (슬라이드별 내용 해시, LibreOffice 필요) |
+| [`review_ledger.py`](skills/create-proposal-document/scripts/review_ledger.py) | 쪽별 검토 장부: 모든 슬라이드를 봤는지, 네 가지 점검(초라함·어수선함·한눈에·완성도) 판정, 열린 중대 지적, 수정 이력, 덱 해시 일치를 기록하고 빠지면 완료로 인정하지 않음 (품질이 아니라 검토의 정직성을 검증) |
 | [`contact_sheet.py`](skills/create-proposal-document/scripts/contact_sheet.py) | 렌더한 슬라이드 이미지를 한 장(또는 몇 장)으로 묶어 덱 전체의 균형을 한눈에 확인 (Pillow 필요) |
 | [`package_inspect.py`](skills/create-proposal-document/scripts/package_inspect.py) | PPTX/DOCX 패키지 힌트: 작성자 메타데이터, 노트, 댓글, 숨김 슬라이드, 외부 링크, 임베드, 매크로 |
 | [`deck_stage_gate.py`](skills/create-proposal-document/scripts/deck_stage_gate.py) | 덱 작업 폴더 게이트: 승인된 디자인 명세를 해시에 묶고 계획과 `slides.json` 일치 확인 |

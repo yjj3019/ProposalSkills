@@ -18,6 +18,8 @@ sys.path.insert(0, str(DOC))
 import contact_sheet  # noqa: E402,F401
 import mapping_check  # noqa: E402
 import package_inspect  # noqa: E402
+import render_delta  # noqa: E402,F401
+import review_ledger  # noqa: E402,F401
 import tidy_audit  # noqa: E402
 
 
@@ -339,6 +341,293 @@ class AtAGlanceSlideTypeTests(unittest.TestCase):
             check = subprocess.run([sys.executable, str(DOC / "deck_check.py"), str(tmp / "o.pptx"), "--stage", "draft"],
                                    capture_output=True, text=True, encoding="utf-8", errors="replace")
             self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+
+class EditorialThemeTests(unittest.TestCase):
+    FIX = ROOT / "skills/create-proposal-document/fixtures/e2e-mini-rfp/slides.json"
+
+    def build(self, theme):
+        sys.path.insert(0, str(DOC))
+        import build_deck
+        spec = json.loads(self.FIX.read_text(encoding="utf-8"))
+        if theme:
+            spec["meta"]["theme"] = theme
+        builder = build_deck.DeckBuilder(spec, None, False)
+        builder.build()
+        return builder
+
+    def test_unknown_theme_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.build("neon")
+
+    def test_editorial_frame_has_no_title_rule_a_paper_background_and_a_serif_title(self):
+        builder = self.build("editorial")
+        self.assertEqual(builder.violations, [])
+        slide = builder.prs.slides[2]
+        names = {sh.name: sh for sh in slide.shapes}
+        self.assertNotIn("TITLE_RULE", names)
+        self.assertEqual(str(slide.background.fill.fore_color.rgb), "FAF8F4")
+        run = names["TITLE"].text_frame.paragraphs[0].runs[0]
+        self.assertEqual(run.font.name, "Noto Serif KR SemiBold")
+
+    def test_the_standard_frame_is_unchanged_but_every_run_now_carries_the_east_asian_typeface(self):
+        builder = self.build(None)
+        slide = builder.prs.slides[2]
+        names = {sh.name: sh for sh in slide.shapes}
+        self.assertIn("TITLE_RULE", names)
+        self.assertEqual(str(slide.background.fill.fore_color.rgb), "FFFFFF")
+        r_pr = names["TITLE"].text_frame.paragraphs[0].runs[0]._r.find("{http://schemas.openxmlformats.org/drawingml/2006/main}rPr")
+        for tag in ("latin", "ea", "cs"):
+            self.assertIsNotNone(r_pr.find("{http://schemas.openxmlformats.org/drawingml/2006/main}" + tag), tag)
+
+    def test_editorial_tables_use_hairlines_and_cards_a_top_rule(self):
+        builder = self.build("editorial")
+        table = next(sh for sh in builder.prs.slides[2].shapes if sh.has_table)
+        xml = table._element.xml
+        self.assertIn("a:lnB", xml)
+        names = {sh.name for slide in builder.prs.slides for sh in slide.shapes}
+        self.assertTrue({"BODY_CARDTITLE1", "BODY_CARDHDR1"} <= names)
+
+    def test_an_editorial_deck_passes_the_layout_lint(self):
+        spec = json.loads(self.FIX.read_text(encoding="utf-8"))
+        spec["meta"]["theme"] = "editorial"
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "s.json").write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+            build = subprocess.run([sys.executable, str(DOC / "build_deck.py"), str(tmp / "s.json"), "-o", str(tmp / "o.pptx"), "--strict"],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+            check = subprocess.run([sys.executable, str(DOC / "deck_check.py"), str(tmp / "o.pptx"), "--stage", "draft"],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
+            self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+
+class ReviewLedgerTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name).resolve()
+        self.deck = self.dir / "deck.pptx"
+        make_body_deck(self.deck, "chart")
+        self.png = self.dir / "png"
+        self.png.mkdir()
+        from PIL import Image
+        for i in (1, 2, 3):
+            Image.new("RGB", (160, 90), "white").save(self.png / f"page-{i}.png")
+        self.ledger = self.dir / "ledger.json"
+
+    def run_cli(self, *args):
+        import review_ledger
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = review_ledger.main([str(a) for a in args])
+        return code, out.getvalue() + err.getvalue()
+
+    def fill(self, overrides=None):
+        overrides = overrides or {}
+        for n in (1, 2, 3):
+            kw = dict(viewed="full", plain="pass", busy="pass", glance="pass", unfinished="pass")
+            kw.update(overrides.get(n, {}))
+            args = ["set", self.ledger, "--slide", n]
+            for key, value in kw.items():
+                args += [f"--{key}", value]
+            self.assertEqual(self.run_cli(*args)[0], 0)
+        self.assertEqual(self.run_cli("set", self.ledger, "--slide", 1, "--revisions", 1)[0], 0)
+
+    def init(self):
+        code, _ = self.run_cli("init", self.deck, "-o", self.ledger, "--png-dir", self.png, "--engine", "LibreOffice")
+        self.assertEqual(code, 0)
+
+    def test_a_fresh_ledger_is_incomplete_and_a_filled_one_is_complete(self):
+        self.init()
+        code, out = self.run_cli("check", self.ledger)
+        self.assertEqual(code, 1)
+        self.assertIn("not viewed", out)
+        self.fill()
+        code, out = self.run_cli("check", self.ledger)
+        self.assertEqual(code, 0, out)
+        self.assertIn("COMPLETE", out)
+
+    def test_a_changed_deck_makes_the_ledger_stale(self):
+        self.init()
+        self.fill()
+        self.deck.write_bytes(self.deck.read_bytes() + b"x")
+        code, out = self.run_cli("check", self.ledger)
+        self.assertEqual(code, 1)
+        self.assertIn("stale", out)
+
+    def test_a_chart_slide_on_a_contact_sheet_only_is_refused(self):
+        self.init()
+        self.fill({2: {"viewed": "sheet"}})
+        code, out = self.run_cli("check", self.ledger)
+        self.assertEqual(code, 1)
+        self.assertIn("full size", out)
+
+    def test_open_major_findings_missing_images_old_images_and_failed_rungs_are_refused(self):
+        self.init()
+        self.fill()
+        self.assertEqual(self.run_cli("set", self.ledger, "--slide", 2, "--finding", "Major|open|axis unit missing|")[0], 0)
+        self.assertIn("open Major", self.run_cli("check", self.ledger)[1])
+        self.assertEqual(self.run_cli("set", self.ledger, "--slide", 2, "--glance", "fail")[0], 0)
+        self.assertIn("rung 'glance'", self.run_cli("check", self.ledger)[1])
+        (self.png / "page-2.png").unlink()
+        self.assertIn("image is missing", self.run_cli("check", self.ledger)[1])
+
+    def test_an_image_older_than_the_deck_is_refused(self):
+        import os
+        self.init()
+        self.fill()
+        old = self.deck.stat().st_mtime - 3600
+        os.utime(self.png / "page-3.png", (old, old))
+        self.assertIn("older than the deck", self.run_cli("check", self.ledger)[1])
+
+    def test_waivers_need_a_reason_no_revision_is_refused_and_scores_are_not_allowed(self):
+        self.init()
+        self.fill({2: {"glance": "waived"}})
+        self.assertIn("waived without a reason", self.run_cli("check", self.ledger)[1])
+        self.assertEqual(self.run_cli("set", self.ledger, "--slide", 2, "--waived-reason", "agenda is a list by nature")[0], 0)
+        self.assertEqual(self.run_cli("check", self.ledger)[0], 0)
+        data = json.loads(self.ledger.read_text(encoding="utf-8"))
+        data["revisions"] = 0
+        data["score"] = 9
+        self.ledger.write_text(json.dumps(data), encoding="utf-8")
+        out = self.run_cli("check", self.ledger)[1]
+        self.assertIn("no revision recorded", out)
+        self.assertIn("score fields", out)
+
+    def test_usage_errors_exit_2(self):
+        self.assertEqual(self.run_cli("init", self.dir / "missing.pptx", "-o", self.ledger)[0], 2)
+        self.assertEqual(self.run_cli("check", self.dir / "missing.json")[0], 2)
+
+
+class SlideDeltaTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name).resolve()
+
+    def edited_copy(self, source: Path, slide_index: int, suffix: str) -> Path:
+        from pptx import Presentation
+        prs = Presentation(str(source))
+        box = next(sh for sh in prs.slides[slide_index].shapes if sh.has_text_frame and sh.text_frame.text.strip())
+        box.text_frame.paragraphs[0].runs[0].text += suffix
+        target = self.dir / f"edited{slide_index}.pptx"
+        prs.save(str(target))
+        return target
+
+    def cli(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = review_ledger.main([str(a) for a in args])
+        return code, out.getvalue() + err.getvalue()
+
+    def test_delta_marks_changed_unchanged_and_net_removed_slides(self):
+        import render_delta
+        self.assertEqual(render_delta.delta(["a", "b", "c"], ["a", "x", "c"]), ([2], [1, 3], 0))
+        self.assertEqual(render_delta.delta(["a", "b", "c"], ["a", "c"]), ([], [1, 2], 1))
+        self.assertEqual(render_delta.delta([], ["a"]), ([1], [], 0))
+        self.assertEqual(render_delta.delta(["a", "a"], ["a", "a", "a"]), ([3], [1, 2], 0))
+
+    def test_only_the_edited_slide_changes_its_hash(self):
+        deck = self.dir / "d.pptx"
+        make_body_deck(deck, "text")
+        before = review_ledger.slide_hashes(deck)
+        after = review_ledger.slide_hashes(self.edited_copy(deck, 1, " edited"))
+        self.assertEqual([a == b for a, b in zip(before, after)], [True, False, True])
+
+    def test_deleting_a_slide_does_not_change_the_hashes_of_the_others(self):
+        from pptx import Presentation
+        deck = self.dir / "d.pptx"
+        make_body_deck(deck, "text")
+        before = review_ledger.slide_hashes(deck)
+        prs = Presentation(str(deck))
+        first = prs.slides._sldIdLst[0]
+        prs.part.drop_rel(first.rId)
+        prs.slides._sldIdLst.remove(first)
+        shorter = self.dir / "shorter.pptx"
+        prs.save(str(shorter))
+        self.assertEqual(review_ledger.slide_hashes(shorter), before[1:])
+
+    def test_sync_keeps_unchanged_verdicts_and_resets_only_the_changed_slide(self):
+        import os
+        from PIL import Image
+        deck = self.dir / "d.pptx"
+        make_body_deck(deck, "chart")
+        png = self.dir / "png"
+        png.mkdir()
+        for i in (1, 2, 3):
+            Image.new("RGB", (160, 90), "white").save(png / f"page-{i}.png")
+        ledger = self.dir / "ledger.json"
+        self.assertEqual(self.cli("init", deck, "-o", ledger, "--png-dir", png, "--engine", "LibreOffice")[0], 0)
+        for n in (1, 2, 3):
+            for key in ("--plain", "--busy", "--glance", "--unfinished"):
+                self.cli("set", ledger, "--slide", n, key, "pass")
+            self.cli("set", ledger, "--slide", n, "--viewed", "full")
+        self.cli("set", ledger, "--slide", 1, "--revisions", 1)
+        self.assertEqual(self.cli("check", ledger)[0], 0)
+        deck.write_bytes(self.edited_copy(deck, 1, " edited").read_bytes())
+        for path in png.iterdir():
+            os.utime(path, None)                      # a fresh render touches every page image
+        self.assertIn("stale", self.cli("check", ledger)[1])
+        code, out = self.cli("sync", ledger, "--png-dir", png)
+        self.assertEqual(code, 0)
+        self.assertIn("kept 2", out)
+        self.assertIn("[2]", out)
+        status, report = self.cli("check", ledger)
+        self.assertEqual(status, 1)
+        self.assertIn("slide 2: not viewed", report)
+        self.assertNotIn("slide 1:", report)
+        self.assertNotIn("slide 3:", report)
+        for key in ("--plain", "--busy", "--glance", "--unfinished"):
+            self.cli("set", ledger, "--slide", 2, key, "pass")
+        self.cli("set", ledger, "--slide", 2, "--viewed", "full")
+        self.assertEqual(self.cli("check", ledger)[0], 0)
+        data = json.loads(ledger.read_text(encoding="utf-8"))
+        data["slides"][2]["hash"] = "tampered"
+        ledger.write_text(json.dumps(data), encoding="utf-8")
+        self.assertIn("slide 3: changed since it was judged", self.cli("check", ledger)[1])
+
+    def test_render_delta_reports_only_the_edited_slide(self):
+        import importlib.util
+        import shutil
+        import render_delta
+        if not render_delta.find_soffice() or not (shutil.which("pdftoppm") or importlib.util.find_spec("pymupdf")):
+            self.skipTest("LibreOffice and a PDF-to-PNG converter are needed")
+        deck = self.dir / "d.pptx"
+        make_body_deck(deck, "chart")
+        out = self.dir / "render"
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(render_delta.main([str(deck), "-o", str(out)]), 0)
+        first = json.loads((out / "delta.json").read_text(encoding="utf-8"))
+        self.assertEqual(first["changed"], [1, 2, 3])
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(render_delta.main([str(self.edited_copy(deck, 1, " edited")), "-o", str(out)]), 0)
+        second = json.loads((out / "delta.json").read_text(encoding="utf-8"))
+        self.assertEqual((second["changed"], second["unchanged"]), ([2], [1, 3]))
+        self.assertTrue((out / "changed_sheet.png").is_file())
+        self.assertEqual(len(list((out / "pages").glob("page-*.png"))), 3)
+
+    def test_render_delta_without_a_deck_or_an_engine_exits_2(self):
+        from unittest import mock
+        import render_delta
+        deck = self.dir / "d.pptx"
+        make_body_deck(deck, "text")
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(render_delta.main([str(self.dir / "nope.pptx"), "-o", str(self.dir / "o")]), 2)
+            with mock.patch.object(render_delta, "find_soffice", return_value=None):
+                self.assertEqual(render_delta.main([str(deck), "-o", str(self.dir / "o")]), 2)
+
+    def test_contact_sheet_takes_real_slide_numbers_and_is_not_wider_than_its_tiles(self):
+        import contact_sheet
+        from PIL import Image
+        files = []
+        for name in ("a.png", "b.png"):
+            Image.new("RGB", (160, 90), "white").save(self.dir / name)
+            files.append(self.dir / name)
+        out = self.dir / "s.png"
+        contact_sheet.build_sheets(files, out, cols=4, thumb=200, per_sheet=12, labels=["5", "12"])
+        with Image.open(out) as sheet:
+            self.assertLess(sheet.width, 3 * 200)
 
 
 class ExampleDeckTests(unittest.TestCase):

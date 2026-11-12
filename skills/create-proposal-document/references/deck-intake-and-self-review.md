@@ -42,15 +42,46 @@ look.
 
 Procedure:
 
-1. Render: `deck_check.py <deck> --render --png-dir out/png`. When Office wraps its own exports in DRM, use LibreOffice
-   to PDF and then to PNG (see `editorial-deck-design.md` section 7).
-2. `scripts/contact_sheet.py out/png -o out/sheet.png` and look at the sheet first: repeated or broken patterns, empty
-   slides, an odd one out. Then open the single pages you doubt, and every page that carries a chart or a diagram.
+1. Render with `scripts/render_delta.py <deck> -o out/render`. It renders every page (cheap) but compares each slide's content
+   hash with the last run and writes `changed_sheet.png`, a contact sheet of **only the slides that changed**, numbered with the real
+   slide number. The first run writes `sheet.png` of all pages. When Office wraps its own exports in DRM, this uses LibreOffice
+   (see `editorial-deck-design.md` section 7); `deck_check.py --render --png-dir` remains for a one-off check.
+2. Look at the sheet first: repeated or broken patterns, empty slides, an odd one out. Then open single pages for the slides you
+   doubt and every changed page that carries a chart or a diagram. Do not look at unchanged slides again.
 3. Run `tidy_audit.py`, `deck_check.py`, `quality_gate.py`, `package_inspect.py` and, for decks with text, `deck_story_check.py`.
 4. Write the findings, each with why it matters and the smallest fix, ranked Critical / Major / Minor. Fix, rebuild and
    render again. Revise at least once even when the first pass looks clean: the first pass is where the rungs are found.
-5. Stop when no Critical or Major finding is open and the measures are inside their limits. A warning left on purpose
-   needs a one-line reason (an agenda or a source list is text-only by nature).
+5. Record the review in the ledger, page by page: `scripts/review_ledger.py init <deck> -o ledger.json --png-dir out/render/pages --engine <name>`,
+   then `set` each slide (viewed full or on the sheet, the four rungs, findings) and `check ledger.json` until it prints COMPLETE.
+   `check` refuses a slide that was never viewed, a chart or diagram seen only on the sheet, an image older than the deck,
+   a rung that is not pass or waived with a reason, an open Critical or Major finding, no revision, or a deck that changed after
+   the review. It proves every page was recorded as seen, not that the judgments are right; the measures above are proxies and
+   the ledger is what keeps the looking from being skipped. Cite the ledger as the evidence of a rendered-level check in
+   `verification_report.py`.
+6. Stop when the ledger is COMPLETE and the measures are inside their limits. A warning left on purpose needs a one-line
+   reason (an agenda or a source list is text-only by nature).
+
+## 3a. The cheap iteration loop
+
+Reviewing cost is dominated by looking at images, not by rebuilding. Iterate like this:
+
+1. Edit the spec (`slides.json` or the build script) and rebuild; rebuilding and rendering cost almost nothing.
+2. `render_delta.py` again: it names the changed slides and builds their sheet. Look only at that.
+3. `review_ledger.py sync ledger.json --png-dir out/render/pages` keeps the verdicts of unchanged slides and resets only the changed
+   or new ones (it never carries a verdict onto a slide whose hash differs). Judge the reset slides, then `check`.
+4. Before delivery, look once at the full `sheet.png` (`render_delta.py --full-sheet`) to catch what a change did to the whole deck.
+
+An edit to the layout or master changes every slide hash and so resets every slide, which is correct.
+
+## 3b. HTML preview before the PPTX (not provided yet; conditions if it is added)
+
+Drafting in HTML and producing the PPTX only after approval saves rebuilds, but it is acceptable only if the approved preview and
+the delivered PPTX cannot differ in quality. A browser and PowerPoint measure text differently, so a separately designed HTML page
+will not match. Conditions: (1) one source (`slides.json` or a shared display list) that both renderers read, never HTML converted
+to PPTX or the reverse; (2) the same coordinates, sizes, colors and text in both, so layout is identical by construction; (3) a parity
+check that reads the PPTX back and compares shape count, text, positions and font sizes with the preview, and no PPTX is delivered
+if they differ; (4) a text-fit margin measured with the real font; (5) the delivered PPTX still passes the render loop and the ledger.
+Pixel-identical rendering across engines is not promised; the approval of a preview approves the layout, not the PPTX.
 
 ## 4. What to report
 

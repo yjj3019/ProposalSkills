@@ -16,6 +16,27 @@ Added
 - Optional `Dockerfile` and `runtime_check.py` (python-pptx, Pillow, LibreOffice, Poppler) that follow `requirements.txt`.
 - `writing-style.md` section 7 (translationese and mechanical phrasing) and a matching review-checklist item.
 
+Added (cheap review loop)
+- `scripts/render_delta.py`: renders every page, compares each slide's content hash with the last run and builds a numbered contact sheet
+  of only the changed slides (`changed_sheet.png`, `delta.json`); exit 2 without LibreOffice or a PDF-to-PNG converter.
+- `review_ledger.py`: per-slide content hashes and `sync` (keeps the verdicts of unchanged slides, resets the changed or new ones,
+  never carries a verdict onto a slide whose hash differs); `check` refuses a ledger whose slide hashes no longer match the deck.
+- `contact_sheet.py`: tile labels can carry real slide numbers; the sheet is no wider than its tiles.
+- `deck-intake-and-self-review.md`: the cheap iteration loop, and the conditions an HTML preview would have to meet to be allowed
+  (one source, identical geometry, a read-back parity check, a text-fit margin, the final PPTX still reviewed).
+
+Added (editorial theme and review ledger)
+- `build_deck.py`: `meta.theme: "editorial"` (opt-in; default `standard` unchanged): paper background, serif title, light lead, no title
+  rule, hairline tables, flat cards with a top rule; role names kept, so `deck_check.py` and the contrast check still apply.
+  `meta.title_font` sets the title face; an unknown theme is rejected.
+- `scripts/review_ledger.py` (`init`, `set`, `check`): records per page that it was viewed, judged on the four rungs and closed out;
+  refuses completion for an unseen page, a chart seen only on a sheet, an image older than the deck, an open Critical or Major
+  finding, no revision, or a deck that changed after the review. It checks the review's honesty, not the quality.
+
+Fixed (found while adding the theme)
+- `build_deck.py`: every run now carries the East Asian and complex-script typeface (`a:ea`, `a:cs`) next to the Latin one; before,
+  Korean text fell back to the theme font and looked different on each machine.
+
 Added (self-review without user feedback)
 - `references/deck-intake-and-self-review.md`: up to five questions with defaults before building, one direction checkpoint, a four-rung
   self-review (plain, busy, not at a glance, unfinished) with a report format, and the rule to write assumptions down when nobody can answer.

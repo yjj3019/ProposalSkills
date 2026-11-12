@@ -7,7 +7,7 @@ Usage:
 Draw a fixed slide structure (header breadcrumb → title → lead → body → caption/source/REQ-ID → footer) with fixed coordinates and tokens rather than reinventing layouts, colors, and fonts each run. Role names (HEADER/TITLE/LEAD/BODY/CAPTION/REQID/FOOTER) let deck_check.py verify leads and REQ-IDs.
 
 slides.json schema summary (details: references/deck-production.md):
-  {"meta": {"title","subtitle","buyer","bidder","date","doc_name","page_limit","palette":{...},"font"},
+  {"meta": {"title","subtitle","buyer","bidder","date","doc_name","page_limit","palette":{...},"font","theme":"standard|editorial"},
    "slides": [ {"type": "cover|toc|section|matrix|table|process|zones|gantt|staff|cards|bullets|scoreboard|triage|weights|closing",
                 "breadcrumb","title","lead","caption","source","req_ids":[...],"notes","status_tag", ...} ]}
 
@@ -33,7 +33,9 @@ try:
     from pptx.dml.color import RGBColor
     from pptx.enum.shapes import MSO_SHAPE
     from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
+    from pptx.oxml.ns import qn
     from pptx.util import Emu, Pt
+    from lxml import etree
 except ImportError:  # pragma: no cover
     print("python-pptx가 필요합니다: pip install python-pptx", file=sys.stderr)
     raise SystemExit(2)
@@ -43,6 +45,18 @@ DEFAULT_PALETTE = {
     "primary": "1F3864", "tint1": "8FAADC", "tint2": "D6E0F0", "tint3": "EDF1F8",
     "text": "202020", "muted": "595959", "warn": "C00000", "ok": "1F7A3D", "white": "FFFFFF",
     "side_b": "A5471F",   # second side of scoreboard / triage / weights; dark enough for white text (color_contrast)
+    "bg": "FFFFFF",       # slide background
+}
+# Optional look (meta.theme). "standard" is the default and changes nothing. "editorial" is for briefings and comparisons
+# (see references/editorial-deck-design.md); a buyer-prescribed template or palette always overrides it. The fonts are named,
+# not bundled: without them PowerPoint substitutes others, so share a PDF or set meta.font / meta.title_font.
+THEMES = {
+    "standard": {},
+    "editorial": {
+        "palette": {"primary": "0E1830", "tint1": "D2B67E", "tint2": "E9E4D9", "tint3": "F3EEE3", "text": "14181F",
+                    "muted": "4B5563", "warn": "B4532F", "ok": "2F7D5B", "side_b": "A5471F", "bg": "FAF8F4"},
+        "font": "Noto Sans KR", "title_font": "Noto Serif KR SemiBold", "lead_font": "Noto Sans KR Light",
+    },
 }
 DEFAULT_FONT = "맑은 고딕"
 # Define specifications only in deck_profiles.py so generator and checker read the same values
@@ -99,9 +113,16 @@ class DeckBuilder:
         self.page_limit = spec_limit if spec_limit is not None else legacy_limit
         self.style = deck_profiles.effective_style(self.profile, self.output_spec)
         self.size = self.style["sizes"]
-        self.pal = {**DEFAULT_PALETTE, **{k: str(v).lstrip("#").upper()
-                                          for k, v in (self.meta.get("palette") or {}).items()}}
-        self.font = self.meta.get("font") or DEFAULT_FONT
+        self.theme = self.meta.get("theme") or "standard"
+        if self.theme not in THEMES:
+            raise ValueError(f"meta.theme은 {sorted(THEMES)} 중 하나여야 한다 (현재 {self.theme!r})")
+        look = THEMES[self.theme]
+        self.editorial = self.theme == "editorial"
+        self.pal = {**DEFAULT_PALETTE, **look.get("palette", {}), **{k: str(v).lstrip("#").upper()
+                                                                    for k, v in (self.meta.get("palette") or {}).items()}}
+        self.font = self.meta.get("font") or look.get("font") or DEFAULT_FONT
+        self.title_font = self.meta.get("title_font") or look.get("title_font") or self.font
+        self.lead_font = look.get("lead_font") or self.font
         self.strict = strict
         self.violations: list[str] = []
         self.warnings: list[str] = []
@@ -125,6 +146,40 @@ class DeckBuilder:
             self.prs.slide_width, self.prs.slide_height = Emu(W), Emu(H)
         self.blank = self._blank_layout()
 
+    def _font(self, run, name: str | None = None) -> None:
+        """Set the Latin, East Asian and complex-script typeface: Korean text otherwise falls back to the theme font."""
+        face = name or self.font
+        run.font.name = face
+        r_pr = run._r.get_or_add_rPr()
+        for tag in ("a:ea", "a:cs"):
+            for old in r_pr.findall(qn(tag)):
+                r_pr.remove(old)
+        ea, cs = etree.Element(qn("a:ea")), etree.Element(qn("a:cs"))
+        ea.set("typeface", face)
+        cs.set("typeface", face)
+        latin = r_pr.find(qn("a:latin"))
+        latin.addnext(ea)
+        ea.addnext(cs)
+
+    def _cell_border(self, cell, color: str, width: int, sides=("b",)) -> None:
+        tc_pr = cell._tc.get_or_add_tcPr()
+        for side in ("l", "r", "t", "b"):
+            tag = qn("a:ln" + side.upper())
+            for old in tc_pr.findall(tag):
+                tc_pr.remove(old)
+            line = etree.SubElement(tc_pr, tag)
+            if side in sides:
+                line.set("w", str(width))
+                fill = etree.SubElement(line, qn("a:solidFill"))
+                etree.SubElement(fill, qn("a:srgbClr")).set("val", color)
+            else:
+                line.set("w", "0")
+                etree.SubElement(line, qn("a:noFill"))
+        for tag in ("a:solidFill", "a:noFill"):    # schema order: borders first, fill last
+            for el in tc_pr.findall(qn(tag)):
+                tc_pr.remove(el)
+                tc_pr.append(el)
+
     # ---- Basic shape helpers ----
     def _blank_layout(self):
         for layout in self.prs.slide_layouts:
@@ -133,7 +188,7 @@ class DeckBuilder:
         return self.prs.slide_layouts[len(self.prs.slide_layouts) - 1]
 
     def _text(self, slide, name, x, y, w, h, text, size, *, bold=False, color=None,
-              align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP, fill=None, wrap=True):
+              align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP, fill=None, wrap=True, font=None):
         box = slide.shapes.add_textbox(Emu(x), Emu(y), Emu(w), Emu(h))
         box.name = name
         if fill:
@@ -152,7 +207,7 @@ class DeckBuilder:
             p.alignment = align
             r = p.add_run()
             r.text = str(line)
-            r.font.name = self.font
+            self._font(r, font)
             r.font.size = Pt(size)
             r.font.bold = bold
             r.font.color.rgb = rgb(color or self.pal["text"])
@@ -169,6 +224,10 @@ class DeckBuilder:
         else:
             s.line.fill.background()
         s.shadow.inherit = False
+        if self.editorial:    # no theme-style shadow or outline reference: flat shapes
+            style = s._element.find(qn("p:style"))
+            if style is not None:
+                s._element.remove(style)
         return s
 
     def _shape_text(self, shape, text, size, *, bold=False, color=None, align=PP_ALIGN.CENTER):
@@ -181,7 +240,7 @@ class DeckBuilder:
             p.alignment = align
             r = p.add_run()
             r.text = str(line)
-            r.font.name = self.font
+            self._font(r)
             r.font.size = Pt(size)
             r.font.bold = bold if i == 0 else False
             r.font.color.rgb = rgb(color or self.pal["text"])
@@ -216,13 +275,19 @@ class DeckBuilder:
         for c, col in enumerate(columns):
             cell = table.cell(0, c)
             cell.fill.solid()
-            cell.fill.fore_color.rgb = rgb(self.pal["primary"])
-            self._cell(cell, col, size, bold=True, color=self.pal["white"], align=PP_ALIGN.CENTER)
+            cell.fill.fore_color.rgb = rgb(self.pal["bg"] if self.editorial else self.pal["primary"])
+            self._cell(cell, col, size, bold=True, color=self.pal["text"] if self.editorial else self.pal["white"],
+                       align=PP_ALIGN.LEFT if self.editorial else PP_ALIGN.CENTER)
+            if self.editorial:
+                self._cell_border(cell, self.pal["primary"], 12700)
         for r, row in enumerate(rows, 1):
             for c in range(n_cols):
                 cell = table.cell(r, c)
                 cell.fill.solid()
-                cell.fill.fore_color.rgb = rgb(self.pal["tint3"] if r % 2 == 0 else self.pal["white"])
+                cell.fill.fore_color.rgb = rgb(self.pal["bg"] if self.editorial
+                                               else self.pal["tint3"] if r % 2 == 0 else self.pal["white"])
+                if self.editorial:
+                    self._cell_border(cell, self.pal["tint2"], 9525)
                 val = row[c]
                 align = PP_ALIGN.RIGHT if c in align_right_cols else PP_ALIGN.LEFT
                 self._cell(cell, val, size, align=align)
@@ -238,7 +303,7 @@ class DeckBuilder:
         p.alignment = align
         r = p.add_run()
         r.text = "" if text is None else str(text)
-        r.font.name = self.font
+        self._font(r)
         r.font.size = Pt(size)
         r.font.bold = bold
         r.font.color.rgb = rgb(color or self.pal["text"])
@@ -257,15 +322,17 @@ class DeckBuilder:
                        s["status_tag"], self.size["header"], bold=True, color=self.pal["primary"],
                        align=PP_ALIGN.RIGHT)
         self._text(slide, "TITLE", M, TITLE_Y, BODY_W, TITLE_H, s.get("title", ""), self.size["title"],
-                   bold=True, color=self.pal["primary"], anchor=MSO_ANCHOR.MIDDLE)
-        line = self._rect(slide, "TITLE_RULE", M, TITLE_Y + TITLE_H, BODY_W, int(0.02 * IN), self.pal["primary"])
+                   bold=not self.editorial, color=self.pal["text"] if self.editorial else self.pal["primary"],
+                   anchor=MSO_ANCHOR.MIDDLE, font=self.title_font)
+        if not self.editorial:
+            self._rect(slide, "TITLE_RULE", M, TITLE_Y + TITLE_H, BODY_W, int(0.02 * IN), self.pal["primary"])
         lead = s.get("lead", "")
         if not lead and s.get("type") in BODY_TYPES:
             self.violations.append(f"슬라이드 {self.page} '{s.get('title', '')}': 리드문 없음")
         if lead and len(lead) > self.style['lead_max_chars']:
             self.warnings.append(f"슬라이드 {self.page}: 리드문 {len(lead)}자 (권장 ≤{self.style['lead_max_chars']})")
-        self._text(slide, "LEAD", M, LEAD_Y, BODY_W, LEAD_H, lead, self.size["lead"], bold=True,
-                   anchor=MSO_ANCHOR.MIDDLE)
+        self._text(slide, "LEAD", M, LEAD_Y, BODY_W, LEAD_H, lead, self.size["lead"], bold=not self.editorial,
+                   color=self.pal["muted"] if self.editorial else None, anchor=MSO_ANCHOR.MIDDLE, font=self.lead_font)
         cap_parts = []
         if s.get("caption"):
             cap_parts.append(s["caption"])
@@ -528,9 +595,14 @@ class DeckBuilder:
         for i, it in enumerate(items):
             r, c = divmod(i, cols)
             x, y = M + c * (cw + gap), BODY_Y + r * (ch + gap)
-            self._rect(slide, f"BODY_CARD{i + 1}", x, y, cw, ch, self.pal["tint3"], line=self.pal["tint1"])
-            hdr = self._rect(slide, f"BODY_CARDHDR{i + 1}", x, y, cw, int(0.45 * IN), self.pal["primary"])
-            self._shape_text(hdr, [it.get("title", "")], self.size["body"], bold=True, color=self.pal["white"])
+            if self.editorial:
+                self._rect(slide, f"BODY_CARDHDR{i + 1}", x, y, cw, int(0.03 * IN), self.pal["primary"])
+                self._text(slide, f"BODY_CARDTITLE{i + 1}", x, y + int(0.08 * IN), cw, int(0.4 * IN), it.get("title", ""),
+                           self.size["body"] + 1, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+            else:
+                self._rect(slide, f"BODY_CARD{i + 1}", x, y, cw, ch, self.pal["tint3"], line=self.pal["tint1"])
+                hdr = self._rect(slide, f"BODY_CARDHDR{i + 1}", x, y, cw, int(0.45 * IN), self.pal["primary"])
+                self._shape_text(hdr, [it.get("title", "")], self.size["body"], bold=True, color=self.pal["white"])
             body_lines = []
             if it.get("value"):
                 body_lines.append(str(it["value"]))
@@ -711,7 +783,7 @@ class DeckBuilder:
                 slide = self.prs.slides[index]
                 if not self.template:
                     slide.background.fill.solid()
-                    slide.background.fill.fore_color.rgb = rgb("FFFFFF")
+                    slide.background.fill.fore_color.rgb = rgb(self.pal["bg"])
                 if s.get("notes"):
                     slide.notes_slide.notes_text_frame.text = str(s["notes"])
         for index, slide in enumerate(self.prs.slides, 1):
