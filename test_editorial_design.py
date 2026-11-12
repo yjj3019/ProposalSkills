@@ -706,6 +706,59 @@ class SlideDeltaTests(unittest.TestCase):
         self.assertEqual((out / "pages" / "page-02.png").read_bytes(), b"my retouched copy")
         self.assertFalse((out / "pages" / "page-04.png").exists())
 
+    def test_legacy_page_without_recorded_hash_is_preserved(self):
+        deck = self.many_slides_deck("legacy.pptx", 3)
+        out = self.dir / "render"
+        self.assertEqual(self.mocked_render(deck, out)[0], 0)
+        state_file = out / "render_state.json"
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+        state.pop("page_hashes")
+        state_file.write_text(json.dumps(state), encoding="utf-8")
+        page = out / "pages" / "page-02.png"
+        page.write_bytes(b"user replacement")
+        code, text = self.mocked_render(deck, out)
+        self.assertEqual(code, 2)
+        self.assertIn("no recorded content hash", text)
+        self.assertEqual(page.read_bytes(), b"user replacement")
+
+    def test_modified_recorded_sheet_is_preserved_before_any_pages_change(self):
+        deck = self.many_slides_deck("sheet-edit.pptx", 3)
+        out = self.dir / "render"
+        self.assertEqual(self.mocked_render(deck, out)[0], 0)
+        page = out / "pages" / "page-01.png"
+        original_page = page.read_bytes()
+        sheet = out / "changed_sheet.png"
+        sheet.write_bytes(b"user edited sheet")
+        code, text = self.mocked_render(deck, out)
+        self.assertEqual(code, 2)
+        self.assertIn("changed or has no recorded content hash", text)
+        self.assertEqual(sheet.read_bytes(), b"user edited sheet")
+        self.assertEqual(page.read_bytes(), original_page)
+
+    def test_legacy_sheet_without_recorded_hash_is_preserved(self):
+        deck = self.many_slides_deck("legacy-sheet.pptx", 3)
+        out = self.dir / "render"
+        self.assertEqual(self.mocked_render(deck, out)[0], 0)
+        state_file = out / "render_state.json"
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+        state.pop("sheet_hashes")
+        state_file.write_text(json.dumps(state), encoding="utf-8")
+        sheet = out / "changed_sheet.png"
+        before = sheet.read_bytes()
+        code, text = self.mocked_render(deck, out)
+        self.assertEqual(code, 2)
+        self.assertIn("no recorded content hash", text)
+        self.assertEqual(sheet.read_bytes(), before)
+
+    def test_pages_directory_symlink_is_refused(self):
+        from unittest import mock
+        import render_delta
+        pages = self.dir / "pages"
+        with mock.patch.object(Path, "is_symlink", return_value=True):
+            with self.assertRaisesRegex(FileExistsError, "symbolic link"):
+                render_delta.install_pages([], pages, [])
+        self.assertFalse(pages.exists())
+
     def test_a_file_the_tool_is_about_to_write_but_did_not_record_is_never_overwritten(self):
         deck = self.many_slides_deck("five.pptx", 3)
         out = self.dir / "render"
@@ -761,7 +814,9 @@ class SlideDeltaTests(unittest.TestCase):
         (pages / "page-07.png").write_bytes(b"recorded")
         (pages / "page-99.png").write_bytes(b"mine")
         (pages / "cover.png").write_bytes(b"mine")
-        installed = render_delta.install_pages(staged, pages, ["page-01.png", "page-07.png"])
+        recorded = ["page-01.png", "page-07.png"]
+        hashes = {name: render_delta.file_sha256(pages / name) for name in recorded}
+        installed = render_delta.install_pages(staged, pages, recorded, hashes)
         self.assertEqual([p.name for p in installed], ["page-01.png"])
         self.assertNotEqual((pages / "page-01.png").read_bytes(), b"recorded")
         self.assertFalse((pages / "page-07.png").exists())             # recorded and no longer produced: removed
