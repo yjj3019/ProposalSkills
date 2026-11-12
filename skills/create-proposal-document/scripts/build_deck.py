@@ -610,6 +610,14 @@ class DeckBuilder:
         # Stamp the specification in the file itself so deck_check applies matching criteria
         # even when arguments are omitted, avoiding presentation checks under detailed-profile rules.
         try:
+            # The bundled template carries a stranger's name as author and a "generated using python-pptx" comment.
+            props = self.prs.core_properties
+            props.author = props.last_modified_by = str(self.meta.get("author", ""))
+            props.comments = ""
+            props.title = str(self.meta.get("title", ""))
+        except (AttributeError, ValueError):
+            pass
+        try:
             self.prs.core_properties.category = deck_profiles.stamp(self.profile)
             if self.output_spec:
                 self.prs.core_properties.keywords = deck_profiles.spec_stamp(self.output_spec)
