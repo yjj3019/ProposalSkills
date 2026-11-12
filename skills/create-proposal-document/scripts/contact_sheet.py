@@ -10,7 +10,7 @@ Usage:
     python contact_sheet.py out/png -o out/sheet.png
     python contact_sheet.py out/png -o out/sheet.png --cols 4 --thumb 480 --per-sheet 12
 
-Pages are taken in natural order (page-2 before page-10) from *.png, *.jpg, *.jpeg. With more pages than --per-sheet the
+`render_delta.py` calls this with the real slide numbers as labels for the slides that changed. Pages are taken in natural order (page-2 before page-10) from *.png, *.jpg, *.jpeg. With more pages than --per-sheet the
 output becomes sheet_1.png, sheet_2.png, and so on. Each tile carries its page number.
 
 Exit codes: 0 = sheets written, 2 = folder missing, no images, or an image cannot be read (damaged, or wrapped by an
@@ -35,7 +35,7 @@ def page_images(folder: Path) -> list[Path]:
     return sorted((p for p in folder.iterdir() if p.suffix.lower() in SUFFIXES), key=natural_key)
 
 
-def build_sheets(images: list[Path], out: Path, cols: int, thumb: int, per_sheet: int) -> list[Path]:
+def build_sheets(images: list[Path], out: Path, cols: int, thumb: int, per_sheet: int, labels: list[str] | None = None) -> list[Path]:
     from PIL import Image, ImageDraw
     pad, label_h = 12, 20
     written: list[Path] = []
@@ -47,14 +47,16 @@ def build_sheets(images: list[Path], out: Path, cols: int, thumb: int, per_sheet
                 im = im.convert("RGB")
                 height = max(1, round(im.height * thumb / im.width))
                 tiles.append(im.resize((thumb, height), Image.LANCZOS))
+        cols_used = min(cols, len(tiles))
         rows = (len(tiles) + cols - 1) // cols
         row_h = max(t.height for t in tiles) + label_h
-        sheet = Image.new("RGB", (cols * (thumb + pad) + pad, rows * (row_h + pad) + pad), (236, 233, 226))
+        sheet = Image.new("RGB", (cols_used * (thumb + pad) + pad, rows * (row_h + pad) + pad), (236, 233, 226))
         draw = ImageDraw.Draw(sheet)
         for i, tile in enumerate(tiles):
             r, c = divmod(i, cols)
             x, y = pad + c * (thumb + pad), pad + r * (row_h + pad)
-            draw.text((x, y + 3), str((n - 1) * per_sheet + i + 1), fill=(60, 60, 60))
+            index = (n - 1) * per_sheet + i
+            draw.text((x, y + 3), labels[index] if labels else str(index + 1), fill=(60, 60, 60))
             sheet.paste(tile, (x, y + label_h))
             draw.rectangle((x - 1, y + label_h - 1, x + tile.width, y + label_h + tile.height), outline=(190, 186, 176))
         target = out if len(chunks) == 1 else out.with_name(f"{out.stem}_{n}{out.suffix}")

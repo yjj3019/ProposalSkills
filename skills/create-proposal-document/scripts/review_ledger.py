@@ -17,13 +17,19 @@ ledger.json (created by `init`):
                                                    "status": "open|fixed|accepted", "reason": ""}]}],
    "not_inspected": ["what could not be checked"]}
 
+Each slide also carries a content hash (its XML plus the parts it uses: layout, master, charts, images). After the deck is rebuilt,
+`sync` keeps the verdicts of slides whose hash is unchanged and resets only the changed or new ones, so only those need to be looked at
+again. A verdict is never carried onto a slide whose hash differs, and `check` refuses a ledger whose hashes no longer match the deck.
+
 Usage:
     python review_ledger.py init deck.pptx -o ledger.json [--png-dir out/png] [--engine "LibreOffice"]
+    python review_ledger.py sync ledger.json [--png-dir out/png]     # after a rebuild: keep unchanged slides, reset the rest
     python review_ledger.py set ledger.json --slide 3 --viewed full --plain pass --busy pass --glance pass --unfinished pass
     python review_ledger.py check ledger.json
 
 Rules enforced by `check`
-  - the ledger matches the deck's SHA-256 (a changed deck needs a new review) and names the engine that produced the images
+  - the ledger matches the deck's SHA-256 and every slide's hash (a changed deck needs `sync` and a look at the changed slides) and
+    names the engine that produced the images
   - every slide is viewed; a content slide with a chart or diagram is viewed at full size (`full`), the cover and closing
     slide may be seen on a contact sheet; `full` needs an image that exists and is not older than the deck
   - every content slide has all four rungs pass or waived (a waiver needs a reason); none is fail
@@ -62,6 +68,35 @@ def natural(path: Path) -> list:
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", path.name)]
 
 
+def slide_hashes(deck: Path) -> list[str]:
+    """One content hash per slide: the slide part plus the parts it uses, two levels deep (layout and master, charts and their
+    workbooks, images). Changing the layout or master therefore changes every slide, which is correct. Part names are left out so
+    inserting or deleting a slide does not change the hash of the slides after it."""
+    from pptx import Presentation
+    prs = Presentation(str(deck))
+
+    def feed(part, digest, depth, seen):
+        if id(part) in seen:
+            return
+        seen.add(id(part))
+        digest.update(part.blob)   # content only: part names shift when slides are inserted or removed
+        if depth <= 0:
+            return
+        for rel_ in sorted(part.rels.values(), key=lambda r: r.rId):
+            digest.update(rel_.reltype.encode())
+            if rel_.is_external:
+                digest.update(str(rel_.target_ref).encode())
+            elif not str(rel_.reltype).endswith("/slide"):
+                feed(rel_.target_part, digest, depth - 1, seen)
+
+    out = []
+    for slide in prs.slides:
+        digest = hashlib.sha256()
+        feed(slide.part, digest, 2, set())
+        out.append(digest.hexdigest())
+    return out
+
+
 def rel(path: Path, base: Path) -> str:
     """Path relative to the ledger's folder; absolute when the two are on different drives."""
     try:
@@ -83,15 +118,43 @@ def init(deck: Path, out: Path, png_dir: Path | None, engine: str) -> dict:
     import tidy_audit
     report = tidy_audit.measure(deck)
     prs = Presentation(str(deck))
+    hashes = slide_hashes(deck)
     images = sorted((p for p in png_dir.iterdir() if p.suffix.lower() in {".png", ".jpg", ".jpeg"}), key=natural) if png_dir else []
     count = len(prs.slides)
     slides = []
-    for number, (slide, metrics) in enumerate(zip(prs.slides, report["slides"]), 1):
+    for number, (slide, metrics, digest) in enumerate(zip(prs.slides, report["slides"], hashes), 1):
         kind = "content" if 1 < number < count or count < 3 else ("cover" if number == 1 else "closing")
         image = rel(images[number - 1], out.resolve().parent) if number - 1 < len(images) else ""
-        slides.append({"slide": number, "title": slide_title(slide), "kind": kind, "visual": metrics["visual"],
+        slides.append({"slide": number, "title": slide_title(slide), "kind": kind, "visual": metrics["visual"], "hash": digest,
                        "viewed": "none", "image": image, "rungs": {r: None for r in RUNGS}, "waived_reason": "", "findings": []})
     return {"deck": rel(deck, out.resolve().parent), "deck_sha256": sha256(deck), "engine": engine, "revisions": 0, "slides": slides, "not_inspected": []}
+
+
+def sync(ledger: dict, base: Path, png_dir: Path | None) -> tuple[dict, dict]:
+    """Bring a ledger up to date with the rebuilt deck. Returns (new ledger, {"kept": [...], "reset": [...], "removed": n})."""
+    deck = (base / str(ledger["deck"])).resolve()
+    new_hashes = slide_hashes(deck)
+    fresh = init(deck, base / "_sync.json", png_dir, str(ledger.get("engine", "")))
+    old_by_hash: dict[str, list[dict]] = {}
+    for old in ledger.get("slides", []):
+        old_by_hash.setdefault(old.get("hash", ""), []).append(old)
+    kept, reset = [], []
+    for slide, digest in zip(fresh["slides"], new_hashes):
+        pool = old_by_hash.get(digest) or []
+        if digest and pool:
+            old = pool.pop(0)
+            for key in ("viewed", "rungs", "waived_reason", "findings"):
+                slide[key] = old.get(key, slide[key])
+            if not slide["image"] and old.get("image"):
+                slide["image"] = old["image"]
+            kept.append(slide["slide"])
+        else:
+            reset.append(slide["slide"])
+    removed = sum(len(v) for v in old_by_hash.values())
+    fresh["deck"] = ledger["deck"]
+    fresh["revisions"] = ledger.get("revisions", 0)
+    fresh["not_inspected"] = ledger.get("not_inspected", [])
+    return fresh, {"kept": kept, "reset": reset, "removed": removed}
 
 
 def problems_in(ledger: dict, base: Path) -> list[str]:
@@ -102,7 +165,16 @@ def problems_in(ledger: dict, base: Path) -> list[str]:
     if deck is None or not deck.is_file():
         out.append(f"deck not found: {ledger.get('deck')!r}")
     elif sha256(deck) != ledger.get("deck_sha256"):
-        out.append("ledger is stale: the deck changed after the review (start a new ledger and look again)")
+        out.append("ledger is stale: the deck changed after the review (run sync, then look at the slides it resets)")
+    else:
+        current = slide_hashes(deck)
+        recorded = [s.get("hash") for s in ledger.get("slides", [])]
+        if len(current) != len(recorded):
+            out.append(f"the deck has {len(current)} slides but the ledger lists {len(recorded)}: run sync")
+        else:
+            for number, (now, then) in enumerate(zip(current, recorded), 1):
+                if now != then:
+                    out.append(f"slide {number}: changed since it was judged (hash differs): run sync and look at it again")
     if not str(ledger.get("engine", "")).strip():
         out.append("engine is empty: name what produced the images (LibreOffice, PowerPoint, ...)")
     if int(ledger.get("revisions") or 0) < 1:
@@ -149,6 +221,9 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("-o", "--output", type=Path, required=True)
     i.add_argument("--png-dir", type=Path)
     i.add_argument("--engine", default="")
+    sy = sub.add_parser("sync")
+    sy.add_argument("ledger", type=Path)
+    sy.add_argument("--png-dir", type=Path)
     st = sub.add_parser("set")
     st.add_argument("ledger", type=Path)
     st.add_argument("--slide", type=int, required=True)
@@ -172,6 +247,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {a.output} ({len(ledger['slides'])} slides); fill it in as you look, then run check")
             return 0
         ledger = json.loads(a.ledger.read_text(encoding="utf-8-sig"))
+        if a.cmd == "sync":
+            base = a.ledger.resolve().parent
+            fresh, summary = sync(ledger, base, a.png_dir)
+            deck = (base / str(ledger["deck"])).resolve()
+            fresh["deck_sha256"] = sha256(deck)
+            a.ledger.write_text(json.dumps(fresh, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"kept {len(summary['kept'])} slide(s) {summary['kept']}; look again at {summary['reset']}; "
+                  f"{summary['removed']} removed. Set revisions to at least 1 once you have revised.")
+            return 0
         if a.cmd == "set":
             slides = {s["slide"]: s for s in ledger["slides"]}
             if a.slide not in slides:

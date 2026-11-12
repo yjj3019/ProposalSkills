@@ -132,7 +132,9 @@ Submission requires closed Critical/Major/BLOCKING INPUT plus confirmed rehearsa
 - `references/deck-intake-and-self-review.md` — ask up to five questions before building (with defaults), show an outline and sample
   slides once, then review your own render against four rungs (plain, busy, not at a glance, unfinished) before delivering; do not
   wait for the user to point these out. `scripts/contact_sheet.py` tiles the rendered pages into one view and
-  `scripts/review_ledger.py` records, per page, that it was seen and judged (refuses to complete otherwise).
+  `scripts/review_ledger.py` records, per page, that it was seen and judged (refuses to complete otherwise);
+  `scripts/render_delta.py` renders and shows only the slides that changed since the last render, and `review_ledger.py sync` keeps
+  the verdicts of the unchanged ones, so a rebuild costs one new look at the changed slides, not at the whole deck.
 - `references/ai-vendor-comparison-playbook.md` — how to compare AI vendors or models from their own documentation, with a
   dated 2026-11-12 snapshot (re-verify before quoting); `assets/examples/ai-model-comparison/make_deck.py` is the 17-slide example.
 - `scripts/deck_check.py` — layout lint, render checks, audit render block output.
