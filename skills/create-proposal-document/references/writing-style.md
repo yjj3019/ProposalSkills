@@ -103,3 +103,17 @@ This sentence-level heuristic can produce false positives and negatives. It does
 - Bold only 1~2 key points per page. Do not combine underline and italics.
 - Do not create hierarchy with manually applied bold: use heading styles (Heading 1/Heading 2).
 - Use the single prescribed primary color for emphasis (see visual-style.md). Red is reserved for risks and reductions.
+
+## 7. Translationese and mechanical phrasing (soft rule)
+
+Machine-drafted Korean keeps a few habits that read as "written by a tool". This table covers the ones
+[anti-ai-tells.md](anti-ai-tells.md) does not list. Check by searching the draft, then fix with judgement; it is not an automatic gate.
+
+| Category | Pattern (Korean) | Replace with |
+|---|---|---|
+| Translationese | "~를 통해", "~에 대해", "~에 있어서", "~에 의해 수행된다" | "~로", "~을/를", "여기서", an active verb with its actor |
+| Formal-noun overuse | "~것이다", "~할 수 있는 점", "~할 필요가 있다" | the direct verb: "~한다", "~해야 한다" |
+| Mechanical enumeration | "첫째, 둘째, 셋째" lists; "또한/따라서/즉" opening consecutive sentences | bullets (section 5) or a table; a connective only where the logic needs it |
+| Double passive | "~되어집니다", "~될 수 있습니다" | an active sentence naming who acts (section 1) |
+
+Exceptions: quotations from the RFP and statutory text.

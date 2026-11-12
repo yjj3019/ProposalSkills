@@ -46,6 +46,7 @@ Deliver original + severity-sorted findings + minimum corrections + scope/limita
       Check same-page objective evidence/scope for each hit; otherwise replace.
 - [ ] Every track-record, certification, performance, SLA claim has source, reference date, scope.
 - [ ] The `[unverified]` list is empty or reported to the user.
+- [ ] No translationese or mechanical phrasing left (writing-style.md section 7).
 
 ### 4. Internal consistency of figures, versions, schedules
 - [ ] Staffing: summary ↔ organization ↔ profiles ↔ M/M agree.
