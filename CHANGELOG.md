@@ -29,6 +29,13 @@ Fixed (found by an independent review of the review loop)
   `render_changed`, and a changed environment re-checks every slide. An unknown part of the environment is not treated as a change.
 - `review_ledger.py` ties a verdict to the image that was looked at (its SHA-256 is recorded when viewing is recorded): `check` refuses an
   image that changed since, and `sync` does not carry a verdict onto a slide whose picture differs.
+- `render_delta.py` no longer deletes a page image by its name: it renders in a temporary folder, installs only after checking, removes
+  only the page images and sheets recorded as its own, and refuses (exit 2, nothing changed) when a file it is about to write exists and
+  is not recorded (a `page-99.png` or `sheet.png` the user added); the PDF is no longer written into the output folder.
+- `review_ledger.py sync` carries a verdict onto a rebuilt slide only when it can prove the picture is the same (the old and the new image
+  hash are both recorded and equal); a missing hash (an older ledger) resets the slide. `set --image` with another image, or viewing
+  again after the image changed, clears the viewing and the four rungs. `sheet` viewing (cover, closing) is held to the same image proof
+  as `full`. Open Critical or Major findings of a slide that no longer exists are kept in `orphaned_findings` and block `check`.
 
 Added (cheap review loop)
 - `scripts/render_delta.py`: renders every page, compares each slide's content hash with the last run and builds a numbered contact sheet

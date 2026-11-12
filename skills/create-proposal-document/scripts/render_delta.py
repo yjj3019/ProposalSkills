@@ -11,21 +11,22 @@ Usage:
     python render_delta.py deck.pptx -o out/render [--dpi 80] [--full-sheet] [--force]
 
 Writes under -o:
-    pages/page-NN.png        every page, current
+    pages/page-NN.png        every page, current (recorded in render_state.json)
     changed_sheet.png        contact sheet of the changed slides only, tiles numbered with the real slide number; more than
                              12 changed slides split into changed_sheet_1.png, changed_sheet_2.png, ...
     sheet.png                contact sheet of all pages (first run, --full-sheet, or --force); sheet_1.png, ... when split
     delta.json               {"changed": [...], "unchanged": [...], "render_changed": [...], "removed": n,
                               "environment_changed": bool, "engine": "...", "dpi": 80, "changed_sheets": [...], "sheets": [...]}
-    render_state.json        hashes, image hashes, the render environment and the files this tool created
+    render_state.json        hashes, image hashes, the render environment and the files this tool created (sheets and pages)
 
 A slide counts as changed when its content hash differs, or when its content is the same but the page now renders differently
 (a changed font, a different LibreOffice or converter version): those are listed in `render_changed`. A different render
 environment, a different --dpi or --force treats every slide as changed. A changed layout, master or theme changes every slide hash.
 
 Safety: -o must be a new or empty folder, or one this tool created before (it holds render_state.json); any other folder is refused
-before anything is written. The tool deletes only files it recorded as its own (the sheets and the page images it wrote), never a
-folder, never another file that happens to match a name.
+before anything is written. The tool renders in a temporary folder, then installs its files. It deletes only files it recorded as its
+own (the sheets and the page images it wrote), never a folder, never another file that happens to match a name, and it refuses
+(exit 2, nothing changed) when a file it is about to write already exists and is not recorded as its own.
 
 This never judges the pages: viewing the changed pages (and recording that in `review_ledger.py`) is still required.
 
@@ -149,10 +150,9 @@ def claim_output(out: Path) -> str | None:
 
 
 def to_pdf(deck: Path, pdf_dir: Path, soffice: str) -> Path:
+    """Convert into `pdf_dir`, a fresh temporary folder (never the user's output folder)."""
     pdf_dir.mkdir(parents=True, exist_ok=True)
     pdf = pdf_dir / (deck.stem + ".pdf")
-    if pdf.is_file():
-        pdf.unlink()
     with tempfile.TemporaryDirectory() as profile:     # a throwaway profile: no lock file, no first-run dialog
         cmd = [soffice, f"-env:UserInstallation={Path(profile).as_uri()}", "--headless", "--convert-to", "pdf",
                "--outdir", str(pdf_dir), str(deck)]
@@ -163,11 +163,8 @@ def to_pdf(deck: Path, pdf_dir: Path, soffice: str) -> Path:
 
 
 def to_pngs(pdf: Path, pages_dir: Path, dpi: int) -> list[Path]:
-    """PyMuPDF when installed, else Poppler's pdftoppm. Replaces only the page images this tool writes."""
+    """PyMuPDF when installed, else Poppler's pdftoppm. Writes page-NN.png into `pages_dir`, a fresh temporary staging folder."""
     pages_dir.mkdir(parents=True, exist_ok=True)
-    for old in pages_dir.iterdir():
-        if old.is_file() and OWN_PAGE.match(old.name):
-            old.unlink()
     try:
         import pymupdf
         with pymupdf.open(str(pdf)) as doc:
@@ -184,6 +181,33 @@ def to_pngs(pdf: Path, pages_dir: Path, dpi: int) -> list[Path]:
         for number, produced in enumerate(sorted(pages_dir.glob("p-*.png"), key=lambda p: int(p.stem.split("-")[-1])), 1):
             produced.rename(pages_dir / f"page-{number:02d}.png")
     return sorted(p for p in pages_dir.glob("page-*.png") if OWN_PAGE.match(p.name))
+
+
+def sheet_names(base: str, tiles: int, per_sheet: int = 12) -> list[str]:
+    """The file names contact_sheet.build_sheets will write for `tiles` tiles."""
+    if tiles <= 0:
+        return []
+    count = (tiles + per_sheet - 1) // per_sheet
+    return [f"{base}.png"] if count == 1 else [f"{base}_{i}.png" for i in range(1, count + 1)]
+
+
+def install_pages(staged: list[Path], pages_dir: Path, recorded: list[str]) -> list[Path]:
+    """Copy staged page images into `pages_dir`. Raises FileExistsError, before changing anything, when a target exists and was not
+    recorded as this tool's; then removes only the recorded page images it replaces."""
+    own = {n for n in recorded if OWN_PAGE.match(n)}
+    for path in staged:
+        if (pages_dir / path.name).exists() and path.name not in own:
+            raise FileExistsError(f"{pages_dir / path.name} exists and was not created by render_delta; move or rename it "
+                                  "(nothing was changed)")
+    pages_dir.mkdir(parents=True, exist_ok=True)
+    for name in own:
+        (pages_dir / name).unlink(missing_ok=True)
+    installed = []
+    for path in staged:
+        target = pages_dir / path.name
+        shutil.copyfile(path, target)
+        installed.append(target)
+    return installed
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -206,7 +230,6 @@ def main(argv: list[str] | None = None) -> int:
     if refusal:
         print(f"NOT INSPECTED: {refusal}", file=sys.stderr)
         return 2
-    import contact_sheet
     import review_ledger
     out.mkdir(parents=True, exist_ok=True)
     state_file = out / "render_state.json"
@@ -215,31 +238,49 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError:
         state = {}
     env = environment(soffice)
+    work = Path(tempfile.mkdtemp(prefix="render_delta_"))
     try:
-        hashes = review_ledger.slide_hashes(a.deck)
-        pdf = to_pdf(a.deck.resolve(), out / "_pdf", soffice)
-        pages = to_pngs(pdf, out / "pages", max(40, a.dpi))
-    except Exception as exc:  # noqa: BLE001 - any engine failure means NOT INSPECTED
-        print(f"NOT INSPECTED: rendering failed ({type(exc).__name__}: {str(exc)[:160]})", file=sys.stderr)
-        return 2
-    if len(pages) != len(hashes):
-        print(f"NOT INSPECTED: {len(hashes)} slides but {len(pages)} rendered pages", file=sys.stderr)
-        return 2
-    new = [{"hash": h, "image": file_sha256(p)} for h, p in zip(hashes, pages)]
+        try:
+            hashes = review_ledger.slide_hashes(a.deck)
+            pdf = to_pdf(a.deck.resolve(), work / "pdf", soffice)
+            staged = to_pngs(pdf, work / "pages", max(40, a.dpi))
+        except Exception as exc:  # noqa: BLE001 - any engine failure means NOT INSPECTED
+            print(f"NOT INSPECTED: rendering failed ({type(exc).__name__}: {str(exc)[:160]})", file=sys.stderr)
+            return 2
+        if len(staged) != len(hashes):
+            print(f"NOT INSPECTED: {len(hashes)} slides but {len(staged)} rendered pages", file=sys.stderr)
+            return 2
+        new = [{"hash": h, "image": file_sha256(p)} for h, p in zip(hashes, staged)]
+        return _finish(a, out, state_file, state, env, staged, new)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _finish(a, out: Path, state_file: Path, state: dict, env: dict, staged: list[Path], new: list[dict]) -> int:
+    import contact_sheet
     environment_changed = bool(state) and environment_differs(state.get("environment") or {}, env)
     usable = state.get("dpi") == a.dpi and not a.force and not environment_changed
     previous = state.get("slides", []) if usable else []
     changed, unchanged, removed, render_changed = delta_with_images(previous, new)
     first = not previous
-    # delete only the sheets this tool recorded; changed-slide sheets every run, the full sheets only when they are rewritten
     recorded = [n for n in state.get("created", []) if OWN_SHEET.match(n)]
     rewrite_full = first or a.full_sheet
-    kept = []
-    for name in recorded:
-        if name.startswith("changed_sheet") or rewrite_full:
-            (out / name).unlink(missing_ok=True)
-        else:
-            kept.append(name)
+    to_delete = [n for n in recorded if n.startswith("changed_sheet") or rewrite_full]
+    kept = [n for n in recorded if n not in to_delete]
+    # refuse, before touching anything, to overwrite a file this tool did not record
+    clashes = [name for name in sheet_names("changed_sheet", len(changed)) + (sheet_names("sheet", len(new)) if rewrite_full else [])
+               if (out / name).exists() and name not in to_delete]
+    if clashes:
+        print(f"NOT INSPECTED: {out / clashes[0]} exists and was not created by render_delta; move or rename it (nothing was changed)",
+              file=sys.stderr)
+        return 2
+    try:
+        pages = install_pages(staged, out / "pages", state.get("pages", []))
+    except FileExistsError as exc:
+        print(f"NOT INSPECTED: {exc}", file=sys.stderr)
+        return 2
+    for name in to_delete:
+        (out / name).unlink(missing_ok=True)
     changed_sheets: list[Path] = []
     sheets: list[Path] = []
     if changed:
@@ -248,7 +289,8 @@ def main(argv: list[str] | None = None) -> int:
     if rewrite_full:
         sheets = contact_sheet.build_sheets(pages, out / "sheet.png", cols=4, thumb=480, per_sheet=12)
     created = kept + [p.name for p in changed_sheets + sheets]
-    state_file.write_text(json.dumps({"tool": TOOL, "slides": new, "dpi": a.dpi, "environment": env, "created": created}), encoding="utf-8")
+    state_file.write_text(json.dumps({"tool": TOOL, "slides": new, "dpi": a.dpi, "environment": env, "created": created,
+                                      "pages": [p.name for p in pages]}), encoding="utf-8")
     result = {"changed": changed, "unchanged": unchanged, "render_changed": render_changed, "removed": removed,
               "environment_changed": environment_changed, "engine": env["soffice"], "dpi": a.dpi, "pages": str(out / "pages"),
               "changed_sheets": [str(p) for p in changed_sheets], "sheets": [str(p) for p in sheets]}

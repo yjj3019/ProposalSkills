@@ -17,9 +17,12 @@ ledger.json (created by `init`):
                                                    "status": "open|fixed|accepted", "reason": ""}]}],
    "not_inspected": ["what could not be checked"]}
 
-A verdict is tied to the image that was looked at: `set --viewed ...` records the image's SHA-256, `check` refuses a slide whose image
-now differs (a changed font or render engine makes the same slide look different), and `sync` does not carry a verdict onto a slide
-whose newly rendered image differs from the one that was judged.
+A verdict is tied to the image that was looked at, for `full` and for `sheet` alike: `set --viewed ...` records the image's SHA-256,
+`check` refuses a slide whose image now differs (a changed font or render engine makes the same slide look different), and `sync` carries
+a verdict onto a rebuilt slide only when it can PROVE the picture is the same (the old and the new hash are both recorded and equal);
+a missing hash (an older ledger) or a different picture resets the slide. Giving `set --image` a different image, or viewing again after
+the image changed, clears the viewing and the four rungs: they must be given again. Open Critical or Major findings of a slide that no
+longer exists are kept in `orphaned_findings` and block `check` until they are resolved in the ledger.
 
 Each slide also carries a content hash (its XML plus the parts it uses: layout, master, charts, images). After the deck is rebuilt,
 `sync` keeps the verdicts of slides whose hash is unchanged and resets only the changed or new ones, so only those need to be looked at
@@ -153,21 +156,33 @@ def sync(ledger: dict, base: Path, png_dir: Path | None) -> tuple[dict, dict]:
         pool = old_by_hash.get(digest) or []
         if digest and pool:
             old = pool.pop(0)
+            slide["findings"] = old.get("findings", [])         # findings describe the content, which is unchanged
             image = (base / slide["image"]) if slide["image"] else None
             new_sha = sha256(image) if image is not None and image.is_file() else ""
             old_sha = old.get("image_sha256", "")
-            if old.get("viewed") == "full" and old_sha and new_sha and new_sha != old_sha:
-                reset.append(slide["slide"])          # same content, but it renders differently now: the verdict was about another picture
-                rendered.append(slide["slide"])
-                continue
-            for key in ("viewed", "rungs", "waived_reason", "findings"):
-                slide[key] = old.get(key, slide[key])
-            if not slide["image"] and old.get("image"):
-                slide["image"] = old["image"]
-            slide["image_sha256"] = new_sha or old_sha
-            kept.append(slide["slide"])
+            looked = old.get("viewed") in {"full", "sheet"}
+            if not looked:
+                reset.append(slide["slide"])
+            elif not (old_sha and new_sha and old_sha == new_sha):
+                # the verdict cannot be shown to be about this picture: no hash was recorded (older ledger), the image is
+                # missing, or the picture differs; either way it has to be looked at again
+                reset.append(slide["slide"])
+                if old_sha and new_sha:
+                    rendered.append(slide["slide"])
+            else:
+                for key in ("viewed", "rungs", "waived_reason"):
+                    slide[key] = old.get(key, slide[key])
+                slide["image_sha256"] = new_sha
+                kept.append(slide["slide"])
         else:
             reset.append(slide["slide"])
+    orphans = list(ledger.get("orphaned_findings") or [])
+    for leftover in (old for pool in old_by_hash.values() for old in pool):
+        for f in leftover.get("findings") or []:
+            if f.get("severity") in {"Critical", "Major"} and f.get("status") == "open":
+                orphans.append({"was_slide": leftover.get("slide"), "severity": f["severity"], "text": f.get("text", ""),
+                                "status": "open", "reason": ""})
+    fresh["orphaned_findings"] = orphans
     removed = sum(len(v) for v in old_by_hash.values())
     fresh["deck"] = ledger["deck"]
     fresh["revisions"] = ledger.get("revisions", 0)
@@ -210,14 +225,14 @@ def problems_in(ledger: dict, base: Path) -> list[str]:
             out.append(f"slide {n}: not viewed")
         elif content and s.get("visual") and viewed != "full":
             out.append(f"slide {n}: a chart or diagram must be viewed at full size, not on a contact sheet")
-        if viewed == "full":
+        if viewed in {"full", "sheet"}:
             image = (base / str(s.get("image", ""))) if s.get("image") else None
             if image is None or not image.is_file():
-                out.append(f"slide {n}: viewed at full size but the rendered image is missing")
+                out.append(f"slide {n}: viewed ({viewed}) but the rendered image is missing")
             elif deck is not None and deck.is_file() and image.stat().st_mtime + MTIME_SLACK < deck.stat().st_mtime:
                 out.append(f"slide {n}: the image is older than the deck; render again")
             elif not s.get("image_sha256"):
-                out.append(f"slide {n}: the viewed image's hash is not recorded; run set --viewed full again after looking at it")
+                out.append(f"slide {n}: the viewed image's hash is not recorded; run set --viewed {viewed} again after looking at it")
             elif sha256(image) != s["image_sha256"]:
                 out.append(f"slide {n}: the image changed after it was viewed (it renders differently now); look again")
         if content:
@@ -232,6 +247,12 @@ def problems_in(ledger: dict, base: Path) -> list[str]:
                 out.append(f"slide {n}: open {f.get('severity')} finding: {str(f.get('text', ''))[:70]}")
             if f.get("status") == "accepted" and not str(f.get("reason", "")).strip():
                 out.append(f"slide {n}: an accepted finding needs a reason")
+    for f in ledger.get("orphaned_findings") or []:
+        if f.get("severity") in {"Critical", "Major"} and f.get("status") == "open":
+            out.append(f"an open {f.get('severity')} finding from old slide {f.get('was_slide')} has no slide any more: set its status "
+                       f"to fixed, or to accepted with a reason, in `orphaned_findings`")
+        if f.get("status") == "accepted" and not str(f.get("reason", "")).strip():
+            out.append(f"an accepted orphaned finding from old slide {f.get('was_slide')} needs a reason")
     return out
 
 
@@ -285,13 +306,23 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"no slide {a.slide} in the ledger", file=sys.stderr)
                 return 2
             s = slides[a.slide]
-            for key in ("viewed", "image"):
-                if getattr(a, key):
-                    s[key] = getattr(a, key)
-            if (a.viewed or a.image) and s.get("viewed") in {"full", "sheet"} and s.get("image"):
-                shown = a.ledger.resolve().parent / s["image"]       # recorded only when viewing is recorded, never on a later edit
-                if shown.is_file():
-                    s["image_sha256"] = sha256(shown)
+            old_image, old_sha = s.get("image", ""), s.get("image_sha256", "")
+            if a.image:
+                s["image"] = a.image
+            if a.viewed:
+                s["viewed"] = a.viewed
+            if a.viewed or a.image:                                   # only when viewing or the picture is recorded, never on a later edit
+                shown = a.ledger.resolve().parent / s["image"] if s.get("image") else None
+                now = sha256(shown) if shown is not None and shown.is_file() else ""
+                if (a.image and a.image != old_image) or (old_sha and now and now != old_sha):
+                    # another picture is another thing to judge: the earlier viewing and the four rungs do not carry over
+                    if not a.viewed:
+                        s["viewed"] = "none"
+                    s["rungs"] = {r: None for r in RUNGS}
+                    s["waived_reason"] = ""
+                    s["image_sha256"] = ""
+                if s.get("viewed") in {"full", "sheet"} and now:
+                    s["image_sha256"] = now
             for rung in RUNGS:
                 if getattr(a, rung):
                     s["rungs"][rung] = getattr(a, rung)

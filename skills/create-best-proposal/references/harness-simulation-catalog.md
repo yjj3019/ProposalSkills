@@ -26,7 +26,10 @@ gate, a reader or the hook guard, and before a release.
 10. A tool that deletes must delete only what it recorded as its own, and must refuse a folder it did not create; test it with a
     user's file whose name matches the tool's own pattern.
 11. A fingerprint that can be "unknown" must not report a change just because it was unknown once (a flaky `--version` call made
-    every slide look changed).
+    every slide look changed); the reverse is also true: missing proof is never evidence of sameness. Carry a record forward only when
+    you can show it still applies (both hashes present and equal), otherwise reset it.
+12. Recording something new must never keep an old claim alive: changing the object a verdict is about clears the verdict, and a
+    reset must not drop an open serious finding.
 
 ## 2. Scenario families and what they found
 
@@ -42,7 +45,7 @@ gate, a reader or the hook guard, and before a release.
 | Submission bundle | unlisted executable or script in the folder, tampered or missing attachment, path escape | strays unnoticed | #44 |
 | Readers | hidden slides, ids split across runs, 5-6 digit ids, DOCX headers, chart workbooks, tracked changes | missed or mis-read | #48 |
 | Scanner | personal data inside an embedded chart workbook | deck reported INCOMPLETE | #49 |
-| Review loop (found by an independent review) | a theme colour or slide-size change, thirteen changed slides, files a user keeps in the output folder, a font or engine change with unchanged content | slide hashes ignored the theme; the printed sheet path did not exist; name-matching deleted a user's files; a render change was invisible | this change |
+| Review loop (found by an independent review) | a theme colour or slide-size change, thirteen changed slides, files a user keeps in the output folder (even named like the tool's own), a font or engine change with unchanged content, a ledger written before hashes existed, `set --image` alone, a slide that disappears while it has an open finding | slide hashes ignored the theme; the printed sheet path did not exist; name-matching deleted a user's files; a render change was invisible; a verdict was attached to a picture it never judged; an open Major finding vanished | #53 |
 | Verified working | leak detection (resident number, cloud key, IP, email, phone), hash-bound tamper detection, HWPX and the zip-bomb guard, cross-format number divergence, concurrent chain appends, cp949 and ASCII encodings, Hangul and space paths, the English gate, determinism, profiles | no change needed | n/a |
 
 ## 3. Limits that are documented, not fixable by this repository
