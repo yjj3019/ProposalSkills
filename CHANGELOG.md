@@ -5,6 +5,9 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Added
+- `writing-style.md` section 7 (translationese and mechanical phrasing) and a matching review-checklist item.
+
 Fixed (found by a 10-scenario simulation of the skills and harness)
 - `hook_guard_bash.py`: also denies commands wrapped in `bash -c`/`sh -c`/`eval`, `bash <(curl ...)` and `eval $(curl ...)`,
   `git checkout .`, `git stash drop|clear`, `git branch -D`, `git push --delete`/`:branch`, unfiltered `find -delete`,
