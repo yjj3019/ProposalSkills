@@ -127,6 +127,10 @@ Submission requires closed Critical/Major/BLOCKING INPUT plus confirmed rehearsa
   Empty in the distribution to exclude sensitive information.
 - `assets/brand-assets/` — organization's logos/templates; installed brand-document skill tokens are the single source.
 - `scripts/build_deck.py` — slides.json → PPTX generator (12 layouts, role names for shapes).
+- `references/editorial-deck-design.md` — type scale, grid, decluttering and at-a-glance patterns for decks that must look finished;
+  `scripts/tidy_audit.py` measures it (font sizes, near-miss alignment, rules, density). Read it before restyling a deck.
+- `references/ai-vendor-comparison-playbook.md` — how to compare AI vendors or models from their own documentation, with a
+  dated 2026-11-12 snapshot (re-verify before quoting); `assets/examples/ai-model-comparison/make_deck.py` is the 17-slide example.
 - `scripts/deck_check.py` — layout lint, render checks, audit render block output.
 - `fixtures/e2e-mini-rfp/` — mini RFP → slides.json → meta.json golden example spanning the pipeline.
 - `scripts/quality_gate.py` — machine review (exaggerations/placeholders/residual names/palette). Inspects PPTX/DOCX/XLSX

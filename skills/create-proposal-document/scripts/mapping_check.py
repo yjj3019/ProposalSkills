@@ -22,15 +22,22 @@ import sys
 import zipfile
 from pathlib import Path
 
-REQ_RE = re.compile(r"\bREQ[-_]?\d{1,4}\b", re.IGNORECASE)
+REQ_RE = re.compile(r"\bREQ[-_]?\d{1,6}\b", re.IGNORECASE)
 
 
 def normalize_id(raw: str) -> str:
     text = raw.strip().upper().replace("_", "-")
-    m = re.match(r"REQ-?(\d{1,4})", text)
+    m = re.match(r"REQ-?(\d{1,6})", text)
     if not m:
         return text
     return f"REQ-{int(m.group(1)):03d}"
+
+
+def xml_text(xml: str) -> str:
+    """Text of an OOXML part: runs inside one paragraph are joined (PowerPoint and Word split "REQ-" and "001"
+    into separate runs); paragraphs and cells stay apart."""
+    xml = re.sub(r"</(?:a:p|w:p)>", "\n", xml)
+    return re.sub(r"<[^>]+>", "", xml)
 
 
 def extract_text_blocks(path: Path) -> str:
@@ -43,13 +50,12 @@ def extract_text_blocks(path: Path) -> str:
                 key=lambda n: int(re.search(r"slide(\d+)\.xml$", n).group(1)),
             )
             for n in names:
-                xml = z.read(n).decode("utf-8", "ignore")
-                chunks.append(re.sub(r"<[^>]+>", " ", xml))
+                chunks.append(xml_text(z.read(n).decode("utf-8", "ignore")))
         return "\n".join(chunks)
     if suffix == ".docx":
         with zipfile.ZipFile(path) as z:
-            xml = z.read("word/document.xml").decode("utf-8", "ignore")
-        return re.sub(r"<[^>]+>", " ", xml)
+            parts = ["word/document.xml"] + sorted(n for n in z.namelist() if re.match(r"word/(?:header|footer|footnotes|endnotes)\d*\.xml$", n))
+            return "\n".join(xml_text(z.read(n).decode("utf-8", "ignore")) for n in parts)
     return path.read_text(encoding="utf-8")
 
 

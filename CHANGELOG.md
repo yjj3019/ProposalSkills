@@ -6,11 +6,24 @@ official-directory publication (see `references/marketplace-management.md`).
 ## Unreleased
 
 Added
+- `references/editorial-deck-design.md` (nine-step type scale, one content grid, decluttering, seven at-a-glance patterns, render
+  loop and the DRM caveat) and `scripts/tidy_audit.py` (font sizes, near-miss alignments, thin rules, characters per slide).
+- `references/ai-vendor-comparison-playbook.md`: how to compare AI vendors from their own documentation, a Korea data-location
+  checklist and a dated 2026-11-12 snapshot; `assets/examples/ai-model-comparison/make_deck.py` builds the 17-slide example.
 - `mapping_check.py` (requirements matrix vs REQ-IDs in the document, both directions) and `package_inspect.py` (PPTX/DOCX
   package hints: author metadata, notes, comments, hidden slides, external links, embeddings, macros); a DRM-wrapped file is
   NOT INSPECTED (exit 2).
 - Optional `Dockerfile` and `runtime_check.py` (python-pptx, Pillow, LibreOffice, Poppler) that follow `requirements.txt`.
 - `writing-style.md` section 7 (translationese and mechanical phrasing) and a matching review-checklist item.
+
+Fixed (found while building the AI model comparison deck)
+- `build_deck.py`: the generated file no longer carries python-pptx's template author or its "generated using python-pptx"
+  comment; the author is empty unless `meta.author` is set and the title comes from `meta.title`.
+- `package_inspect.py`: hidden slides are read from the slide part (PowerPoint stores `show="0"` there, not in
+  `presentation.xml`); chart value workbooks are reported as information, not as an attachment; tracked changes in a DOCX
+  block.
+- `mapping_check.py`: REQ-IDs that PowerPoint or Word split across text runs (`REQ-` and `001`) are found, five- and six-digit
+  IDs are no longer dropped, and DOCX headers, footers and footnotes are read.
 
 Fixed (found by a 10-scenario simulation of the skills and harness)
 - `hook_guard_bash.py`: also denies commands wrapped in `bash -c`/`sh -c`/`eval`, `bash <(curl ...)` and `eval $(curl ...)`,

@@ -38,6 +38,9 @@ nothing or contradict the text claim; text too small or too low in contrast to r
 whose drawn size contradicts its value. These are checked on the rendered page. `deck_check.py` covers font size,
 density and page counts; overlap and arrow meaning still need a person looking at the render.
 
+Measurable tidiness (font sizes, near-miss alignment, rule clutter) and the at-a-glance patterns are in
+[editorial-deck-design.md](editorial-deck-design.md); `scripts/tidy_audit.py` reports them.
+
 ## 5. Critique-and-revise loop
 
 1. Render the saved deck (`deck_check.py --render`) and look at every page image, not the source file.

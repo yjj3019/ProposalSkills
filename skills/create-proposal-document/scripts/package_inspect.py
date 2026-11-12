@@ -24,7 +24,7 @@ from xml.etree import ElementTree as ET
 
 WARNING_PREFIXES = ("[NOT INSPECTED]", "[경고]")
 BLOCKING_PREFIXES = ("[메타데이터]", "[노트]", "[댓글]", "[숨김]", "[외부링크]",
-                     "[임베드]", "[매크로]", "[가격힌트]")
+                     "[임베드]", "[매크로]", "[가격힌트]", "[추적변경]")
 
 
 def _safe_read(z: zipfile.ZipFile, name: str) -> str:
@@ -82,11 +82,11 @@ def inspect_pptx(path: Path) -> list[str]:
         if comment_files:
             findings.append(f"[댓글] 댓글 파트 {len(comment_files)}개 — 제출 전 삭제·정리")
 
-        # Hidden slides: show="0" on cSld or presentation sldIdList
-        pres = _safe_read(z, "ppt/presentation.xml")
-        hidden = len(re.findall(r'show="0"', pres))
+        # Hidden slides: PowerPoint stores show="0" on the <p:sld> element of the slide part itself
+        hidden = sum(1 for n in names if re.match(r"ppt/slides/slide\d+\.xml$", n)
+                     and re.search(r'<p:sld\b[^>]*\bshow="0"', _safe_read(z, n)))
         if hidden:
-            findings.append(f"[숨김] presentation.xml show=0 참조 {hidden}건 — 숨김 슬라이드 확인")
+            findings.append(f"[숨김] 숨김 슬라이드 {hidden}장 — 제출 전 삭제 또는 공개 여부 확인")
 
         # External hyperlinks in relationships
         ext_links = 0
@@ -99,8 +99,14 @@ def inspect_pptx(path: Path) -> list[str]:
             findings.append(f"[외부링크] 관계 파일 외부 Target {ext_links}건 — 제출 허용 여부 확인")
 
         embeds = [n for n in names if n.startswith("ppt/embeddings/")]
-        if embeds:
-            findings.append(f"[임베드] embeddings/ {len(embeds)}개 — 첨부 개체·원가표 혼입 여부 확인")
+        chart_data = {"ppt/embeddings/" + t.rsplit("/", 1)[-1]
+                      for n in names if re.match(r"ppt/charts/_rels/[^/]+\.rels$", n)
+                      for t in re.findall(r'Target="([^"]*embeddings/[^"]+)"', _safe_read(z, n))}
+        attached = [n for n in embeds if n not in chart_data]
+        if attached:
+            findings.append(f"[임베드] embeddings/ {len(attached)}개 — 첨부 개체·원가표 혼입 여부 확인")
+        if chart_data:
+            findings.append(f"[차트데이터] 차트 값 워크북 {len(chart_data)}개 — 차트에 쓴 값만 들어 있는지 확인 (첨부 개체 아님)")
 
         if any("vbaProject" in n for n in names):
             findings.append("[매크로] vbaProject 감지 — 매크로 포함 제출은 보통 실격")
@@ -145,7 +151,10 @@ def inspect_docx(path: Path) -> list[str]:
         if ext_links:
             findings.append(f"[외부링크] 관계 파일 외부 Target {ext_links}건")
 
-        findings.append("[NOT INSPECTED] 숨김 텍스트·필드 코드·추적 변경 상세는 미검사")
+        tracked = len(re.findall(r"<w:(?:ins|del)\b", _safe_read(z, "word/document.xml")))
+        if tracked:
+            findings.append(f"[추적변경] 수정 추적 {tracked}건 — 승인하거나 삭제한 뒤 제출")
+        findings.append("[NOT INSPECTED] 숨김 텍스트·필드 코드 상세는 미검사")
         findings.append("[NOT INSPECTED] PDF 렌더·폰트 깨짐·잘림은 LibreOffice/Poppler + 육안")
     return findings
 
