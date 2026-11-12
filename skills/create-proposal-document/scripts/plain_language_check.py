@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import zipfile
 from pathlib import Path
 
 import quality_gate
@@ -73,6 +74,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         text = read_text(args.file)
+    except zipfile.BadZipFile:
+        print("Cannot read file: not a ZIP package (encrypted or DRM-protected, or corrupt); NOT INSPECTED", file=sys.stderr)
+        return 2
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         print(f"Cannot read file: {type(exc).__name__}", file=sys.stderr)
         return 2

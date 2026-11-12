@@ -3,6 +3,20 @@
 Versions describe the local candidate in `plugin.json`; a version here does not imply a GitHub release or an
 official-directory publication (see `references/marketplace-management.md`).
 
+## Unreleased
+
+Fixed (found by a 10-scenario simulation of the skills and harness)
+- `hook_guard_bash.py`: also denies commands wrapped in `bash -c`/`sh -c`/`eval`, `bash <(curl ...)` and `eval $(curl ...)`,
+  `git checkout .`, `git stash drop|clear`, `git branch -D`, `git push --delete`/`:branch`, unfiltered `find -delete`,
+  `rm -rf ./` and `.*`, `dd of=/dev/...`, `mkfs`, `shred`, `xargs rm -r`, recursive `chmod`/`chown`/`mv` on a broad target,
+  redirects into system folders, a fork bomb, `format C:` and PowerShell `Remove-Item -Recurse` on a broad target.
+- `task_contract.py`: `write_boundary` must name one specific folder (not `.`, `..`, a drive or filesystem root, `~`, `*`).
+- `plain_language_check.py`: a DRM-wrapped or non-ZIP Office file is reported as NOT INSPECTED (exit 2), not a traceback.
+- `build_deck.py`: a `slides.json` whose top level is not an object, or a damaged python-pptx install, exits 2 with a message.
+- `install_skill.py`: test files are no longer copied into the installed skill folder.
+- `evidence_chain.py verify`: `--expect-head` / `--expect-count` compare the log with a value written down elsewhere, so a
+  truncated or rebuilt log is caught.
+
 ## 1.3.0
 
 Added

@@ -78,7 +78,7 @@ class InstallSkillSimulations(unittest.TestCase):
         source_files = {
             p.relative_to(install_skill.SOURCE)
             for p in install_skill.SOURCE.rglob("*")
-            if p.is_file() and "__pycache__" not in p.parts
+            if p.is_file() and "__pycache__" not in p.parts and not p.name.startswith("test_")  # tests are not installed
         }
         target_files = {
             p.relative_to(target)
