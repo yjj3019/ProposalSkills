@@ -118,7 +118,14 @@ The example uses Noto Serif KR, Noto Sans KR and Georgia by name; they are not b
 Noto families). Another machine without them substitutes fonts and changes line breaks. Share a PDF, or rerun the
 render check on the target machine.
 
-## 9. Reference implementation
+## 9. Theme in the generator
+
+`build_deck.py` carries this look as an opt-in theme: `meta.theme: "editorial"` gives the paper background, serif title and light lead
+without a title rule, hairline tables and flat cards, and keeps the role names (`TITLE`, `LEAD`, `CAPTION`, ...) so `deck_check.py` and the
+contrast check still apply. The default stays `standard`. A buyer's template or palette overrides the theme, and `--profile` still
+decides the checked sizes. Every run now also carries the East Asian and complex-script typeface, for every theme.
+
+## 10. Reference implementation
 
 `assets/examples/ai-model-comparison/make_deck.py` builds the 17-slide deck these rules came from, with the primitives
 (text stacks, rules, icons, table and chart helpers, generated art) in one file. Copy the primitives, not the content.

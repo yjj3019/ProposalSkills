@@ -49,8 +49,15 @@ Procedure:
 3. Run `tidy_audit.py`, `deck_check.py`, `quality_gate.py`, `package_inspect.py` and, for decks with text, `deck_story_check.py`.
 4. Write the findings, each with why it matters and the smallest fix, ranked Critical / Major / Minor. Fix, rebuild and
    render again. Revise at least once even when the first pass looks clean: the first pass is where the rungs are found.
-5. Stop when no Critical or Major finding is open and the measures are inside their limits. A warning left on purpose
-   needs a one-line reason (an agenda or a source list is text-only by nature).
+5. Record the review in the ledger, page by page: `scripts/review_ledger.py init <deck> -o ledger.json --png-dir out/png --engine <name>`,
+   then `set` each slide (viewed full or on the sheet, the four rungs, findings) and `check ledger.json` until it prints COMPLETE.
+   `check` refuses a slide that was never viewed, a chart or diagram seen only on the sheet, an image older than the deck,
+   a rung that is not pass or waived with a reason, an open Critical or Major finding, no revision, or a deck that changed after
+   the review. It proves every page was recorded as seen, not that the judgments are right; the measures above are proxies and
+   the ledger is what keeps the looking from being skipped. Cite the ledger as the evidence of a rendered-level check in
+   `verification_report.py`.
+6. Stop when the ledger is COMPLETE and the measures are inside their limits. A warning left on purpose needs a one-line
+   reason (an agenda or a source list is text-only by nature).
 
 ## 4. What to report
 

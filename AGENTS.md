@@ -39,7 +39,8 @@ commands, paths, configuration keys, code field names, status values, Korean tes
 For any generated document or deck: render it and look at every page yourself, measure what can be measured, and revise at least once
 before handing it over. Do not wait for the person to point out that a slide is plain, busy or hard to read at a glance. Ask the few
 questions that change the result up front (audience and decision, depth, style, sources, delivery) and, if nobody can answer, write
-the assumptions down. Procedure: `skills/create-proposal-document/references/deck-intake-and-self-review.md`.
+the assumptions down. Procedure: `skills/create-proposal-document/references/deck-intake-and-self-review.md`; record the pages you looked at with
+`scripts/review_ledger.py` and do not call the work finished until `check` prints COMPLETE.
 
 ## Skill routing (all models)
 
