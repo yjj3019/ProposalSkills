@@ -13,8 +13,8 @@ Usage:
 `render_delta.py` calls this with the real slide numbers as labels for the slides that changed. Pages are taken in natural order (page-2 before page-10) from *.png, *.jpg, *.jpeg. With more pages than --per-sheet the
 output becomes sheet_1.png, sheet_2.png, and so on. Each tile carries its page number.
 
-Exit codes: 0 = sheets written, 2 = folder missing, no images, or an image cannot be read (damaged, or wrapped by an
-enterprise DRM agent): NOT INSPECTED, nothing is written.
+Exit codes: 0 = sheets written, 2 = folder missing, no images, output aliases an input, or a page cannot be read
+(damaged, or wrapped by an enterprise DRM agent): NOT INSPECTED. A write failure may leave partial output.
 Needs Pillow (requirements.txt).
 """
 from __future__ import annotations
@@ -40,6 +40,18 @@ def build_sheets(images: list[Path], out: Path, cols: int, thumb: int, per_sheet
     pad, label_h = 12, 20
     written: list[Path] = []
     chunks = [images[i:i + per_sheet] for i in range(0, len(images), per_sheet)]
+    targets = [out if len(chunks) == 1 else out.with_name(f"{out.stem}_{n}{out.suffix}")
+               for n in range(1, len(chunks) + 1)]
+    for index, target in enumerate(targets):
+        for other in targets[:index]:
+            if target.resolve() == other.resolve() or (target.exists() and other.exists() and target.samefile(other)):
+                raise ValueError("output sheets alias each other")
+        for source in images:
+            if target.resolve() == source.resolve() or (target.exists() and target.samefile(source)):
+                raise ValueError("output aliases an input page")
+    for source in images:
+        with Image.open(source) as image:
+            image.load()
     for n, chunk in enumerate(chunks, 1):
         tiles = []
         for path in chunk:
@@ -59,7 +71,7 @@ def build_sheets(images: list[Path], out: Path, cols: int, thumb: int, per_sheet
             draw.text((x, y + 3), labels[index] if labels else str(index + 1), fill=(60, 60, 60))
             sheet.paste(tile, (x, y + label_h))
             draw.rectangle((x - 1, y + label_h - 1, x + tile.width, y + label_h + tile.height), outline=(190, 186, 176))
-        target = out if len(chunks) == 1 else out.with_name(f"{out.stem}_{n}{out.suffix}")
+        target = targets[n - 1]
         target.parent.mkdir(parents=True, exist_ok=True)
         sheet.save(target)
         written.append(target)
@@ -82,13 +94,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no .png/.jpg pages in {a.folder}", file=sys.stderr)
         return 2
     try:
+        from PIL import Image
         written = build_sheets(images, a.output, max(1, a.cols), max(120, a.thumb), max(1, a.per_sheet))
     except ImportError:
         print("Pillow is required (pip install -r requirements.txt)", file=sys.stderr)
         return 2
-    except (OSError, ValueError) as exc:
-        print(f"NOT INSPECTED: cannot read a page image ({type(exc).__name__}); it may be damaged or wrapped by an "
-              "enterprise DRM agent, nothing was written", file=sys.stderr)
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+        print(f"NOT INSPECTED: contact sheet failed ({type(exc).__name__}); check page images and output paths. "
+              "A write failure may leave partial output.", file=sys.stderr)
         return 2
     for path in written:
         print(f"wrote {path}")

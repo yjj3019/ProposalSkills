@@ -2,7 +2,7 @@
 """Unified proposal gate: audit + optional document quality (SI-B2/B3, S4).
 
 Exit codes:
-  0 READY or CONDITIONAL-GO (internal)  — SUBMISSION-READY only when audit.mode=submission,
+  0 READY or CONDITIONAL-GO (internal) - SUBMISSION-READY only when audit.mode=submission,
     otherwise <MODE>-READY (e.g. DRAFT-READY)
   1 BLOCKED or DECISION_MEMO_ONLY
   2 INVALID / usage / missing dependency

@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import sys
 import tempfile
@@ -50,7 +51,32 @@ def record_hash(record: dict) -> str:
 def read_log(log: Path) -> list[dict]:
     if not log.exists():
         return []
-    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if any(not isinstance(record, dict) for record in records):
+        raise ValueError("evidence records must be objects")
+    return records
+
+
+def _valid_metric(value: object) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except OverflowError:
+        return False
+
+
+def _metric_totals(records: list[dict]) -> dict[str, float]:
+    totals = {}
+    for key in ("seconds", "cost"):
+        if any(key in record for record in records):
+            try:
+                totals[key] = math.fsum(record.get(key, 0) for record in records)
+            except OverflowError as exc:
+                raise ValueError(f"total {key} is out of range") from exc
+            if not math.isfinite(totals[key]):
+                raise ValueError(f"total {key} is out of range")
+    return totals
 
 
 def append(log: Path, command: str, exit_code: int, artifacts: list[Path], note: str = "", now: datetime | None = None,
@@ -81,10 +107,11 @@ def _append_locked(log: Path, command: str, exit_code: int, artifacts: list[Path
               "prev": records[-1]["hash"] if records else GENESIS}
     for key, value in (("seconds", seconds), ("cost", cost)):
         if value is not None:
-            if value < 0:
-                raise ValueError(f"{key} must not be negative")
+            if not _valid_metric(value):
+                raise ValueError(f"{key} must be finite and non-negative")
             record[key] = value
     record["hash"] = record_hash(record)
+    _metric_totals([*records, record])
     old = log.read_bytes() if log.exists() else b""
     if old and not old.endswith(b"\n"):
         raise ValueError("refusing to append to an incomplete log line")
@@ -109,6 +136,15 @@ def verify(records: list[dict], check_artifacts: bool = False, base: Path = Path
         return ["no evidence records: not verified"]
     prev = GENESIS
     for index, record in enumerate(records, 1):
+        if not isinstance(record.get("command"), str) or not isinstance(record.get("exit_code"), int) or isinstance(record.get("exit_code"), bool):
+            problems.append(f"record {index}: invalid command or exit code")
+        for key in ("seconds", "cost"):
+            if key in record and not _valid_metric(record[key]):
+                problems.append(f"record {index}: {key} must be finite and non-negative")
+        artifacts = record.get("artifacts")
+        if not isinstance(artifacts, list):
+            problems.append(f"record {index}: artifacts must be an array")
+            artifacts = []
         if record.get("seq") != index:
             problems.append(f"record {index}: sequence number is {record.get('seq')}")
         if record.get("prev") != prev:
@@ -116,20 +152,28 @@ def verify(records: list[dict], check_artifacts: bool = False, base: Path = Path
         if record.get("hash") != record_hash(record):
             problems.append(f"record {index}: content does not match its hash (edited)")
         prev = record.get("hash", "")
-        if check_artifacts:
-            for item in record.get("artifacts", []):
+        for item in artifacts:
+            if not isinstance(item, dict) or not isinstance(item.get("path"), str) or not isinstance(item.get("sha256"), str):
+                problems.append(f"record {index}: invalid artifact descriptor")
+                continue
+            if check_artifacts:
                 target = base / item["path"]
                 if not target.is_file():
                     problems.append(f"record {index}: artifact {item['path']} is missing")
                 elif digest(target) != item["sha256"]:
                     problems.append(f"record {index}: artifact {item['path']} changed after it was checked")
+    if not problems:
+        try:
+            _metric_totals(records)
+        except ValueError as exc:
+            problems.append(str(exc))
     return problems
 
 
 def anchor_problems(records: list[dict], expect_head: str | None, expect_count: int | None) -> list[str]:
     """Compare the log with a head hash / record count that was written down outside the log."""
     problems = []
-    head = records[-1]["hash"] if records else GENESIS
+    head = records[-1].get("hash", "") if records else GENESIS
     if expect_count is not None and len(records) != expect_count:
         problems.append(f"log has {len(records)} record(s) but {expect_count} were recorded (truncated or extended)")
     if expect_head is not None and head != expect_head.strip().lower():
@@ -196,9 +240,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     for problem in problems:
         print(f"[BROKEN] {problem}")
-    head = records[-1]["hash"] if records else GENESIS
-    totals = "".join(f", total {k}={sum(r.get(k, 0) for r in records):g}" for k in ("seconds", "cost")
-                     if any(k in r for r in records))
+    head = records[-1].get("hash", "") if records else GENESIS
+    totals = "".join(f", total {k}={value:g}" for k, value in (_metric_totals(records) if not problems else {}).items())
     print(f"EVIDENCE-CHAIN: {'BROKEN' if problems else 'OK'} ({len(records)} record(s), head={head}{totals})")
     return 1 if problems else 0
 

@@ -43,7 +43,10 @@ def check(deck: dict) -> tuple[list[str], list[str], list[str]]:
     if not isinstance(slides, list):
         return ghost, ["slides.json needs a slides list"], warnings
     for index, slide in enumerate(slides, 1):
-        if not isinstance(slide, dict) or slide.get("type") in STRUCTURAL:
+        if not isinstance(slide, dict):
+            blocked.append(f"slide {index}: must be an object")
+            continue
+        if slide.get("type") in STRUCTURAL:
             continue
         title = norm(slide.get("title", ""))
         ghost.append(f"{index:>3}. {title or '(no title)'}")

@@ -10,6 +10,8 @@
 
 조견표 최소 열(마크다운): REQ-ID | … | 페이지 또는 장표
 JSON 형식: [{"id":"REQ-001","page":"3"}, ...] 또는 {"requirements":[...]}
+같은 REQ-ID가 표기 변형을 포함해 한 표의 여러 행에 있으면 사용 오류로 거부한다.
+JSON 객체 키가 중복되면 중첩 위치와 관계없이 사용 오류로 거부한다.
 
 종료 코드: 0=양방향 일치, 1=불일치, 2=사용 오류.
 """
@@ -23,6 +25,15 @@ import zipfile
 from pathlib import Path
 
 REQ_RE = re.compile(r"\bREQ[-_]?\d{1,6}\b", re.IGNORECASE)
+
+
+def _unique_json_members(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
 
 
 def normalize_id(raw: str) -> str:
@@ -59,11 +70,36 @@ def extract_text_blocks(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _markdown_cells(line: str) -> list[str]:
+    line = line.strip()
+    if line.startswith("|"):
+        line = line[1:]
+    cells, cell = [], []
+    i, ended_with_separator = 0, False
+    while i < len(line):
+        if line[i] == "\\" and i + 1 < len(line) and line[i + 1] in {"\\", "|"}:
+            cell.append(line[i + 1])
+            i += 2
+            ended_with_separator = False
+        elif line[i] == "|":
+            cells.append("".join(cell).strip())
+            cell = []
+            i += 1
+            ended_with_separator = True
+        else:
+            cell.append(line[i])
+            i += 1
+            ended_with_separator = False
+    if not ended_with_separator:
+        cells.append("".join(cell).strip())
+    return cells
+
+
 def parse_matrix(path: Path) -> dict[str, str]:
     """id -> page/location (may be empty string)."""
     text = path.read_text(encoding="utf-8")
     if path.suffix.lower() == ".json":
-        data = json.loads(text)
+        data = json.loads(text, object_pairs_hook=_unique_json_members)
         rows = data["requirements"] if isinstance(data, dict) and "requirements" in data else data
         out: dict[str, str] = {}
         if not isinstance(rows, list):
@@ -74,36 +110,57 @@ def parse_matrix(path: Path) -> dict[str, str]:
             rid = normalize_id(str(row.get("id") or row.get("req_id") or ""))
             if not rid:
                 continue
+            if rid in out:
+                raise ValueError(f"duplicate REQ-ID in matrix: {rid}")
             page = str(row.get("page") or row.get("slide") or row.get("location") or "")
             out[rid] = page
         return out
 
-    # Markdown table: find header with REQ
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip().startswith("|")]
-    if not lines:
+    # Keep tables separate: a summary and the full matrix may repeat an ID.
+    tables: list[list[str]] = []
+    for line in text.splitlines():
+        if line.strip().startswith("|"):
+            if not tables or not tables[-1]:
+                tables.append([])
+            tables[-1].append(line.strip())
+        elif tables and tables[-1]:
+            tables.append([])
+    tables = [table for table in tables if table]
+    if not tables:
         # Fallback: any REQ-ID mentioned is a matrix row without page
         return {normalize_id(m.group(0)): "" for m in REQ_RE.finditer(text)}
 
-    header_cells = [c.strip() for c in lines[0].strip("|").split("|")]
-    header_l = [h.lower() for h in header_cells]
-    id_idx = next((i for i, h in enumerate(header_l)
-                   if "req" in h or "요구" in h or h in {"id", "번호"}), 0)
-    page_idx = next((i for i, h in enumerate(header_l)
-                     if "page" in h or "페이지" in h or "장표" in h or "slide" in h), None)
-
-    out = {}
-    for ln in lines[1:]:
-        if re.match(r"^\|[\s:-]+\|", ln):
-            continue
-        cells = [c.strip() for c in ln.strip("|").split("|")]
-        if id_idx >= len(cells):
-            continue
-        rid_match = REQ_RE.search(cells[id_idx]) or REQ_RE.search(ln)
-        if not rid_match:
-            continue
-        rid = normalize_id(rid_match.group(0))
-        page = cells[page_idx] if page_idx is not None and page_idx < len(cells) else ""
-        out[rid] = page
+    out: dict[str, str] = {}
+    with_location: set[str] = set()
+    for lines in tables:
+        header_l = [c.lower() for c in _markdown_cells(lines[0])]
+        id_idx = next((i for i, h in enumerate(header_l)
+                       if "req" in h or "요구" in h or h in {"id", "번호"}), 0)
+        page_idx = next((i for i, h in enumerate(header_l)
+                         if "page" in h or "페이지" in h or "장표" in h or "slide" in h
+                         or "응답위치" in h or "대응위치" in h or "response_loc" in h), None)
+        rows: dict[str, str] = {}
+        for ln in lines[1:]:
+            if re.match(r"^\|[\s:-]+\|", ln):
+                continue
+            cells = _markdown_cells(ln)
+            if id_idx >= len(cells):
+                continue
+            rid_match = REQ_RE.search(cells[id_idx]) or REQ_RE.search(ln)
+            if not rid_match:
+                continue
+            rid = normalize_id(rid_match.group(0))
+            if rid in rows:
+                raise ValueError(f"duplicate REQ-ID in matrix: {rid}")
+            rows[rid] = cells[page_idx] if page_idx is not None and page_idx < len(cells) else ""
+        for rid, page in rows.items():
+            if page_idx is None:
+                out.setdefault(rid, "")
+            elif rid in with_location and out[rid] != page:
+                raise ValueError(f"conflicting REQ-ID locations in matrix: {rid}")
+            else:
+                out[rid] = page
+                with_location.add(rid)
     return out
 
 

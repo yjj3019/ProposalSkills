@@ -53,6 +53,17 @@ class HwpxTestCase(unittest.TestCase):
 
 
 class SensitiveScanHwpxTests(HwpxTestCase):
+    def test_invalid_preview_encoding_is_unscanned(self):
+        corrupt = hwpx(self.dir / "bad-preview.hwpx", para("clean"),
+                       extra={"Preview/PrvText.txt": b"\xff\xff\x81"})
+        _, unscanned, _ = scan.scan_paths([corrupt])
+        self.assertTrue(unscanned)
+        valid = hwpx(self.dir / "valid-preview.hwpx", para("clean"),
+                     extra={"Preview/PrvText.txt": "담당 010-1234-5678".encode("utf-16")})
+        found, unscanned, _ = scan.scan_paths([valid])
+        self.assertEqual(unscanned, [])
+        self.assertIn("mobile-phone", {f.kind for f in found})
+
     def test_number_split_across_runs_in_body_table_header_and_metadata_is_found(self):
         n = valid_rrn()
         split = para("담당 " + n[:6] + "-", n[6:])

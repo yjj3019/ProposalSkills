@@ -24,6 +24,25 @@ def run(task, arm, verified, **extra):
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_numeric_input_and_aggregate_overflow_are_invalid(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "runs.json"
+            for kind in ("huge", "sum-cost", "sum-seconds"):
+                records = [run(task, arm, True, cost=1, seconds=1)
+                           for task in ("a", "b") for arm in ("baseline", "candidate")]
+                if kind == "huge":
+                    records[0]["cost"] = 10 ** 309
+                else:
+                    field = "cost" if kind == "sum-cost" else "seconds"
+                    for item in records:
+                        item[field] = 1e308
+                path.write_text(json.dumps(records), encoding="utf-8")
+                with self.subTest(kind=kind), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    self.assertEqual(evaluation.main([str(path)]), 2)
+            path.write_text(json.dumps([run("a", arm, True, cost=1, seconds=2) for arm in ("baseline", "candidate")]), encoding="utf-8")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(evaluation.main([str(path)]), 0)
+
     def test_missing_and_known_cost_and_time(self):
         missing = evaluation.metrics([run("a", "baseline", True)])
         self.assertIsNone(missing["cost_per_verified"])

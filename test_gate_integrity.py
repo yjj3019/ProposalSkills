@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -50,6 +51,28 @@ def ready_audit() -> dict:
 
 
 class VerificationEvidenceRegressionTests(unittest.TestCase):
+    def test_package_inspect_help_is_readable_in_cp949(self):
+        script = DOC / "scripts/package_inspect.py"
+        result = subprocess.run([sys.executable, str(script), "--help"],
+                                env={**os.environ, "PYTHONIOENCODING": "cp949"}, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr.decode("cp949", errors="replace"))
+        self.assertIn("원본", result.stdout.decode("cp949"))
+
+    def test_help_works_with_cp949_output_and_invalid_arguments_still_fail(self):
+        for encoding in ("cp949", "ascii", "utf-8"):
+            env = {**os.environ, "PYTHONIOENCODING": encoding}
+            for args, expected in [(["--help"], 0), (["audit.json", "--invalid-option"], 2)]:
+                with self.subTest(encoding=encoding, args=args):
+                    result = subprocess.run([sys.executable, str(UG), *args], env=env, capture_output=True)
+                    stdout, stderr = result.stdout.decode(encoding), result.stderr.decode(encoding)
+                    self.assertEqual(result.returncode, expected, stderr)
+                    self.assertNotIn("Traceback", stderr)
+                    if expected == 0:
+                        self.assertIn("SUBMISSION-READY", stdout)
+                        self.assertIn("usage:", stdout)
+                    else:
+                        self.assertIn("unrecognized arguments", stderr)
+
     def test_duplicate_report_field_cannot_hide_an_invalid_value(self):
         import verification_report
         with tempfile.TemporaryDirectory() as tmp:
@@ -67,6 +90,46 @@ class VerificationEvidenceRegressionTests(unittest.TestCase):
 
 
 class AuditJsonAmbiguityRegressionTests(unittest.TestCase):
+    def test_builder_and_bulk_matrix_reject_duplicate_json_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path, output = Path(tmp) / "input.json", Path(tmp) / "output.json"
+            for script, good, bad in (
+                (BAM, '{"mode":"draft","requirements":[]}',
+                 ('{"mode":"submission","mode":"draft","requirements":[]}',
+                  '{"mode":"draft","requirements":[{"id":"R1","id":"R2"}]}',
+                  '{"mode":"draft","mo\\u0064e":"submission"}')),
+                (BEST / "scripts/bulk_matrix.py", '[{"id":"R1","text":"one"}]',
+                 ('[{"id":"R1","id":"R2","text":"one"}]',
+                  '{"requirements":[],"requirements":[{"id":"R1"}]}',
+                  '[{"id":"R1","i\\u0064":"R2"}]')),
+            ):
+                for raw in bad:
+                    with self.subTest(script=script.name, raw=raw):
+                        path.write_text(raw, encoding="utf-8")
+                        output.write_text("unchanged", encoding="utf-8")
+                        result = run(script, path, "-o", output)
+                        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                        self.assertIn("duplicate", result.stderr.lower())
+                        self.assertEqual(output.read_text(encoding="utf-8"), "unchanged")
+                path.write_text(good, encoding="utf-8")
+                self.assertEqual(run(script, path).returncode, 0)
+
+    def test_score_rejects_duplicate_audit_and_metric_members(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            audit, metrics = Path(tmp) / "audit.json", Path(tmp) / "metrics.json"
+            good = json.dumps(ready_audit(), ensure_ascii=False)
+            score = BEST / "scripts/score_completeness.py"
+            audit.write_text('{"bid_decision":"no-bid",' + good[1:], encoding="utf-8")
+            result = run(score, audit, isolated=True)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertNotIn("AUDIT-VALID", result.stdout)
+            audit.write_text(good, encoding="utf-8")
+            metrics.write_text('{"compliance_coverage":0,"compliance_coverage":1,'
+                               '"claim_support_rate":1,"defect_penalty":0,"rehearsal_score":1}', encoding="utf-8")
+            result = run(score, audit, metrics, isolated=True)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn("duplicate", result.stderr.lower())
+
     def test_both_entry_points_reject_duplicate_json_members(self):
         """A conflict must not depend on which duplicate member the parser keeps."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -180,6 +243,48 @@ class SubmissionValidationRegressionTests(unittest.TestCase):
                   {"id": "T", "label": "합계", "value": 100, "unit": "개",
                    "components": ["A"], "tolerance": 0}]
         self.assertEqual(pg.check_numbers(normal), [])
+
+    def test_oversized_integer_is_blocked_without_traceback(self):
+        for field in ("value", "tolerance", "amount"):
+            with self.subTest(field=field):
+                entries = [{"id": "A", "label": "base", "value": 100, "unit": "KRW"},
+                           {"id": "P", "label": "share", "value": 10, "unit": "%",
+                            "percent_of": "A", "amount": 10}]
+                entries[1][field] = 10 ** 309
+                failures = pg.check_numbers(entries)
+                self.assertTrue(any("finite" in failure for failure in failures), failures)
+        self.assertEqual(pg.check_numbers([{"id": "A", "label": "base", "value": 100, "unit": "KRW"}]), [])
+
+    def test_nonfinite_intermediate_arithmetic_cannot_pass(self):
+        cases = [
+            [{"id": "A", "label": "first", "value": 1e308, "unit": "일", "at_most": "B"},
+             {"id": "B", "label": "second", "value": 9e307, "unit": "일"}],
+            [{"id": "A", "label": "part a", "value": 1e308, "unit": "개"},
+             {"id": "B", "label": "part b", "value": 1e308, "unit": "개"},
+             {"id": "T", "label": "total", "value": 1e308, "unit": "개",
+              "components": ["A", "B"], "tolerance": 1e308}],
+            [{"id": "A", "label": "base", "value": 1e-308, "unit": "개"},
+             {"id": "P", "label": "share", "value": 1e308, "unit": "%",
+              "percent_of": "A", "amount": 1e308, "tolerance": 1e308}],
+            [{"id": "A", "label": "part a", "value": 10 ** 308, "unit": "개"},
+             {"id": "B", "label": "part b", "value": 10 ** 308, "unit": "개"},
+             {"id": "T", "label": "total", "value": 1e308, "unit": "개", "components": ["A", "B"]}],
+            [{"id": "A", "label": "part a", "value": 10 ** 308, "unit": "개"},
+             {"id": "B", "label": "part b", "value": 10 ** 308, "unit": "개"},
+             {"id": "C", "label": "part c", "value": 1.0, "unit": "개"},
+             {"id": "T", "label": "total", "value": 1e308, "unit": "개", "components": ["A", "B", "C"]}],
+        ]
+        for entries in cases:
+            with self.subTest(entries=entries):
+                self.assertTrue(any("finite range" in f for f in pg.check_numbers(entries)))
+        self.assertEqual(pg.check_numbers([
+            {"id": "A", "label": "base", "value": 100, "unit": "개"},
+            {"id": "P", "label": "share", "value": 10, "unit": "%", "percent_of": "A", "amount": 10}]), [])
+        self.assertEqual(pg.check_numbers([
+            {"id": "A", "label": "part", "value": 100, "unit": "개"},
+            {"id": "T", "label": "total", "value": 100, "unit": "개", "components": ["A"]},
+            {"id": "D1", "label": "first", "value": 1, "unit": "일", "at_most": "D2"},
+            {"id": "D2", "label": "second", "value": 48, "unit": "시간"}]), [])
 
     def test_calendar_dependent_units_are_not_assumed_to_be_fixed_hours(self):
         for left, right in (("영업일", "일"), ("개월", "일"), ("월", "시간"),
@@ -601,10 +706,92 @@ class StageAndLabelTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--stage submission", proc.stdout + proc.stderr)
 
+    def test_deck_stage_edit_rejects_unreadable_slide_data(self):
+        manifest = {"route": "edit", "stages": {"slides": {"file": "slides.json"}}}
+        (self.dir / "stages.json").write_text(json.dumps(manifest), encoding="utf-8")
+        slides = self.dir / "slides.json"
+        gate = DOC / "scripts/deck_stage_gate.py"
+        for text in ("not JSON", '{"slides":["not an object"]}'):
+            slides.write_text(text, encoding="utf-8")
+            result = run(gate, self.dir)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("BLOCKED", result.stdout)
+        slides.write_text('{"slides":[{"type":"bullets","title":"ok"}]}', encoding="utf-8")
+        self.assertEqual(run(gate, self.dir).returncode, 0)
+
+    def test_nonfinite_buyer_output_spec_cannot_disable_limits(self):
+        sys.path.insert(0, str(DOC / "scripts"))
+        import deck_profiles
+        for key in ("font_min_pt", "file_size_limit_mb"):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                deck_profiles.resolve_output_spec({"source": "synthetic", key: float("nan")}, None)
+        result = deck_profiles.resolve_output_spec({"source": "synthetic", "font_min_pt": 9.5}, None)
+        self.assertEqual(result["font_min_pt"], 9.5)
+
+    def test_nonfinite_evaluation_scores_never_pass_audit(self):
+        valid = ready_audit()
+        valid["context"]["buyer_types"] = ["public"]
+        valid["evaluation_criteria"] = [{"id": "C1", "label": "Technical", "weight": 100,
+                                          "minimum_ratio": 0.85, "minimum_score": 85}]
+        valid["requirements"][0]["criterion_ids"] = ["C1"]
+        self.assertEqual(pg.evaluate(valid), [])
+        for field, value in (("weight", float("nan")), ("weight", float("inf")),
+                             ("weight", 10 ** 309), ("minimum_score", float("nan")),
+                             ("minimum_ratio", float("nan")), ("evaluation_total", float("nan")),
+                             ("evaluation_total", float("inf"))):
+            with self.subTest(field=field, value=value):
+                data = copy.deepcopy(valid)
+                if field == "evaluation_total":
+                    data[field] = value
+                else:
+                    data["evaluation_criteria"][0][field] = value
+                path = self.dir / "invalid-score.json"
+                raw = json.dumps(data, ensure_ascii=False).replace("Infinity", "1e309")
+                path.write_text(raw, encoding="utf-8")
+                result = run(UG, path, "--audit-only", "--no-explain")
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertNotIn("STATUS: AUDIT-VALID", result.stdout)
+                self.assertNotIn("Traceback", result.stderr)
+
     def test_simulation_only_cannot_clear_submission(self):
         data = ready_audit()
         data["artifact_mode"] = "simulation-only"
         self.assertTrue(any("simulation-only" in f for f in pg.evaluate(data)))
+
+    def test_submission_eligibility_requires_identifiable_criteria(self):
+        import score_completeness
+        valid = ready_audit()
+        self.assertEqual(pg.validate_schema(valid), [])
+        self.assertEqual(pg.evaluate(valid), [])
+        self.assertTrue(dict(score_completeness.readiness_dimensions(valid))["eligibility_ledger"])
+        for criterion in (None, "", "  ", 123, [], "TBD", "[NEEDS INPUT]", "입력요망",
+                          "미정", "금액 미정", "미정인 항목", "미정 상태", "아직 미정입니다",
+                          "미정산금 기준 TBD", "미정산 채무 여부 확인 필요"):
+            with self.subTest(criterion=criterion):
+                data = copy.deepcopy(valid)
+                data["eligibility"][0]["criterion"] = criterion
+                self.assertTrue(any("criterion" in f for f in pg.evaluate(data)))
+                self.assertFalse(dict(score_completeness.readiness_dimensions(data))["eligibility_ledger"])
+                data["mode"] = "draft"
+                self.assertFalse(any("criterion" in f for f in pg.evaluate(data)))
+        data = copy.deepcopy(valid)
+        del data["eligibility"][0]["criterion"]
+        path = self.dir / "missing-criterion.json"
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        result = run(UG, path, "--audit-only", "--no-explain")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("criterion", result.stdout)
+        self.assertNotIn("STATUS: AUDIT-VALID", result.stdout)
+        data["eligibility"][0].update(mandatory=False, met=False)
+        self.assertTrue(any("criterion" in f for f in pg.evaluate(data)))
+        data["eligibility"][0]["criterion"] = "optional qualification"
+        self.assertEqual(pg.evaluate(data), [])
+        self.assertTrue(dict(score_completeness.readiness_dimensions(data))["eligibility_ledger"])
+        data["eligibility"][0]["criterion"] = "미정산 채무가 없을 것"
+        self.assertEqual(pg.evaluate(data), [])
+        self.assertTrue(dict(score_completeness.readiness_dimensions(data))["eligibility_ledger"])
+        data["eligibility"][0]["criterion"] = "미정산금 보유 여부"
+        self.assertEqual(pg.evaluate(data), [])
 
     def test_draft_explain_does_not_say_submittable(self):
         data = ready_audit()

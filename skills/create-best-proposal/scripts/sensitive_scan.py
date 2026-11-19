@@ -241,7 +241,7 @@ def read_hwpx(path: Path) -> list[tuple[str, str]]:
             parts.append(("Contents/content.hpf", _hwpx_metadata(archive.read("Contents/content.hpf"))))
         if "Preview/PrvText.txt" in names:  # a plain-text copy of the first page; can differ from the body
             raw = archive.read("Preview/PrvText.txt")
-            parts.append(("Preview/PrvText.txt", raw.decode("utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8", "replace")))
+            parts.append(("Preview/PrvText.txt", raw.decode("utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8")))
         embedded = [n for n in names if n.startswith("BinData/")]
     if embedded:
         parts.append(("<embedded>", "\0" + "\n".join(embedded)))
@@ -379,7 +379,14 @@ def scan_file(path: Path, allow: frozenset[str]) -> tuple[list[Finding], list[Un
             raw = path.read_bytes()
             if b"\0" in raw[:4096]:
                 return [], [Unscanned(label, "binary content")]
-            return scan_text(raw.decode("utf-8", errors="replace"), label, None, allow), []
+            try:
+                text = raw.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                try:
+                    text = raw.decode("cp949")
+                except UnicodeDecodeError:
+                    return [], [Unscanned(label, "unsupported or invalid text encoding")]
+            return scan_text(text, label, None, allow), []
         return [], [Unscanned(label, f"unsupported file type {suffix}")]
     except zipfile.BadZipFile:
         # Seen with files saved under an enterprise DRM agent: the file looks like .xlsx but is not a ZIP.

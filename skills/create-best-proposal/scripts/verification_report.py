@@ -70,7 +70,7 @@ def validate_data(report: object, base: Path) -> tuple[list[str], str]:
         problems.append("artifact is missing or does not exist next to the report")
     elif hashlib.sha256(target.read_bytes()).hexdigest() != str(report.get("artifact_sha256", "")).lower():
         problems.append("artifact_sha256 does not match the file: the checks were not run on this output")
-    if not str(report.get("scope", "")).strip():
+    if not isinstance(report.get("scope"), str) or not report["scope"].strip():
         problems.append("scope is empty: say what was and was not reviewed")
     checks = report.get("checks")
     if not isinstance(checks, list) or not checks:
@@ -94,9 +94,17 @@ def validate_data(report: object, base: Path) -> tuple[list[str], str]:
         if status == "not-inspected" and name not in declared:
             problems.append(f"{name}: not-inspected but missing from not_inspected")
         if status == "pass":
+            if level in ("rendered", "live"):
+                tool, evidence = check.get("tool"), check.get("evidence")
+                if not (isinstance(tool, str) and tool.strip() and isinstance(evidence, list) and evidence
+                        and all((isinstance(item, str) and item.strip()) or
+                                (isinstance(item, dict) and set(item) == {"path", "sha256"}
+                                 and isinstance(item["path"], str) and item["path"].strip()
+                                 and isinstance(item["sha256"], str) and re.fullmatch(r"[0-9a-fA-F]{64}", item["sha256"]))
+                                for item in evidence)):
+                    problems.append(f"{name}: a {level} pass needs a tool and evidence")
+                    continue
             deepest = max(deepest, LEVELS.index(level))
-            if level in ("rendered", "live") and not (str(check.get("tool", "")).strip() and check.get("evidence")):
-                problems.append(f"{name}: a {level} pass needs a tool and evidence")
     return problems, LEVELS[deepest] if deepest >= 0 else "none"
 
 

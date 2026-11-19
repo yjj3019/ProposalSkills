@@ -32,6 +32,15 @@ SCALE_RE = re.compile(r"^\s*(?:천억|백억|십억|천만|백만|십만|조|억
 FIRST_NUMBER_RE = re.compile(r"(?<![0-9.,])[-−△]?\d[\d,]*(?:\.\d+)?")
 
 
+def _unique_json_members(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
+
+
 def _trim(value: float) -> str:
     """1200000000.0 → '1200000000', 3.70 → '3.7'."""
     text = format(Decimal(str(value)), "f")
@@ -163,7 +172,11 @@ def compare(entries: list[dict], text: str, other: str = "") -> tuple[list[str],
             results.append({"id": nid, "checked": False, "reason": "must_appear=false"})
             items.append(f"[정보] {nid} {label}: 문서 대조 제외(중간 계산값)")
             continue
-        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+        try:
+            finite = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        except OverflowError:
+            finite = False
+        if not finite:
             items.append(f"{BLOCK} {nid} {label}: value가 숫자가 아니다 — 대조할 수 없다")
             results.append({"id": nid, "checked": False, "matched": False})
             continue
@@ -217,8 +230,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     source = a.audit or a.numbers
     try:
-        raw = json.loads(source.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError) as exc:
+        raw = json.loads(source.read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_json_members)
+    except (OSError, ValueError, RecursionError) as exc:
         print(f"원장을 읽을 수 없다: {exc}", file=sys.stderr)
         return 2
     entries = raw.get("numbers") if isinstance(raw, dict) else raw

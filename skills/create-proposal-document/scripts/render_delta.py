@@ -142,13 +142,42 @@ def claim_output(out: Path) -> str | None:
         return f"{out} is a file"
     if not out.exists() or not any(out.iterdir()):
         return None
+    for name in ("render_state.json", "delta.json"):
+        metadata = out / name
+        if metadata.is_symlink():
+            return f"{metadata} is a symbolic link (nothing was changed)"
+        try:
+            if metadata.exists() and (not metadata.is_file() or metadata.stat().st_nlink > 1):
+                return f"{metadata} is not a regular unlinked file (nothing was changed)"
+        except OSError:
+            return f"{metadata} cannot be inspected (nothing was changed)"
     try:
         state = json.loads((out / "render_state.json").read_text(encoding="utf-8"))
-        if state.get("tool") == TOOL:
+        if isinstance(state, dict) and state.get("tool") == TOOL:
             return None
     except (OSError, ValueError):
         pass
     return f"{out} is not empty and was not created by render_delta: use a new or empty folder (nothing was deleted)"
+
+
+def valid_state(state: object) -> bool:
+    """Validate optional historical fields before using them to replace files."""
+    if not isinstance(state, dict):
+        return False
+    slides = state.get("slides", [])
+    if not isinstance(slides, list) or any(
+        not isinstance(row, dict) or not isinstance(row.get("hash"), str) or not row["hash"]
+        or ("image" in row and not isinstance(row["image"], str)) for row in slides
+    ):
+        return False
+    for name in ("created", "pages"):
+        value = state.get(name, [])
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            return False
+    for name in ("environment", "page_hashes", "sheet_hashes"):
+        if name in state and not isinstance(state[name], dict):
+            return False
+    return True
 
 
 def to_pdf(deck: Path, pdf_dir: Path, soffice: str) -> Path:
@@ -248,8 +277,12 @@ def main(argv: list[str] | None = None) -> int:
     state_file = out / "render_state.json"
     try:
         state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.is_file() else {}
-    except ValueError:
-        state = {}
+    except (OSError, ValueError):
+        print("NOT INSPECTED: cannot read render state (nothing was changed)", file=sys.stderr)
+        return 2
+    if not valid_state(state):
+        print("NOT INSPECTED: invalid render state (nothing was changed)", file=sys.stderr)
+        return 2
     env = environment(soffice)
     work = Path(tempfile.mkdtemp(prefix="render_delta_"))
     try:

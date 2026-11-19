@@ -31,7 +31,7 @@ ALLOWED = {"RFP", "PPT", "PPTX", "IT", "API", "PM", "QA", "UI", "UX", "DB", "OS"
 SPLIT = re.compile(r"(?<=[.!?。])\s+|\n+")
 ACRONYM = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,6})(?![A-Za-z0-9])")
 NARRATION = re.compile(r"본 (?:장|절|문서|제안서)에서는|살펴보겠|알아보겠|설명드리겠|in this (?:section|chapter|document)|let's|we will (?:now )?(?:describe|discuss)", re.I)
-FILLER = re.compile(r"하는 것이 중요합니다|[다라]고 (?:할 수|볼 수) 있습니다|에 있어서|것으로 사료됩니다|it is important to note")
+FILLER = re.compile(r"하는 것이 중요합니다|[다라]고 (?:할 수|볼 수) 있습니다|에 있어서|것으로 사료됩니다|it is important to note", re.I)
 PASSIVE = re.compile(r"되어집니다|되어지며|이루어지게 (?:됩니다|되며)|행해집니다|수행되어지")
 
 
@@ -43,7 +43,10 @@ def read_text(path: Path) -> str:
 
 def expanded(text: str, start: int, end: int) -> bool:
     """True when the acronym is paired with an expansion in parentheses right next to it."""
-    return text[end:end + 1] in "(（" or (text[max(0, start - 1):start] in "(（" and ")" in text[end:end + 1] + text[end:end + 2])
+    if re.match(r"[（(]\s*[^\s()（）][^()（）\n]*[）)]", text[end:]):
+        return True
+    return (text[max(0, start - 1):start] in ("(", "（") and text[end:end + 1] in (")", "）")
+            and bool(re.search(r"[\w가-힣]$", text[:max(0, start - 1)].rstrip())))
 
 
 def lint(text: str, max_chars: int = 90) -> list[str]:

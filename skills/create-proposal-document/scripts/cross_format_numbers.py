@@ -6,14 +6,15 @@ corrected in one file and forgotten in another is the classic late error. This r
 (`check_numbers.py`: Korean notation variants, unit checks) on each file and reports a per-format result plus the
 ledger ids that are found in some files but missing from others.
 
-Exit codes: 0 every ledger value was found in every file, 1 at least one value is missing somewhere, 2 usage error or an
-unreadable file. A pass means the values appear in each file, not that they are correct or in the right place.
+Exit codes: 0 every checked ledger value was found in every file, 1 at least one value is missing somewhere,
+2 usage error, an unreadable file, or no values checked. A pass does not prove the values are correct or in the right place.
 
 Usage: python cross_format_numbers.py DOC [DOC ...] (--audit audit.json | --numbers numbers.json)
 """
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import sys
 from pathlib import Path
@@ -52,8 +53,8 @@ def main(argv: list[str] | None = None) -> int:
     source.add_argument("--numbers", type=Path)
     args = parser.parse_args(argv)
     try:
-        raw = json.loads((args.audit or args.numbers).read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError) as exc:
+        raw = json.loads((args.audit or args.numbers).read_text(encoding="utf-8-sig"), object_pairs_hook=cn._unique_json_members)
+    except (OSError, ValueError, RecursionError) as exc:
         print(f"Cannot read the ledger: {exc}", file=sys.stderr)
         return 2
     entries = raw.get("numbers") if isinstance(raw, dict) else raw
@@ -62,15 +63,22 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     per_document: dict[str, dict[str, bool]] = {}
     failed = False
+    name_counts = Counter(doc.name for doc in args.docs)
+    seen_names: Counter = Counter()
     for doc in args.docs:
         try:
             blockers, matched = check_document(doc, entries)
         except Exception as exc:  # damaged or unsupported file: never counted as a pass
             print(f"[UNREADABLE] {doc.name}: {exc}", file=sys.stderr)
             return 2
-        per_document[doc.name] = matched
+        if not matched and not blockers:
+            print(f"[NOT INSPECTED] {doc.name}: no ledger values were checked", file=sys.stderr)
+            return 2
+        seen_names[doc.name] += 1
+        label = f"{doc.name} [{seen_names[doc.name]}]" if name_counts[doc.name] > 1 else doc.name
+        per_document[label] = matched
         failed |= bool(blockers)
-        print(f"{doc.name}: {sum(matched.values())}/{len(matched)} ledger values found"
+        print(f"{label}: {sum(matched.values())}/{len(matched)} ledger values found"
               + ("" if not blockers else f" ({len(blockers)} blocking)"))
     for ledger_id, missing in divergent(per_document).items():
         print(f"[DIVERGENT] {ledger_id}: found elsewhere but missing in {', '.join(missing)}")

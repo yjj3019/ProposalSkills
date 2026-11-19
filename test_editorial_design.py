@@ -201,6 +201,54 @@ class PackageInspectDefectTests(unittest.TestCase):
         make_deck(deck, hidden=False)
         self.assertFalse(any(f.startswith("[숨김]") for f in package_inspect.run(deck)))
 
+    def test_hidden_slide_xml_variants_are_detected(self):
+        import ooxml_fixtures as fixtures
+        uri = "http://schemas.openxmlformats.org/presentationml/2006/main"
+        for n, xml in enumerate((f"<p:sld xmlns:p='{uri}' show='0'/>",
+                                 f'<p:sld xmlns:p="{uri}" show="false"/>',
+                                 f'<q:sld xmlns:q="{uri}" show="0"/>',
+                                 f'<p:sld xmlns:p="{uri}" show="&#48;"/>')):
+            with self.subTest(xml=xml):
+                deck = self.dir / f"hidden-{n}.pptx"
+                fixtures.pptx(deck, raw={"ppt/slides/slide1.xml": xml})
+                self.assertTrue(any(f.startswith("[숨김]") for f in package_inspect.run(deck)))
+        deck = self.dir / "visible.pptx"
+        fixtures.pptx(deck, raw={"ppt/slides/slide1.xml": f'<q:sld xmlns:q="{uri}" show="1"/>'})
+        self.assertFalse(any(f.startswith("[숨김]") for f in package_inspect.run(deck)))
+        deck = self.dir / "invalid-show.pptx"
+        fixtures.pptx(deck, raw={"ppt/slides/slide1.xml": f'<q:sld xmlns:q="{uri}" show="unknown"/>'})
+        self.assertTrue(any(f.startswith("[NOT INSPECTED]") and "show" in f for f in package_inspect.run(deck)))
+
+    def test_relationship_xml_variants_and_malformed_parts_are_reported(self):
+        import ooxml_fixtures as fixtures
+        uri = "http://schemas.openxmlformats.org/package/2006/relationships"
+        rels = f"<Relationships xmlns='{uri}'><Relationship TargetMode='Exter&#110;al' Target='https://example.invalid'/></Relationships>"
+        deck = self.dir / "external.pptx"
+        fixtures.pptx(deck, raw={"ppt/slides/slide1.xml": "<sld/>", "ppt/slides/_rels/slide1.xml.rels": rels})
+        self.assertTrue(any(f.startswith("[외부링크]") for f in package_inspect.run(deck)))
+        malformed = self.dir / "broken.pptx"
+        fixtures.pptx(malformed, raw={"ppt/slides/slide1.xml": "<broken", "ppt/slides/_rels/slide1.xml.rels": "<broken"})
+        findings = package_inspect.run(malformed)
+        self.assertTrue(any(f.startswith("[NOT INSPECTED]") and "slide1.xml" in f for f in findings))
+        self.assertTrue(any(f.startswith("[NOT INSPECTED]") and "slide1.xml.rels" in f for f in findings))
+
+    def test_unsafe_xml_and_oversized_package_are_not_inspected(self):
+        from unittest import mock
+        import ooxml_fixtures as fixtures
+        uri = "http://schemas.openxmlformats.org/presentationml/2006/main"
+        deck = self.dir / "unsafe.pptx"
+        xml = f'<!DOCTYPE sld [<!ENTITY x "0">]><sld xmlns="{uri}" show="&x;"/>'
+        fixtures.pptx(deck, raw={"ppt/slides/slide1.xml": xml})
+        findings = package_inspect.run(deck)
+        self.assertTrue(any(f.startswith("[NOT INSPECTED]") and "slide1.xml" in f and "안전하지" in f for f in findings))
+        self.assertFalse(any(f.startswith("[숨김]") for f in findings))
+        with mock.patch.object(zipfile.ZipFile, "infolist", return_value=[mock.Mock(file_size=128 * 1024 * 1024 + 1)]):
+            with self.assertRaisesRegex(ValueError, "size"):
+                package_inspect.run(deck)
+        with mock.patch.object(zipfile.ZipFile, "infolist", return_value=[mock.Mock(file_size=1)] * 5001):
+            with self.assertRaisesRegex(ValueError, "parts"):
+                package_inspect.run(deck)
+
     def test_chart_workbooks_are_information_not_an_attachment_blocker(self):
         deck = self.dir / "c.pptx"
         make_deck(deck, chart=True)
@@ -221,6 +269,18 @@ class PackageInspectDefectTests(unittest.TestCase):
         with zipfile.ZipFile(doc, "w") as z:
             z.writestr("word/document.xml", "<w:body><w:ins w:author='k'><w:r><w:t>x</w:t></w:r></w:ins></w:body>")
         self.assertTrue(any(f.startswith("[추적변경]") for f in package_inspect.blocking(package_inspect.run(doc))))
+
+    def test_tracked_changes_with_alternate_namespace_are_blocked(self):
+        uri = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        for number, tag in enumerate(("ins", "del")):
+            doc = self.dir / f"tracked-{number}.docx"
+            with zipfile.ZipFile(doc, "w") as z:
+                z.writestr("word/document.xml", f"<q:document xmlns:q='{uri}'><q:body><q:{tag}/></q:body></q:document>")
+            self.assertTrue(any(f.startswith("[추적변경]") for f in package_inspect.blocking(package_inspect.run(doc))))
+        clean = self.dir / "clean.docx"
+        with zipfile.ZipFile(clean, "w") as z:
+            z.writestr("word/document.xml", f"<q:document xmlns:q='{uri}'><q:body><q:p/></q:body></q:document>")
+        self.assertFalse(any(f.startswith("[추적변경]") for f in package_inspect.run(clean)))
 
 
 class MappingCheckDefectTests(unittest.TestCase):

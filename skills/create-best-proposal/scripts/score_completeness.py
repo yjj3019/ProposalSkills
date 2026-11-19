@@ -15,7 +15,7 @@ for _cand in (_HERE.parent.parent / "create-winning-proposal" / "scripts",
     if (_cand / "proposal_gate.py").is_file():
         sys.path.insert(0, str(_cand))
         break
-from proposal_gate import evaluate, readiness, validate_schema  # noqa: E402
+from proposal_gate import _is_placeholder, _unique_json_members, evaluate, readiness, validate_schema  # noqa: E402
 
 
 def readiness_dimensions(d: dict) -> list[tuple[str, bool]]:
@@ -41,7 +41,8 @@ def readiness_dimensions(d: dict) -> list[tuple[str, bool]]:
         ("submission_cleared", bool(sub.get("cleared")) and bool(sub.get("rehearsal_evidence"))
             and bool(sub.get("receipt_plan")) and bool(sub.get("deadline"))),
         ("eligibility_ledger", bool(elig) and all(
-            e.get("met") for e in elig if e.get("mandatory", True))),
+            not _is_placeholder(e.get("criterion"))
+            and (not e.get("mandatory", True) or e.get("met")) for e in elig)),
     ]
 
 
@@ -124,9 +125,9 @@ def main(argv: list[str]) -> int:
         except (AttributeError, ValueError):
             pass
     try:
-        audit = json.loads(Path(argv[1]).read_text(encoding="utf-8-sig"))
-        metrics = json.loads(Path(argv[2]).read_text(encoding="utf-8-sig")) if len(argv) > 2 else None
-    except (OSError, ValueError) as exc:  # Includes JSONDecodeError and UnicodeDecodeError.
+        audit = json.loads(Path(argv[1]).read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_json_members)
+        metrics = json.loads(Path(argv[2]).read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_json_members) if len(argv) > 2 else None
+    except (OSError, ValueError, RecursionError) as exc:  # Includes JSONDecodeError and UnicodeDecodeError.
         print(f"invalid input: {exc}", file=sys.stderr)
         return 2
     try:

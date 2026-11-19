@@ -53,6 +53,7 @@ PPTX generation and inspection require Python 3.10+ and `python-pptx`; automated
 Installing the plugin does not install these tools. Automated checks do not replace factual review, visual review, or submission approval.
 Keep customer materials and generated output outside this public repository.
 Both submission checks reject duplicate JSON object keys, including duplicates in nested objects and duplicates with identical values.
+Each eligibility entry in a submission audit must identify its qualification with a nonblank, non-placeholder `criterion` string.
 
 [Authoring and review](skills/create-proposal-document/references/quality-first-authoring.md) ·
 [Slide specifications](skills/create-proposal-document/references/deck-production.md) ·

@@ -145,6 +145,32 @@ class RequirementStrengthTests(unittest.TestCase):
         self.assertEqual(row["strength"], "conditional")
         self.assertEqual(bm.to_audit_requirements([row])[0]["strength"], "conditional")
 
+    def test_markdown_matrix_escapes_each_cell_and_preserves_rows(self):
+        for field in ("id", "section", "item", "text", "fit", "eval_weight", "win_theme_id",
+                      "risk", "product", "note", "source_loc", "response_loc"):
+            with self.subTest(field=field):
+                row = bm.normalize({"id": "R1", "text": "requirement", field: "left|right\nnext"}, 1)
+                markdown = bm.to_markdown([row], 8)
+                value = "LEFT" if field == "fit" else "left"
+                other = "RIGHT<br>NEXT" if field == "fit" else "right<br>next"
+                self.assertIn(value + "\\|" + other, markdown)
+                self.assertNotIn(value + "|", markdown)
+
+    def test_bulk_matrix_rejects_duplicate_ids_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, output, sidecar = root / "rows.json", root / "matrix.md", root / "audit.json"
+            for ids in (("R1", "R1"), ("REQ-001", "req_1"), ("REQ-001", "req_1 extra"), ("R1", " r1 ")):
+                with self.subTest(ids=ids):
+                    source.write_text(json.dumps([{"id": rid, "text": "requirement"} for rid in ids]), encoding="utf-8")
+                    result = run_script(BEST / "scripts/bulk_matrix.py", source, "-o", output, "--audit-sidecar", sidecar)
+                    self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                    self.assertIn("duplicate", result.stderr.lower())
+                    self.assertFalse(output.exists())
+                    self.assertFalse(sidecar.exists())
+            source.write_text(json.dumps([{"id": "REQ-001"}, {"id": "REQ-002"}]), encoding="utf-8")
+            self.assertEqual(run_script(BEST / "scripts/bulk_matrix.py", source, "-o", output).returncode, 0)
+
     def test_builder_preserves_strength_and_condition(self):
         meta = {"mode": "draft", "bid_decision": "bid", "claims": [],
                 "requirements": [{"id": "R1", "text": "x", "strength": "conditional",

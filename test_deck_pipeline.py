@@ -27,6 +27,109 @@ def run(*args: object, **kw) -> Result:
     return run_script(Path(str(args[0])), *args[1:], **kw)
 
 
+class DeckInputValidationTests(unittest.TestCase):
+    def test_buyer_spec_rejects_nonfinite_and_oversized_limits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cases = [(key, value, 2) for key in ("font_min_pt", "file_size_limit_mb", "page_limit")
+                     for value in (float("nan"), float("inf"), 10 ** 400)]
+            cases += [("font_min_pt", 9.5, 0), ("file_size_limit_mb", 2.0, 0), ("page_limit", 3, 0)]
+            for number, (key, value, expected) in enumerate(cases):
+                with self.subTest(key=key, value=value):
+                    spec, output = root / f"{number}.json", root / f"{number}.pptx"
+                    payload = {"meta": {"output_spec": {"source": "synthetic", key: value}},
+                               "slides": [{"type": "cover", "title": "Synthetic"}]}
+                    spec.write_text(json.dumps(payload), encoding="utf-8")
+                    result = subprocess.run([sys.executable, str(DOC / "scripts/build_deck.py"), str(spec),
+                                             "-o", str(output)], capture_output=True,
+                                            encoding="utf-8", errors="replace")
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertEqual(output.exists(), expected == 0)
+
+    def test_checker_blocks_nonfinite_embedded_buyer_spec(self):
+        from pptx import Presentation
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            spec, deck = root / "spec.json", root / "deck.pptx"
+            spec.write_text(json.dumps({"meta": {}, "slides": [{"type": "cover", "title": "Synthetic"}]}),
+                            encoding="utf-8")
+            result = subprocess.run([sys.executable, str(DOC / "scripts/build_deck.py"), str(spec), "-o", str(deck)],
+                                    capture_output=True, encoding="utf-8", errors="replace")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            prs = Presentation(str(deck))
+            prs.core_properties.keywords = 'proposal-output-spec:{"source":"synthetic","file_size_limit_mb":NaN}'
+            prs.save(str(deck))
+            result = subprocess.run([sys.executable, str(DOC / "scripts/deck_check.py"), str(deck),
+                                     "--stage", "submission"], capture_output=True,
+                                    encoding="utf-8", errors="replace")
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_deck_check_rejects_invalid_limits_without_bypassing_font_checks(self):
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        with tempfile.TemporaryDirectory() as tmp:
+            deck = Path(tmp) / "deck.pptx"
+            prs = Presentation()
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            for number, name in enumerate(("TITLE", "LEAD", "BODY")):
+                shape = slide.shapes.add_textbox(Inches(1), Inches(1 + number), Inches(5), Inches(.5))
+                shape.name, shape.text = name, "synthetic"
+                shape.text_frame.paragraphs[0].runs[0].font.size = Pt(18)
+            prs.save(str(deck))
+            for args, expected in ((["--min-font", "nan"], 2), (["--min-font", "inf"], 2),
+                                   (["--min-font=-1"], 2), (["--min-font", "0"], 2),
+                                   (["--max-pages", "0"], 2), (["--max-pages=-1"], 2),
+                                   (["--min-font", "1"], 0), (["--min-font", "30"], 1)):
+                with self.subTest(args=args):
+                    result = subprocess.run([sys.executable, str(DOC / "scripts/deck_check.py"),
+                                             str(deck), "--stage", "draft", *args], capture_output=True,
+                                            encoding="utf-8", errors="replace")
+                    self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+
+    def test_invalid_meta_and_palette_are_usage_errors_without_tracebacks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for meta in (None, [], {"palette": ["bad"]}):
+                with self.subTest(meta=meta):
+                    spec, output = root / "spec.json", root / "deck.pptx"
+                    spec.write_text(json.dumps({"meta": meta, "slides": []}), encoding="utf-8")
+                    result = subprocess.run([sys.executable, str(DOC / "scripts/build_deck.py"),
+                                             str(spec), "-o", str(output)], capture_output=True,
+                                            encoding="utf-8", errors="replace")
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    self.assertFalse(output.exists())
+
+    def test_table_widths_reject_oversized_integer_and_scale_finite_values(self):
+        from pptx import Presentation
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, widths, expected in (("oversized", [10 ** 400, 2], 2),
+                                           ("finite", [1e308, 1e308], 0),
+                                           ("normal", [1, 2], 0)):
+                with self.subTest(name=name):
+                    spec, output = root / f"{name}.json", root / f"{name}.pptx"
+                    slide = {"type": "table", "title": "t", "lead": "l", "columns": ["a", "b"],
+                             "rows": [["x", "y"]], "col_widths": widths}
+                    spec.write_text(json.dumps({"meta": {}, "slides": [slide]}), encoding="utf-8")
+                    result = subprocess.run([sys.executable, str(DOC / "scripts/build_deck.py"),
+                                             str(spec), "-o", str(output)], capture_output=True,
+                                            encoding="utf-8", errors="replace")
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    self.assertNotIn("Traceback", result.stderr)
+                    if expected == 0:
+                        table = next(shape.table for shape in Presentation(str(output)).slides[0].shapes
+                                     if shape.name == "BODY_TABLE")
+                        self.assertGreater(table.columns[0].width, 0)
+                        ratio = 2 if name == "normal" else 1
+                        self.assertLessEqual(abs(table.columns[0].width * ratio - table.columns[1].width), 1)
+                    else:
+                        self.assertFalse(output.exists())
+
+
 class DeckPipelineTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

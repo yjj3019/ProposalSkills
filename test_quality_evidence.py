@@ -343,6 +343,48 @@ class VisualComparisonTests(PrivateWorkspace):
         self.assertEqual(changed["status"], "DIFFERENT", changed)
         self.assertTrue((self.root / "different/result.json").is_file())
 
+    @unittest.skipUnless(shutil.which("pdftoppm") and shutil.which("pdfinfo"), "Poppler unavailable")
+    def test_real_poppler_multipage_text_change_and_missing_page(self):
+        def make_pdf(path, pages):
+            objects = [b"<< /Type /Catalog /Pages 2 0 R >>",
+                       f"<< /Type /Pages /Count {len(pages)} /Kids [{' '.join(f'{4 + i * 2} 0 R' for i in range(len(pages)))}] >>".encode(),
+                       b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+            for index, heading in enumerate(pages):
+                page = 4 + index * 2
+                objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents {page + 1} 0 R >>".encode())
+                lines = [f"({heading}) Tj"] + [f"0 -18 Td (Requirement {i:02d} - synthetic proposal text.) Tj" for i in range(1, 25)]
+                content = ("BT /F1 12 Tf 40 740 Td " + " ".join(lines) + " ET").encode("ascii")
+                objects.append(b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream")
+            pdf = bytearray(b"%PDF-1.4\n")
+            offsets = [0]
+            for number, obj in enumerate(objects, 1):
+                offsets.append(len(pdf))
+                pdf.extend(f"{number} 0 obj\n".encode() + obj + b"\nendobj\n")
+            xref = len(pdf)
+            pdf.extend(f"xref\n0 {len(offsets)}\n0000000000 65535 f \n".encode())
+            for offset in offsets[1:]:
+                pdf.extend(f"{offset:010d} 00000 n \n".encode())
+            pdf.extend(f"trailer\n<< /Size {len(offsets)} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+            path.write_bytes(pdf)
+
+        source = self.root / "source.txt"
+        source.write_text("synthetic visual fixture", encoding="utf-8")
+        for name, pages in (("before", ["First page", "Original page", "Third page"]),
+                            ("after", ["First page", "Changed page", "Third page"]),
+                            ("short", ["First page", "Original page"])):
+            pdf = self.root / f"{name}.pdf"
+            make_pdf(pdf, pages)
+            visual.snapshot(pdf, source, self.environment, self.root / name, "test-role")
+        same = visual.compare(self.root / "before", self.root / "before", self.root / "same", max_changed_ratio=0)
+        changed = visual.compare(self.root / "before", self.root / "after", self.root / "changed", max_changed_ratio=0)
+        short = visual.compare(self.root / "before", self.root / "short", self.root / "missing", max_changed_ratio=0)
+        self.assertEqual(same["status"], "SAME", same)
+        self.assertEqual(changed["status"], "DIFFERENT", changed)
+        self.assertEqual([page["different"] for page in changed["pages"]], [False, True, False])
+        self.assertEqual(short["status"], "DIFFERENT", short)
+        self.assertEqual(short["page_counts"], {"baseline": 3, "candidate": 2})
+        self.assertFalse(changed["visual_review_approved"])
+
 
 if __name__ == "__main__":
     unittest.main()

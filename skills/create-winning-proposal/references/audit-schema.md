@@ -212,7 +212,7 @@ could yield READY. The following three guard categories close that gap.
   It blocks in `mode: submission`: conditional means internal continuation, not external clearance.
   Every `bid_conditions[].deadline` must be future.
 - **Eligibility consistency**: `eligibility[] = {id, criterion, mandatory, met, curable}`.
-  Submission requires the register. Unmet (`met:false`) and `curable:false` prohibits `bid`/`conditional-bid`
+  Submission requires the register and a nonblank, non-placeholder `criterion` string for every entry. Unmet (`met:false`) and `curable:false` prohibits `bid`/`conditional-bid`
   (only no-bid); unmet and `curable:true` prohibits unconditional `bid` (conditional or no-bid).
   Optimistic bid declarations cannot override unremediable ineligibility.
 
@@ -270,6 +270,7 @@ readiness (dimension fulfillment + gate) and quality
 (with `--quality` metrics: `0.4·compliance + 0.3·claim_support + 0.2·(1−defect) + 0.1·rehearsal`).
 **Only the gate determines final status**: open BLOCKING means NO-GO regardless of quality.
 `python score_completeness.py AUDIT.json [QUALITY.json]`.
+Both audit and quality JSON must have unique object keys; duplicate keys are invalid.
 
 ## Item-specific numeric matching and actual layout checks
 

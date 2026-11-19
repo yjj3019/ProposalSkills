@@ -37,6 +37,15 @@ class GhostDeckTests(unittest.TestCase):
         _, blocked, _ = story.check({"slides": [{"type": "bullets", "title": ""}]})
         self.assertTrue(any("no title" in b for b in blocked))
 
+    def test_invalid_slide_entry_cannot_be_silently_skipped(self):
+        value = deck("A valid and actionable heading.")
+        value["slides"].append("not a slide object")
+        ghost, blocked, _ = story.check(value)
+        self.assertEqual(len(ghost), 1)
+        self.assertTrue(any("slide 3" in issue and "object" in issue for issue in blocked), blocked)
+        _, blocked, _ = story.check(deck("A valid and actionable heading."))
+        self.assertEqual(blocked, [])
+
     def test_noun_phrase_title_and_unsourced_figure_warn_without_blocking(self):
         _, blocked, warnings = story.check(deck("서비스 중단 최소화를 위한 단계별 이관 방안"))
         self.assertEqual(blocked, [])
@@ -69,6 +78,15 @@ class PlainLanguageTests(unittest.TestCase):
         self.assertNotIn("acronym", self.rules("서비스 수준 협약(SLA)을 준수한다. SLA는 월 단위로 보고한다."))
         self.assertNotIn("acronym", self.rules("SLA(서비스 수준 협약)을 준수한다."))
         self.assertNotIn("acronym", self.rules("RFP 요구를 따른다."))
+
+    def test_empty_acronym_expansion_and_sentence_case_filler(self):
+        for text in ("XYZ() is available.", "XYZ(   ) is available.", "(XYZ) is available.",
+                     "XYZ(unfinished", "Extended (XYZ"):
+            with self.subTest(text=text):
+                self.assertIn("acronym", self.rules(text))
+        self.assertNotIn("acronym", self.rules("XYZ(extended yield zone) is available."))
+        self.assertNotIn("acronym", self.rules("Extended yield zone (XYZ) is available."))
+        self.assertIn("filler", self.rules("It is important to note the result."))
 
     def test_self_narration_filler_and_passive_stack(self):
         found = self.rules("본 장에서는 구성을 살펴보겠습니다. 점검이 이루어지게 됩니다. 보안이 중요하다고 할 수 있습니다.")

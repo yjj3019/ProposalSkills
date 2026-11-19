@@ -6,6 +6,7 @@ The goal is to reduce duplicate manual entry and the readiness gap (simulation a
 ## Minimum input meta schema
 
 Korean example values and filenames are preserved verbatim.
+Meta JSON must not contain duplicate object keys, including in nested entries.
 
 ```json
 {
@@ -72,6 +73,7 @@ Successful conversion does not establish audit validity or approval. Run the uni
 Never mark actually open inputs or human approvals complete merely to fix metadata errors.
 
 For a caller-declared local source list, `check_source_inventory.py` optionally proposes open `inputs`:
+The manifest and extraction sidecars must have unique JSON object keys at every level; ambiguous manifests are rejected, and ambiguous sidecars are marked `inspection_failed`.
 
 ```json
 {"sources": [

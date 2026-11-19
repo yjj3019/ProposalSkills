@@ -126,6 +126,21 @@ class FileHandlingTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.dir = Path(self._tmp.name)
 
+    def test_invalid_text_encoding_is_unscanned_and_cp949_text_is_inspected(self):
+        broken = self.dir / "broken.txt"
+        broken.write_bytes(b"\xff\xff\x81")
+        found, unscanned, count = scan.scan_paths([broken])
+        self.assertEqual((found, count), ([], 1))
+        self.assertEqual(len(unscanned), 1)
+        self.assertIn("encoding", unscanned[0].reason)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(scan.main([str(broken)]), 2)
+        korean = self.dir / "korean.txt"
+        korean.write_bytes("담당 010-1234-5678".encode("cp949"))
+        found, unscanned, count = scan.scan_paths([korean])
+        self.assertEqual((count, unscanned), (1, []))
+        self.assertIn("mobile-phone", kinds(found))
+
     def test_pptx_text_split_across_runs_is_still_found(self):
         number = valid_rrn()
         path = fixtures.pptx(self.dir / "deck.pptx", {"ppt/slides/slide1.xml": number[:6] + "-" + number[6:]})

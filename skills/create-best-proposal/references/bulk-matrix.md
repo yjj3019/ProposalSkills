@@ -14,6 +14,8 @@ Prevent the **5-sample-row failure** in type C (technical responses) and RFPs wi
 
 Required columns: `id, section, item, text`
 Optional columns: `mandatory, support, product, note, source_loc, response_loc`
+Duplicate IDs, including case, surrounding whitespace, and `REQ-001` / `req_1` variants, are rejected before output is written.
+JSON input must not contain duplicate object keys, including inside individual rows.
 
 ```bash
 python scripts/bulk_matrix.py requirements.json -o matrix.md --summary-rows 8

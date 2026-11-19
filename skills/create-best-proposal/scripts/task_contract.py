@@ -70,7 +70,7 @@ def boundary_problem(value: object) -> str | None:
 def validate(contract: dict) -> list[str]:
     problems: list[str] = []
     for key in ("goal", "write_boundary", "recovery"):
-        if not str(contract.get(key, "")).strip():
+        if not isinstance(contract.get(key), str) or not contract[key].strip():
             problems.append(f"{key} is empty")
     reason = boundary_problem(contract.get("write_boundary", ""))
     if reason:
@@ -84,10 +84,16 @@ def validate(contract: dict) -> list[str]:
         if not isinstance(value, int) or isinstance(value, bool) or value < 1:
             problems.append(f"{key} must be a positive integer")
     actions = contract.get("allowed_actions")
-    if not isinstance(actions, list) or not actions or set(actions) - ACTIONS:
+    if (not isinstance(actions, list) or not actions
+            or not all(isinstance(action, str) for action in actions) or set(actions) - ACTIONS):
         problems.append(f"allowed_actions must be a non-empty subset of {sorted(ACTIONS)}")
     else:
-        approved = {a.get("action") for a in contract.get("approvals", []) if isinstance(a, dict) and str(a.get("by", "")).strip()}
+        approvals = contract.get("approvals", [])
+        if not isinstance(approvals, list):
+            problems.append("approvals must be a list of action and approver objects")
+            approvals = []
+        approved = {a["action"] for a in approvals if isinstance(a, dict)
+                    and isinstance(a.get("action"), str) and isinstance(a.get("by"), str) and a["by"].strip()}
         for action in sorted(OUTWARD & set(actions)):
             if action not in approved:
                 problems.append(f"{action} is allowed but has no approval (approvals[] needs {{action, by}})")
@@ -117,6 +123,15 @@ def validate(contract: dict) -> list[str]:
         problems.append("attempts must be a non-negative integer")
     elif isinstance(contract.get("max_attempts"), int) and attempts > contract["max_attempts"]:
         problems.append("attempts exceed max_attempts")
+    if "evidence_links" in contract and (not isinstance(contract["evidence_links"], list)
+            or not all(isinstance(link, str) and link.strip() for link in contract["evidence_links"])):
+        problems.append("evidence_links must be a list of nonempty strings")
+    if "results" in contract and (not isinstance(contract["results"], dict)
+            or any(not isinstance(key, str) or not key.strip() or value not in ("pass", "fail")
+                   for key, value in contract["results"].items())):
+        problems.append("results must map check IDs to pass or fail")
+    if "history" in contract and not isinstance(contract["history"], list):
+        problems.append("history must be a list")
     if state == "Verified":
         problems += _verified_problems(contract)
     return problems
@@ -127,8 +142,9 @@ def _verified_problems(contract: dict) -> list[str]:
     if not contract.get("evidence_links"):
         problems.append("Verified needs evidence_links")
     results = contract.get("results") if isinstance(contract.get("results"), dict) else {}
-    for check in contract.get("test_oracle", []):
-        if results.get(check) != "pass":
+    oracles = contract.get("test_oracle")
+    for check in oracles if isinstance(oracles, list) else []:
+        if isinstance(check, str) and results.get(check) != "pass":
             problems.append(f"Verified needs test_oracle '{check}' to be 'pass' in results (found {results.get(check)!r})")
     return problems
 
@@ -139,6 +155,13 @@ def advance(contract: dict, target: str, *, cause: str = "", blocker: str = "", 
     problems = validate(contract)
     if problems:
         raise ValueError("contract is invalid: " + problems[0])
+    if results is not None and (not isinstance(results, dict)
+            or any(not isinstance(key, str) or not key.strip() or value not in ("pass", "fail")
+                   for key, value in results.items())):
+        raise ValueError("results must map check IDs to pass or fail")
+    if evidence is not None and (not isinstance(evidence, list)
+            or not all(isinstance(link, str) and link.strip() for link in evidence)):
+        raise ValueError("evidence must be a list of nonempty strings")
     current = contract.get("state", "Planned")
     if target not in STATES or target not in MOVES[current]:
         raise ValueError(f"{current} -> {target} is not an allowed move (allowed: {sorted(MOVES[current]) or 'none'})")
@@ -215,7 +238,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[INVALID] {problem}")
         print(f"TASK-CONTRACT-REPORT: {'INVALID' if problems else 'VALID'} (declarations only; not submission approval)")
         return 1 if problems else 0
-    if any("=" not in item for item in args.result):
+    if any("=" not in item or not item.partition("=")[0].strip()
+           or item.partition("=")[2] not in ("pass", "fail") for item in args.result):
         print("--result must look like ID=pass or ID=fail", file=sys.stderr)
         return 2
     try:

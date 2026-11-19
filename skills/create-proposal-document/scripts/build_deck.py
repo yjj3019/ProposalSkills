@@ -100,6 +100,10 @@ class DeckBuilder:
         self.spec = spec
         self.template = template
         self.meta = spec.get("meta", {})
+        if not isinstance(self.meta, dict):
+            raise ValueError("meta must be an object")
+        if self.meta.get("palette") is not None and not isinstance(self.meta["palette"], dict):
+            raise ValueError("meta.palette must be an object")
         # Priority: CLI --profile > meta.output_profile > default detailed evaluation profile.
         self.profile = profile or self.meta.get("output_profile") or deck_profiles.DEFAULT_PROFILE
         # Buyer specifications (meta.output_spec) override profile defaults. The checker uses the same
@@ -252,11 +256,14 @@ class DeckBuilder:
         if not isinstance(rows, list) or any(not isinstance(row, list) or len(row) != len(columns)
                                             for row in rows):
             raise ValueError(f"{name}: 모든 행의 셀 수는 columns {len(columns)}개와 같아야 한다 — 데이터 유실 방지")
-        if col_widths is not None and (not isinstance(col_widths, list)
-                or len(col_widths) != len(columns)
-                or any(isinstance(v, bool) or not isinstance(v, (int, float))
-                       or not math.isfinite(v) or v <= 0 for v in col_widths)):
-            raise ValueError(f"{name}: col_widths는 열 수와 같은 길이의 양수 배열이어야 한다")
+        try:
+            if col_widths is not None and (not isinstance(col_widths, list)
+                    or len(col_widths) != len(columns)
+                    or any(isinstance(v, bool) or not isinstance(v, (int, float))
+                           or not math.isfinite(v) or v <= 0 for v in col_widths)):
+                raise ValueError(f"{name}: col_widths는 열 수와 같은 길이의 양수 배열이어야 한다")
+        except OverflowError as exc:
+            raise ValueError(f"{name}: col_widths 값이 너무 크다") from exc
         if not isinstance(align_right_cols, (list, tuple)) or any(isinstance(v, bool) or not isinstance(v, int) or not 0 <= v < len(columns)
                for v in align_right_cols):
             raise ValueError(f"{name}: right_cols는 범위 안의 열 번호(0부터)여야 한다")
@@ -266,8 +273,10 @@ class DeckBuilder:
         gt.name = name
         table = gt.table
         if col_widths:
-            total = sum(col_widths)
-            for i, cw in enumerate(col_widths):
+            scale = max(col_widths)
+            scaled = [cw / scale for cw in col_widths]
+            total = sum(scaled)
+            for i, cw in enumerate(scaled):
                 table.columns[i].width = Emu(int(w * cw / total))
         row_h = int(h / n_rows)
         for r in range(n_rows):
