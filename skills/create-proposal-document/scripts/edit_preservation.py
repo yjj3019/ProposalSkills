@@ -12,7 +12,9 @@ original and a revised text and lists what was lost or invented per category.
 Heuristics on text only: PASS means the listed categories match, not that the meaning is unchanged. It does not
 read tables as structure and does not judge wording. Exit 2 on usage error.
 
-Usage: python edit_preservation.py ORIGINAL REVISED [--json]
+Optional --preserve-list FILE reads a JSON array of exact phrases that must each occur as often after editing.
+--counts-only hides the automatically extracted contents; neither option establishes semantic equivalence.
+Usage: python edit_preservation.py ORIGINAL REVISED [--json] [--preserve-list FILE] [--counts-only]
 """
 from __future__ import annotations
 
@@ -56,9 +58,9 @@ def inventory(text: str) -> dict[str, Counter]:
             "code": code, "hedges": hedges, "negations": negations}
 
 
-def compare(original: str, revised: str) -> dict:
+def compare(original: str, revised: str, preserve: list[str] | None = None) -> dict:
     before, after = inventory(original), inventory(revised)
-    report: dict = {"lost": {}, "added": {}, "verdict": "PASS"}
+    report: dict = {"lost": {}, "added": {}, "verdict": "PASS", "semantic_review": "NOT VERIFIED"}
     for kind in before:
         lost, added = before[kind] - after[kind], after[kind] - before[kind]
         if lost:
@@ -71,6 +73,20 @@ def compare(original: str, revised: str) -> dict:
         report["verdict"], report["blocking"] = "BLOCKED", blocked
     elif review:
         report["verdict"], report["review"] = "REVIEW", review
+    if preserve is not None:
+        if not isinstance(preserve, list) or not 1 <= len(preserve) <= 200 or any(not isinstance(s, str) or not s or len(s) > 4096 for s in preserve) or len(set(preserve)) != len(preserve):
+            raise ValueError("invalid protected phrase list")
+        rows = []
+        for index, phrase in enumerate(preserve, 1):
+            before_count = original.count(phrase)
+            if not before_count:
+                raise ValueError("protected phrase absent from original")
+            after_count = revised.count(phrase)
+            rows.append({"index": index, "before": before_count, "after": after_count})
+        report["protected_counts"] = rows
+        if any(row["before"] != row["after"] for row in rows):
+            report["verdict"] = "BLOCKED"
+            report.setdefault("blocking", []).append("protected phrases")
     return report
 
 
@@ -79,19 +95,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("original", type=Path)
     parser.add_argument("revised", type=Path)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--preserve-list", type=Path, help="JSON array of exact phrases; keep this file private")
+    parser.add_argument("--counts-only", action="store_true", help="do not print extracted document text")
     args = parser.parse_args(argv)
     try:
-        report = compare(args.original.read_text(encoding="utf-8-sig"), args.revised.read_text(encoding="utf-8-sig"))
-    except (OSError, UnicodeDecodeError) as exc:
+        protected = None
+        if args.preserve_list:
+            with args.preserve_list.open("rb") as source:
+                data = source.read(256 * 1024 + 1)
+            if len(data) > 256 * 1024:
+                raise ValueError("protected phrase list too large")
+            protected = json.loads(data.decode("utf-8-sig"))
+        report = compare(args.original.read_text(encoding="utf-8-sig"), args.revised.read_text(encoding="utf-8-sig"), protected)
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError) as exc:
         print(f"Cannot read input: {type(exc).__name__}", file=sys.stderr)
         return 2
+    if args.counts_only:
+        for label in ("lost", "added"):
+            report[label] = {kind: sum(items.values()) for kind, items in report[label].items()}
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         for label in ("lost", "added"):
             for kind, items in report[label].items():
-                print(f"[{label.upper()}] {kind}: {', '.join(f'{k} x{v}' for k, v in items.items())}")
+                detail = str(items) if args.counts_only else ', '.join(f'{k} x{v}' for k, v in items.items())
+                print(f"[{label.upper()}] {kind}: {detail}")
+        for row in report.get("protected_counts", []):
+            print(f"[PROTECTED {row['index']}] original={row['before']} revised={row['after']}")
         print(f"EDIT-PRESERVATION: {report['verdict']}")
+        print("SEMANTIC REVIEW: NOT VERIFIED (compare meaning and commitments manually)")
     return 1 if report["verdict"] == "BLOCKED" else 0
 
 

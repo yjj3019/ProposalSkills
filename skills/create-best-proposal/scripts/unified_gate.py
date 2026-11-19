@@ -26,6 +26,16 @@ SKILLS_ROOT = SKILL_DIR.parent
 CHECK_TIMEOUT_SECONDS = 240
 
 
+def _unique_json_members(pairs):
+    """Reject ambiguous JSON at every object level without exposing input values."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
+
+
 def _run_check(cmd: list[str]) -> tuple[int, str]:
     """Bound child checks; missing evidence is an execution error, never a pass."""
     try:
@@ -278,8 +288,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         audit_bytes = args.audit.read_bytes()
-        data = json.loads(audit_bytes.decode("utf-8-sig"))
-    except (OSError, ValueError) as exc:
+        data = json.loads(audit_bytes.decode("utf-8-sig"), object_pairs_hook=_unique_json_members)
+    except (OSError, ValueError, RecursionError) as exc:
         print(f"INVALID: {exc}")
         return 2
     if not isinstance(data, dict):

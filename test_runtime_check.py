@@ -38,6 +38,11 @@ class RuntimeCheckTests(unittest.TestCase):
         payload = json.loads(run.stdout)
         self.assertEqual(run.returncode, 0 if payload["ready"] else 1)
 
+    def test_probe_failure_is_not_ready_even_when_modules_exist(self):
+        with mock.patch.object(runtime_check, "missing", return_value=[]), mock.patch.object(runtime_check, "probe", return_value=["probe:pptx"]), mock.patch("sys.stdout", new_callable=__import__("io").StringIO) as out:
+            self.assertEqual(runtime_check.main(["--python-only"]), 1)
+            self.assertEqual(json.loads(out.getvalue())["probe_failures"], ["probe:pptx"])
+
 
 if __name__ == "__main__":
     unittest.main()

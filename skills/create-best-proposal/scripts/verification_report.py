@@ -16,34 +16,56 @@ Rules
   - every not-inspected check is listed in `not_inspected`, and `scope` is not empty
   - no score fields (score, rating, quality_score): depth is reported by level, never as a number
 
-Exit codes: 0 valid, 1 invalid, 2 usage error. The validator checks the report's honesty, not the deliverable.
+Exit codes: 0 valid, 1 invalid, 2 usage error. The validator checks structural consistency, not the truth of the
+declarations, the identity or independence of a reviewer, evidence relevance, or the deliverable's quality.
 
-Usage: python verification_report.py REPORT.json
+Optional --verify-evidence ROOT checks explicit evidence descriptors {path, sha256} against files under ROOT.
+This is a local integrity check, not an isolation boundary; filesystem changes can race a check.
+Usage: python verification_report.py [--verify-evidence ROOT] REPORT.json
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 LEVELS = ("static", "fixture", "rendered", "live")
 STATUSES = ("pass", "fail", "not-inspected")
 SCORE_KEYS = {"score", "rating", "quality_score", "grade"}
 
 
+def parse_report(text: str):
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON field")
+            result[key] = value
+        return result
+    def invalid_constant(_):
+        raise ValueError("invalid JSON number")
+    return json.loads(text, object_pairs_hook=unique, parse_constant=invalid_constant)
+
+
 def validate(report_path: Path) -> tuple[list[str], str]:
-    problems: list[str] = []
     try:
-        report = json.loads(report_path.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError) as exc:
+        report = parse_report(report_path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError, UnicodeError, RecursionError) as exc:
         return [f"cannot read report ({type(exc).__name__})"], "none"
+    return validate_data(report, report_path.parent)
+
+
+def validate_data(report: object, base: Path) -> tuple[list[str], str]:
+    """Validate one parsed snapshot; declarations are not authentication."""
+    problems: list[str] = []
     if not isinstance(report, dict):
         return ["report must be an object"], "none"
     if SCORE_KEYS & {k.lower() for k in report}:
         problems.append("score fields are not allowed; report depth by level")
     artifact = report.get("artifact")
-    target = (report_path.parent / artifact).resolve() if isinstance(artifact, str) and artifact else None
+    target = (base / artifact).resolve() if isinstance(artifact, str) and artifact else None
     if target is None or not target.is_file():
         problems.append("artifact is missing or does not exist next to the report")
     elif hashlib.sha256(target.read_bytes()).hexdigest() != str(report.get("artifact_sha256", "")).lower():
@@ -78,15 +100,75 @@ def validate(report_path: Path) -> tuple[list[str], str]:
     return problems, LEVELS[deepest] if deepest >= 0 else "none"
 
 
+def evidence_problems(report: object, root: Path) -> list[str]:
+    """Optionally match declared evidence files; the comparison does not establish what they prove."""
+    if not root.is_dir() or root.is_symlink():
+        return ["evidence root unavailable or linked"]
+    base = root.resolve()
+    if not isinstance(report, dict) or not isinstance(report.get("checks"), list):
+        return ["invalid evidence declarations"]
+    problems = []
+    for check in report["checks"]:
+        if not isinstance(check, dict):
+            continue
+        evidence = check.get("evidence", [])
+        if not isinstance(evidence, list):
+            problems.append("evidence must be a list")
+            continue
+        for item in evidence:
+            if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+                problems.append("strict evidence needs path and sha256")
+                continue
+            name, digest = item["path"], item["sha256"]
+            if not isinstance(name, str) or not name or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+                problems.append("invalid evidence descriptor")
+                continue
+            relative = Path(name)
+            windows = PureWindowsPath(name)
+            if relative.is_absolute() or windows.anchor or ".." in relative.parts or ".." in windows.parts or "\\" in name or ":" in name:
+                problems.append("invalid evidence path")
+                continue
+            try:
+                target = base
+                for part in relative.parts:
+                    target = target / part
+                    if target.is_symlink() or (hasattr(target, "is_junction") and target.is_junction()):
+                        raise ValueError("linked path")
+                target = target.resolve(strict=True)
+                if not target.is_relative_to(base) or not target.is_file():
+                    raise ValueError("outside root")
+                with target.open("rb") as stream:
+                    content = stream.read(32 * 1024 * 1024 + 1)
+                if len(content) > 32 * 1024 * 1024 or hashlib.sha256(content).hexdigest() != digest.lower():
+                    raise ValueError("evidence mismatch")
+            except (OSError, ValueError, RuntimeError):
+                problems.append("evidence missing, linked, outside root, too large or hash mismatch")
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
+    root = None
+    if len(args) == 3 and args[0] == "--verify-evidence":
+        root, args = Path(args[1]), args[2:]
     if len(args) != 1 or not Path(args[0]).is_file():
         print(__doc__, file=sys.stderr)
         return 2
-    problems, deepest = validate(Path(args[0]))
+    report_path = Path(args[0])
+    if root is None:
+        problems, deepest = validate(report_path)
+    else:
+        try:
+            report = parse_report(report_path.read_text(encoding="utf-8-sig"))
+            problems, deepest = validate_data(report, report_path.parent)
+            problems += evidence_problems(report, root)
+        except (OSError, ValueError, UnicodeError, RecursionError):
+            problems, deepest = ["cannot read report"], "none"
     for problem in problems:
         print(f"[INVALID] {problem}")
     print(f"VERIFICATION-REPORT: {'INVALID' if problems else 'VALID'} (deepest passing level: {deepest})")
+    if root is not None:
+        print("Evidence file checks do not authenticate the reviewer or establish review quality.")
     return 1 if problems else 0
 
 

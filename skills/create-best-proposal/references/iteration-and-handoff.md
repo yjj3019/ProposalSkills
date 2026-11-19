@@ -82,7 +82,8 @@ These turn the rules above into checks. None adds an approval field, and none re
 - **Tamper-evident check log**: `scripts/evidence_chain.py append LOG --command "..." --exit-code N --artifact FILE`
   after each real check; `verify LOG --check-artifacts` later shows a removed, edited or re-ordered record, or a file
   that changed after it was checked. Keep the printed `head` hash in the hand-off note, because cutting records off the
-  end of the log is not visible from the file alone. It is tamper-evidence, not authentication.
+  end of the log is not visible from the file alone. Concurrent cooperating appends are refused via a sibling lock;
+  if interrupted, confirm the writer has stopped before removing its stale lock. It is tamper-evidence, not authentication.
 - **Hand-off note**: use these labeled fields and a hash table, then run `scripts/handoff_lint.py HANDOFF.md --root .`
   on resumption. A `STALE` row means the file changed after the note, so rerun the affected checks.
 
@@ -101,17 +102,25 @@ These turn the rules above into checks. None adds an approval field, and none re
 - **Task contract and states**: `scripts/task_contract.py validate|advance` records the goal, scope, non-goals, allowed
   actions (outward-facing ones need a named approver), write boundary, test oracle, attempt and time budgets, and the state
   (Planned, Running, Verifying, Verified, Failed, Blocked, Not Verified). It refuses `Verified` without evidence and a
-  passing result for every oracle check, and refuses another retry once `max_attempts` is used up.
+  passing result for every oracle check, and refuses another retry once `max_attempts` is used up. `Verified` is a
+  declared state, not proof of execution or submission approval. Optionally use `task_contract.py check-report CONTRACT REPORT`
+  to compare oracle names with a hash-bound verification report; this still does not authenticate its claims. The optional
+  `document_policy` records outbound text, endpoint, cache, asset download and installation intentions; it enforces none
+  of them and its approval fields are not authorization. Use host controls and actual user approvals.
 - **Anchor the log**: write the `head=` hash and record count that `verify` prints into the hand-off note, and next time run
   `evidence_chain.py verify LOG --expect-head HASH --expect-count N`; a truncated or rebuilt log then fails.
-- **Rerun only what changed**: `evidence_chain.py rerun LOG` lists the checks whose artifacts changed since they ran.
-  `--seconds` and `--cost` on `append` let `verify` total the effort per verified check.
+- **Recheck outstanding work**: `evidence_chain.py rerun LOG` lists failed checks, checks without artifact proof and
+  checks whose artifacts changed. `--seconds` and `--cost` on `append` total recorded values only; absent values are unknown.
 - **Same facts in every format**: `cross_format_numbers.py DOC... --audit audit.json` runs the numbers ledger on each
   delivered PPTX/DOCX/XLSX/HWPX and flags values found in some files but missing from others; `xlsx_check.py` reports
   error cells, `#REF!`, never-calculated formulas and (with `--recalc`) stored values that differ from a recalculation.
 - **Comparing two workflows**: `eval_metrics.py runs.json` aggregates recorded runs of a baseline and a candidate on the
   same tasks and conditions (verified success, false completion, cost per verified task, regression). It refuses unpaired
-  input and counts unverified runs against success; it makes no significance claim.
+  input and counts unverified runs against success; it makes no significance claim. A `planned` task list can detect
+  tasks missing from both arms. Missing cost or time is unavailable, not zero; paired counts show gains and regressions.
+  Optional attempt lists need unique IDs and an explicit retry policy; they remain declarations.
+  Structured conditions can additionally record budget, tools and prompt; legacy conditions are reported as incomplete.
+  Recorded conditions and results are declarations, not authenticated observations.
 - **Verdict words**: see [verdict-vocabulary.md](verdict-vocabulary.md) for PASS / FAIL / BLOCKED / NOT VERIFIED across tools.
 - **Repository guardrails**: `merge_guard.py PR` (all checks `pass`, none skipped; advisory only, branch protection is the
   enforcing boundary) and `hook_guard_bash.py`, an opt-in Claude Code hook that denies a short list of destructive

@@ -52,6 +52,7 @@ ChatGPT는 지원되는 환경에서 설치된 스킬을 선택합니다.
 PPTX 생성·검사는 Python 3.10+와 `python-pptx`, 자동 렌더는 LibreOffice·Poppler가 필요합니다.
 플러그인을 설치해도 실행 도구가 함께 설치되지는 않습니다. 자동 검사를 통과해도 사실 확인·장표 검토·제출 승인은 별도로 필요합니다.
 고객 자료와 산출물은 이 공개 저장소 밖에 보관하세요.
+감사 JSON은 중첩 객체를 포함해 같은 키를 두 번 쓸 수 없습니다. 값이 같아도 중복 키가 있으면 두 제출 검사에서 입력 오류로 처리합니다.
 
 [작성·검토 가이드](skills/create-proposal-document/references/quality-first-authoring.md) ·
 [장표 규격](skills/create-proposal-document/references/deck-production.md) ·

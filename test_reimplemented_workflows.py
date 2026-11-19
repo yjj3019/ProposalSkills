@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -57,6 +59,30 @@ class EditPreservationTests(unittest.TestCase):
         report = edit.compare("추가 비용은 없다.", "추가 비용을 부담한다.")
         self.assertEqual(report["verdict"], "REVIEW")
 
+    def test_explicit_phrase_detects_change_outside_heuristics(self):
+        original = "승인 범위는 내부 검토로 한정한다."
+        revised = "승인 범위는 외부 공개로 한다."
+        self.assertEqual(edit.compare(original, revised)["verdict"], "PASS")
+        self.assertEqual(edit.compare(original, revised)["semantic_review"], "NOT VERIFIED")
+        self.assertEqual(edit.compare(original, revised, ["내부 검토"])["verdict"], "BLOCKED")
+        self.assertEqual(edit.compare(original, "범위는 내부 검토로 한정한다.", ["내부 검토"])["verdict"], "PASS")
+        with self.assertRaises(ValueError):
+            edit.compare(original, revised, ["누락된 문구"])
+
+    def test_counts_only_does_not_print_protected_or_extracted_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            a, b, protected = root / "a", root / "b", root / "list.json"
+            a.write_text('"confidential phrase" retained', encoding="utf-8")
+            b.write_text('"other phrase" retained', encoding="utf-8")
+            protected.write_text(json.dumps(["confidential phrase"]), encoding="utf-8")
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(edit.main([str(a), str(b), "--preserve-list", str(protected), "--counts-only", "--json"]), 1)
+            self.assertNotIn("confidential phrase", out.getvalue())
+            self.assertNotIn("other phrase", out.getvalue())
+            self.assertEqual(json.loads(out.getvalue())["protected_counts"][0]["after"], 0)
+
     def test_cli_exit_codes(self):
         with tempfile.TemporaryDirectory() as tmp:
             a, b = Path(tmp) / "a.md", Path(tmp) / "b.md"
@@ -67,6 +93,15 @@ class EditPreservationTests(unittest.TestCase):
                 self.assertEqual(edit.main([str(a), str(a)]), 0)
             with redirect_stderr(io.StringIO()):
                 self.assertEqual(edit.main([str(a), str(Path(tmp) / "none.md")]), 2)
+
+    def test_semantic_notice_works_with_ascii_console(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.txt"
+            source.write_text("Synthetic text.", encoding="utf-8")
+            result = subprocess.run([sys.executable, str(ROOT / "skills/create-proposal-document/scripts/edit_preservation.py"), str(source), str(source)],
+                                    capture_output=True, env={**os.environ, "PYTHONIOENCODING": "ascii"}, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(b"SEMANTIC REVIEW: NOT VERIFIED", result.stdout)
 
 
 class DeckStageGateTests(unittest.TestCase):
@@ -154,9 +189,43 @@ class VerificationReportTests(unittest.TestCase):
         problems, deepest = vreport.validate(self.report())
         self.assertEqual((problems, deepest), ([], "rendered"))
 
+    def test_optional_evidence_file_integrity_and_path_scope(self):
+        evidence = self.dir / "render.png"
+        evidence.write_bytes(b"synthetic render")
+        item = {"path": "render.png", "sha256": sha(b"synthetic render")}
+        checks = [{"name": "render", "level": "rendered", "status": "pass", "tool": "renderer", "evidence": [item]}]
+        report = self.report(checks=checks)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(vreport.main(["--verify-evidence", str(self.dir), str(report)]), 0)
+            evidence.write_bytes(b"changed")
+            self.assertEqual(vreport.main(["--verify-evidence", str(self.dir), str(report)]), 1)
+            item["path"] = "../outside.png"
+            self.assertEqual(vreport.main(["--verify-evidence", str(self.dir), str(self.report(checks=checks))]), 1)
+            item["path"] = "render.png"
+            item["sha256"] = sha(b"changed")
+            self.assertEqual(vreport.main(["--verify-evidence", str(self.dir), str(self.report(checks=checks))]), 0)
+
+    def test_evidence_link_is_not_followed(self):
+        target = self.dir / "real.png"
+        link = self.dir / "link.png"
+        target.write_bytes(b"synthetic")
+        try:
+            link.symlink_to(target)
+        except OSError:
+            self.skipTest("symbolic links unavailable")
+        report = {"checks": [{"evidence": [{"path": "link.png", "sha256": sha(b"synthetic")}]}]}
+        self.assertTrue(vreport.evidence_problems(report, self.dir))
+        report["checks"][0]["evidence"][0]["path"] = "real.png"
+        self.assertEqual(vreport.evidence_problems(report, self.dir), [])
+
     def test_hash_mismatch_means_checks_do_not_apply(self):
         problems, _ = vreport.validate(self.report(artifact_sha256="0" * 64))
         self.assertTrue(any("sha256 does not match" in p for p in problems))
+
+    def test_duplicate_json_fields_are_invalid(self):
+        path = self.dir / "duplicate.json"
+        path.write_text('{"scope":"a", "scope":"b"}', encoding="utf-8")
+        self.assertTrue(vreport.validate(path)[0])
 
     def test_rendered_pass_needs_tool_and_evidence(self):
         checks = [{"name": "render", "level": "rendered", "status": "pass"}]

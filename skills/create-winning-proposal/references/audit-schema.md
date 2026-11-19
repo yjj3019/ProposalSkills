@@ -1,6 +1,9 @@
 # Audit JSON schema
 
 Populate every top-level field; do not omit empty arrays.
+Every JSON object must have unique member names, including names that become identical after escape decoding.
+Both gate entry points reject duplicates as invalid even if the repeated values are identical. This prevents
+different parsers from silently choosing different audit decisions.
 
 ```json
 {
