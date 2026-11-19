@@ -52,6 +52,7 @@ The unified entry uses the two internal skills; name them explicitly for standal
 PPTX generation and inspection require Python 3.10+ and `python-pptx`; automated rendering requires LibreOffice and Poppler.
 Installing the plugin does not install these tools. Automated checks do not replace factual review, visual review, or submission approval.
 Keep customer materials and generated output outside this public repository.
+Both submission checks reject duplicate JSON object keys, including duplicates in nested objects and duplicates with identical values.
 
 [Authoring and review](skills/create-proposal-document/references/quality-first-authoring.md) ·
 [Slide specifications](skills/create-proposal-document/references/deck-production.md) ·

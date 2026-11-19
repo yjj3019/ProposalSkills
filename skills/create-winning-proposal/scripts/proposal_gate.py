@@ -11,6 +11,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+def _unique_json_members(pairs):
+    """Reject ambiguous JSON at every object level without exposing input values."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
+
+
 REQUIRED_FIELDS = {
     "mode", "bid_decision", "bid_conditions", "requirements", "claims",
     "unresolved_tokens", "attachments", "source_conflicts", "checks",
@@ -1266,8 +1276,8 @@ def main(argv: list[str]) -> int:
         return 0 if exc.code == 0 else 2
     explain = ns.explain
     try:
-        data = json.loads(ns.audit.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError) as exc:  # Includes JSONDecodeError and UnicodeDecodeError.
+        data = json.loads(ns.audit.read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_json_members)
+    except (OSError, ValueError, RecursionError) as exc:  # Includes JSONDecodeError and UnicodeDecodeError.
         print(f"invalid audit file: {exc}", file=sys.stderr)
         return 2
     schema_failures = validate_schema(data)

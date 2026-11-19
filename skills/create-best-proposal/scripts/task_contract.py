@@ -16,6 +16,8 @@ contract.json fields
   max_attempts, time_budget_minutes                positive integers (max_attempts matches retry_guard.py)
   stop_conditions[], recovery                      when to stop; how to roll back or resume
   state, attempts, results{}, evidence_links[]     progress (maintained by `advance`)
+  document_policy (optional)                     declared outbound_text, endpoint, cache, asset_download and package_install;
+                                                  declarations do not enforce network, retention or authorization
 
 States and moves
   Planned -> Running -> Verifying -> Verified (end)
@@ -25,10 +27,12 @@ States and moves
   needs a blocker. Going back to Running from Failed counts one attempt and is refused once max_attempts is used up.
 
 Not-started, unavailable and skipped checks are "Not Verified", never "Verified". This records and enforces a procedure; it
-does not authenticate who ran what. Exit codes: 0 ok, 1 contract invalid or move refused, 2 usage error or unreadable file.
+does not authenticate who ran what. Verified is a declared workflow state, not proof of execution or submission approval.
+Exit codes: 0 ok, 1 contract invalid or move refused, 2 usage error or unreadable file.
 
   python task_contract.py validate CONTRACT.json
   python task_contract.py advance CONTRACT.json STATE [--cause T] [--blocker T] [--note T] [--evidence PATH ...] [--result ID=pass|fail ...]
+  python task_contract.py check-report CONTRACT.json REPORT.json
 """
 from __future__ import annotations
 
@@ -87,6 +91,24 @@ def validate(contract: dict) -> list[str]:
         for action in sorted(OUTWARD & set(actions)):
             if action not in approved:
                 problems.append(f"{action} is allowed but has no approval (approvals[] needs {{action, by}})")
+    if "document_policy" in contract:
+        policy = contract["document_policy"]
+        keys = {"outbound_text", "endpoint", "cache", "asset_download", "package_install"}
+        if not isinstance(policy, dict) or set(policy) != keys:
+            problems.append("document_policy must declare outbound_text, endpoint, cache, asset_download and package_install")
+        else:
+            if any(not isinstance(policy[k], bool) for k in ("outbound_text", "asset_download", "package_install")):
+                problems.append("document_policy capabilities must be booleans")
+            if policy["cache"] not in ("no-store", "job-local"):
+                problems.append("document_policy cache must be no-store or job-local")
+            endpoint = policy["endpoint"]
+            if policy["outbound_text"] is True:
+                if not isinstance(endpoint, str) or not endpoint.strip():
+                    problems.append("outbound document text needs an endpoint declaration")
+                if not isinstance(actions, list) or "network" not in actions:
+                    problems.append("outbound document text needs declared network action")
+            elif endpoint is not None:
+                problems.append("endpoint must be null when outbound text is not declared")
     state = contract.get("state", "Planned")
     if state not in STATES:
         problems.append(f"state must be one of {STATES}")
@@ -147,6 +169,9 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="action", required=True)
     check = sub.add_parser("validate")
     check.add_argument("contract", type=Path)
+    report_check = sub.add_parser("check-report")
+    report_check.add_argument("contract", type=Path)
+    report_check.add_argument("report", type=Path)
     move = sub.add_parser("advance")
     move.add_argument("contract", type=Path)
     move.add_argument("state")
@@ -167,7 +192,28 @@ def main(argv: list[str] | None = None) -> int:
         problems = validate(contract)
         for problem in problems:
             print(f"[INVALID] {problem}")
-        print(f"TASK-CONTRACT: {'INVALID' if problems else 'VALID'} (state {contract.get('state', 'Planned')})")
+        print(f"TASK-CONTRACT: {'INVALID' if problems else 'VALID'} (declared state {contract.get('state', 'Planned')}; not a submission decision)")
+        return 1 if problems else 0
+    if args.action == "check-report":
+        import verification_report
+        problems = validate(contract)
+        try:
+            report = verification_report.parse_report(args.report.read_text(encoding="utf-8-sig"))
+            report_problems, _ = verification_report.validate_data(report, args.report.parent)
+            problems.extend(report_problems)
+            checks = report.get("checks", []) if isinstance(report, dict) else []
+            oracles = contract.get("test_oracle", [])
+            if not isinstance(oracles, list) or not isinstance(checks, list):
+                raise ValueError("invalid checks or oracles")
+            for oracle in oracles:
+                matches = [item for item in checks if isinstance(item, dict) and item.get("name") == oracle]
+                if len(matches) != 1 or matches[0].get("status") != "pass":
+                    problems.append(f"oracle '{oracle}' needs exactly one passing report check")
+        except (OSError, ValueError, TypeError, UnicodeError, RecursionError):
+            problems.append("cannot read report checks")
+        for problem in problems:
+            print(f"[INVALID] {problem}")
+        print(f"TASK-CONTRACT-REPORT: {'INVALID' if problems else 'VALID'} (declarations only; not submission approval)")
         return 1 if problems else 0
     if any("=" not in item for item in args.result):
         print("--result must look like ID=pass or ID=fail", file=sys.stderr)

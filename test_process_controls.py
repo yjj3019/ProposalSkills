@@ -50,6 +50,13 @@ class TaskContractTests(unittest.TestCase):
         ok = base_contract(allowed_actions=["read", "publish"], approvals=[{"action": "publish", "by": "PM"}])
         self.assertEqual(contract.validate(ok), [])
 
+    def test_document_policy_is_explicit_but_not_authorization(self):
+        policy = {"outbound_text": False, "endpoint": None, "cache": "no-store", "asset_download": False, "package_install": False}
+        self.assertEqual(contract.validate(base_contract(document_policy=policy)), [])
+        policy = {**policy, "outbound_text": True, "endpoint": "example"}
+        self.assertTrue(any("network action" in p for p in contract.validate(base_contract(document_policy=policy))))
+        self.assertEqual(contract.validate(base_contract(document_policy=policy, allowed_actions=["read", "network"], approvals=[{"action": "network", "by": "reviewer"}])), [])
+
     def test_verified_needs_evidence_and_every_oracle_check_passing(self):
         c = self.walk(base_contract(), ("Running", {}), ("Verifying", {}))
         with self.assertRaisesRegex(ValueError, "evidence_links"):
@@ -108,7 +115,9 @@ class EvalMetricsTests(unittest.TestCase):
         by_arm = metrics.load(runs)
         base, cand = metrics.metrics(list(by_arm["baseline"].values())), metrics.metrics(list(by_arm["candidate"].values()))
         self.assertAlmostEqual(base["verified_success_rate"], 1 / 3)
-        self.assertAlmostEqual(base["false_completion_rate"], 1 / 3)
+        self.assertIsNone(base["false_completion_rate"])
+        self.assertEqual(base["claimed_unverified"], 1)
+        self.assertEqual(base["false_completions"], 1)
         self.assertEqual(base["not_verified"], 1)
         self.assertAlmostEqual(base["cost_per_verified"], 3.0)
         self.assertEqual(cand["verified_success_rate"], 1.0)

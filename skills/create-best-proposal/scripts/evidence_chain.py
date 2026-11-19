@@ -10,13 +10,18 @@ Editing or removing a record from the middle breaks the chain; changing an artif
 This is tamper-evidence for honest mistakes and casual edits, not authentication: anyone who can rewrite the whole
 file can rebuild the chain.
 
+Append uses a sibling .lock directory and replaces the log only after writing a complete temporary file. Concurrent
+cooperating writers fail instead of waiting. The lock's owner.json is a diagnostic hint, not proof of identity or liveness.
+After an interrupted process, check that it has stopped before manually removing its stale lock. This is not a filesystem
+security boundary or a guarantee against power-loss corruption.
+
   python evidence_chain.py append LOG --command "..." --exit-code N [--artifact FILE ...] [--note TEXT]
                                        [--seconds S] [--cost AMOUNT]
   python evidence_chain.py verify LOG [--check-artifacts] [--expect-head HASH] [--expect-count N]
   python evidence_chain.py rerun LOG        list the commands whose artifacts changed or vanished (nothing else to redo)
 
-`--seconds` and `--cost` are optional; `verify` totals them so cost per verified check can be read off. `rerun` reads the
-latest record per command, so only the checks that ran on a file that has since changed need to be run again. Exit codes:
+`--seconds` and `--cost` are optional; `verify` totals recorded values, not necessarily the complete cost. `rerun` reads the
+latest record per command and flags failed, artifact-free, missing or changed checks. It does not run them. Exit codes:
 0 ok / nothing stale, 1 chain broken, artifact changed, or something stale, 2 usage error.
 """
 from __future__ import annotations
@@ -24,7 +29,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -48,8 +55,24 @@ def read_log(log: Path) -> list[dict]:
 
 def append(log: Path, command: str, exit_code: int, artifacts: list[Path], note: str = "", now: datetime | None = None,
            seconds: float | None = None, cost: float | None = None) -> dict:
+    lock = log.with_name(log.name + ".lock")
+    try:
+        lock.mkdir()
+    except FileExistsError as exc:
+        raise ValueError("evidence log is locked; check the owner before removing a stale lock") from exc
+    owner = lock / "owner.json"
+    try:
+        owner.write_text(json.dumps({"pid": os.getpid(), "started_utc": datetime.now(timezone.utc).isoformat()}), encoding="utf-8")
+        return _append_locked(log, command, exit_code, artifacts, note, now, seconds, cost)
+    finally:
+        owner.unlink(missing_ok=True)
+        lock.rmdir()
+
+
+def _append_locked(log: Path, command: str, exit_code: int, artifacts: list[Path], note: str, now: datetime | None,
+                   seconds: float | None, cost: float | None) -> dict:
     records = read_log(log)
-    problems = verify(records)
+    problems = verify(records) if records else []
     if problems:
         raise ValueError("refusing to append to a broken chain: " + problems[0])
     record = {"seq": len(records) + 1, "time": (now or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -62,13 +85,28 @@ def append(log: Path, command: str, exit_code: int, artifacts: list[Path], note:
                 raise ValueError(f"{key} must not be negative")
             record[key] = value
     record["hash"] = record_hash(record)
-    with log.open("a", encoding="utf-8", newline="\n") as handle:
-        handle.write(json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n")
+    old = log.read_bytes() if log.exists() else b""
+    if old and not old.endswith(b"\n"):
+        raise ValueError("refusing to append to an incomplete log line")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=log.parent, prefix=".evidence-", delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(old)
+            handle.write((json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, log)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return record
 
 
 def verify(records: list[dict], check_artifacts: bool = False, base: Path = Path(".")) -> list[str]:
     problems: list[str] = []
+    if not records:
+        return ["no evidence records: not verified"]
     prev = GENESIS
     for index, record in enumerate(records, 1):
         if record.get("seq") != index:
@@ -104,6 +142,9 @@ def stale_commands(records: list[dict], base: Path = Path(".")) -> list[str]:
     latest = {r["command"]: r for r in records}
     stale = []
     for command, record in latest.items():
+        if record.get("exit_code") != 0 or not record.get("artifacts"):
+            stale.append(command)
+            continue
         for item in record.get("artifacts", []):
             target = base / item["path"]
             if not target.is_file() or digest(target) != item["sha256"]:

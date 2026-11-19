@@ -121,6 +121,15 @@ of coding agents, not proposal authoring, and a Node runtime dependency). Tests:
 
 ## Obligations going forward
 
+### Follow-up review (2026-11-19)
+
+Reviewed the public AI-Harness repository at commit `8381de503fcbf2e97892a94db40e0d94d3e4b5d2`
+([source](https://github.com/yjj3019/AI-Harness/tree/8381de503fcbf2e97892a94db40e0d94d3e4b5d2),
+Apache-2.0). The evaluation accounting, paired comparison, evidence locking, and task-contract boundaries
+informed a fresh implementation in this repository's existing Python tools. No upstream code, tests, examples,
+or prose were copied or translated. The source's declarations and hashes do not authenticate execution; the same
+limitation applies here. The phase runner, dashboard, and broker were not incorporated.
+
 - Keep `skill_audit.py` green: every skill declares `license:`; a skill that differs from the root license
   must ship its own LICENSE file.
 - If third-party text or code is ever added, record its exact license and notice here first, and preserve

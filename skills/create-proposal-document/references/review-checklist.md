@@ -146,9 +146,12 @@ keeping facts, and reports Changed / Kept / Evidence / Uncovered. It does not re
 - After any wording-only edit, run `python scripts/edit_preservation.py original.md revised.md`. BLOCKED means a figure,
   date, requirement ID, link, quotation, code span or hedge was lost or invented. REVIEW (negation or hedge count
   changed) needs a human read. PASS means the inventories match, not that the meaning is unchanged.
+  For important exact wording, provide a private JSON array using `--preserve-list`; use `--counts-only` to avoid printing
+  extracted text. An exact match cannot establish meaning, context or whether the selected list is complete.
 - When recording what was checked, validate the record with `create-best-proposal/scripts/verification_report.py`:
   it ties the report to the delivered file by SHA-256, requires a tool and evidence for rendered or live passes,
-  requires not-inspected checks to be listed, and refuses numeric scores.
+  requires not-inspected checks to be listed, and refuses numeric scores. With `--verify-evidence ROOT`, evidence items
+  are file path/hash objects checked under that root. File integrity does not authenticate the reviewer or review quality.
 
 ### Centralize completeness figures in score_completeness.py
 

@@ -49,6 +49,52 @@ def ready_audit() -> dict:
     return json.loads((FIXTURES / "audit_ready_financial.json").read_text(encoding="utf-8"))
 
 
+class VerificationEvidenceRegressionTests(unittest.TestCase):
+    def test_duplicate_report_field_cannot_hide_an_invalid_value(self):
+        import verification_report
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            artifact = root / "artifact.txt"
+            artifact.write_bytes(b"synthetic")
+            digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            report = {"artifact": "artifact.txt", "artifact_sha256": digest, "scope": "synthetic",
+                      "checks": [{"name": "check", "level": "static", "status": "pass"}], "not_inspected": []}
+            path = root / "report.json"
+            path.write_text(json.dumps(report), encoding="utf-8")
+            self.assertEqual(verification_report.validate(path)[0], [])
+            path.write_text(path.read_text(encoding="utf-8").replace('"scope": "synthetic"', '"scope": "", "scope": "synthetic"'), encoding="utf-8")
+            self.assertTrue(verification_report.validate(path)[0])
+
+
+class AuditJsonAmbiguityRegressionTests(unittest.TestCase):
+    def test_both_entry_points_reject_duplicate_json_members(self):
+        """A conflict must not depend on which duplicate member the parser keeps."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp).resolve() / "audit.json"
+            original = json.dumps(ready_audit(), ensure_ascii=False)
+            cases = {
+                "conflicting root": '{"bid_decision":"no-bid",' + original[1:],
+                "identical root": '{"bid_decision":"bid",' + original[1:],
+                "escaped root": '{"bid_\\u0064ecision":"no-bid",' + original[1:],
+                "nested checks": original.replace('"checks": {"consistency": true', '"checks": {"consistency": false, "consistency": true', 1),
+            }
+            self.assertNotEqual(cases["nested checks"], original)
+            scripts = [(BEST / "scripts/unified_gate.py", ["--audit-only", "--no-explain"]),
+                       (REPO / "skills/create-winning-proposal/scripts/proposal_gate.py", [])]
+            for name, text in cases.items():
+                path.write_text(text, encoding="utf-8")
+                for script, args in scripts:
+                    with self.subTest(case=name, script=script.name):
+                        result = run(script, path, *args)
+                        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                        self.assertIn("duplicate", (result.stdout + result.stderr).lower())
+                        self.assertNotIn("STATUS: AUDIT-VALID", result.stdout)
+            path.write_text(original, encoding="utf-8")
+            for script, args in scripts:
+                result = run(script, path, *args)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
 class SubmissionValidationRegressionTests(unittest.TestCase):
     """Verify diagnosed unit, physical-artifact, and inspection-scope errors alongside positive controls."""
 

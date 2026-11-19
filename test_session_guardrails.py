@@ -164,10 +164,10 @@ class MergeGuardTests(unittest.TestCase):
             return json.dumps(checks if args[1] == "checks" else view)
         return run
 
-    OPEN = {"state": "OPEN", "mergeable": "MERGEABLE"}
+    OPEN = {"state": "OPEN", "mergeable": "MERGEABLE", "headRefOid": "a" * 40, "baseRefOid": "b" * 40, "isDraft": False}
 
     def test_ready_only_when_all_pass(self):
-        ok = [{"name": "a", "bucket": "pass"}, {"name": "b", "bucket": "pass"}]
+        ok = [{"name": name, "bucket": "pass"} for name in merge.REQUIRED]
         with redirect_stdout(io.StringIO()):
             self.assertEqual(merge.main(["7"], self.runner(ok, self.OPEN)), 0)
             self.assertEqual(merge.main(["7", "--require", "c"], self.runner(ok, self.OPEN)), 1)
@@ -181,6 +181,25 @@ class MergeGuardTests(unittest.TestCase):
             raise RuntimeError("gh failed")
         with redirect_stderr(io.StringIO()):
             self.assertEqual(merge.main(["7"], boom), 2)
+
+    def test_changed_head_and_duplicate_checks_block(self):
+        checks = [{"name": name, "bucket": "pass"} for name in merge.REQUIRED]
+        calls = []
+        def race(args):
+            if args[1] == "checks":
+                return json.dumps(checks)
+            calls.append(1)
+            return json.dumps({**self.OPEN, "headRefOid": ("a" if len(calls) == 1 else "c") * 40})
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(merge.main(["7"], race), 1)
+            self.assertEqual(merge.main(["7"], self.runner(checks + [checks[0]], self.OPEN)), 1)
+
+    def test_required_checks_match_ci_matrix(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("os: [ubuntu-24.04, ubuntu-26.04, windows-latest]", workflow)
+        self.assertIn('python: ["3.10", "3.12"]', workflow)
+        self.assertIn('name: ${{ matrix.os }} / py${{ matrix.python }}', workflow)
+        self.assertEqual(len(merge.REQUIRED), 6)
 
 
 class HookGuardTests(unittest.TestCase):

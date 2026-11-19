@@ -69,6 +69,14 @@ class Mutation:
 
 
 MUTATIONS: tuple[Mutation, ...] = (
+    Mutation("proposal-audit-json-duplicates", PROPOSAL,
+             'json.loads(ns.audit.read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_json_members)',
+             'json.loads(ns.audit.read_text(encoding="utf-8-sig"))',
+             "duplicate audit keys must not be silently accepted", ("test_audit_json_parse",)),
+    Mutation("unified-audit-json-duplicates", UNIFIED,
+             'json.loads(audit_bytes.decode("utf-8-sig"), object_pairs_hook=_unique_json_members)',
+             'json.loads(audit_bytes.decode("utf-8-sig"))',
+             "the unified entry must reject duplicate audit keys", ("test_audit_json_parse",)),
     Mutation("placeholder-detection", PROPOSAL,
              "    return _PLACEHOLDER_RE.search(value) is not None\n\n\ndef _evidence_ok",
              "    return False\n\n\ndef _evidence_ok",

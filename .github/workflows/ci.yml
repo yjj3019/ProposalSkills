@@ -26,7 +26,7 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libreoffice-impress libreoffice-calc poppler-utils fonts-nanum >/dev/null
       - name: Unit tests (repo root)
-        run: python -m unittest discover -s . -p "test_*.py" -v
+        run: python run_repo_tests.py
       - name: proposal_gate tests
         run: python skills/create-winning-proposal/scripts/test_proposal_gate.py -v
       - name: create-best-proposal tests

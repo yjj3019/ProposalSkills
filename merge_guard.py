@@ -8,8 +8,9 @@ enforcing boundary. A skipped check is deliberately not accepted, because a skip
 Rules
   - at least one check exists (an empty list is "unknown", not "passing")
   - every check has bucket `pass`; `skipping`, `pending`, `fail` and `cancel` all block
-  - each --require NAME is present among the checks (so a removed job cannot silently lower the bar)
+  - the CI matrix jobs and each --require NAME are present among the checks
   - the PR state is OPEN and mergeable is MERGEABLE
+  - head/base identities and draft state are checked before and after the check query; this is not an atomic server-side check
 
 Exit codes: 0 ready, 1 not ready, 2 error (gh missing, bad output).
 
@@ -21,6 +22,8 @@ import argparse
 import json
 import subprocess
 import sys
+
+REQUIRED = tuple(f"{os_name} / py{version}" for os_name in ("ubuntu-24.04", "ubuntu-26.04", "windows-latest") for version in ("3.10", "3.12"))
 
 
 def run_gh(args: list[str]) -> str:
@@ -38,6 +41,8 @@ def evaluate(checks: list[dict], view: dict, required: list[str]) -> list[str]:
         if check.get("bucket") != "pass":
             problems.append(f"check '{check.get('name')}' is {check.get('bucket')!r}, not 'pass'")
     names = {c.get("name") for c in checks}
+    if len(names) != len(checks):
+        problems.append("duplicate check names: cannot identify an unambiguous result")
     for name in required:
         if name not in names:
             problems.append(f"required check '{name}' is missing")
@@ -54,12 +59,22 @@ def main(argv: list[str] | None = None, runner=run_gh) -> int:
     parser.add_argument("--require", action="append", default=[], metavar="NAME")
     args = parser.parse_args(argv)
     try:
+        fields = "state,mergeable,headRefOid,baseRefOid,isDraft"
+        view = json.loads(runner(["pr", "view", args.pr, "--json", fields]))
         checks = json.loads(runner(["pr", "checks", args.pr, "--json", "name,bucket"]) or "[]")
-        view = json.loads(runner(["pr", "view", args.pr, "--json", "state,mergeable"]))
+        after = json.loads(runner(["pr", "view", args.pr, "--json", fields]))
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
-    problems = evaluate(checks, view, args.require)
+    problems = evaluate(checks, view, list(REQUIRED) + args.require)
+    for key in ("headRefOid", "baseRefOid"):
+        value = view.get(key)
+        if not isinstance(value, str) or len(value) != 40 or any(c not in "0123456789abcdefABCDEF" for c in value) or after.get(key) != value:
+            problems.append(f"{key} missing, invalid or changed during checks")
+    if view.get("isDraft") is not False or after.get("isDraft") is not False:
+        problems.append("draft state is true or unknown")
+    if after.get("state") != view.get("state") or after.get("mergeable") != view.get("mergeable"):
+        problems.append("PR state changed during checks")
     for problem in problems:
         print(f"[NOT READY] {problem}")
     print(f"MERGE-GUARD: {'NOT READY' if problems else 'READY'} ({len(checks)} check(s)); advisory only, not branch protection")
