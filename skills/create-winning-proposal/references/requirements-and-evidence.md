@@ -43,6 +43,7 @@ Within tier 1, apply this precedence unless the issuer says otherwise: formal am
   `scripts/compare_requirements.py` compares human-matched IDs and marks changed responses/evidence
   for review. It does not infer split/merge matches or approve ledger records. Its JSON is a separate
   review sidecar, not an audit. Input: `{"requirements": [{"id": "REQ-001", "text": "synthetic requirement", "source_clause_label": "1.1"}]}`.
+  Revision JSON must not contain duplicate object keys, including nested or escape-equivalent keys; ambiguous inputs are rejected.
   Run `python compare_requirements.py before.json after.json --output amendment-diff.json` from the
   actual script location. Do not store customer source text or diffs in the installed skill directory.
 - Record submission mechanics as requirements.

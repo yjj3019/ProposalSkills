@@ -5,7 +5,7 @@ from pathlib import Path
 
 import io
 import contextlib
-from proposal_gate import (evaluate, main, validate_schema,
+from proposal_gate import (check_evaluation_criteria, check_numbers, evaluate, main, validate_schema,
                            explain_markdown, remediation_hint)
 
 
@@ -63,6 +63,29 @@ def ready_data():
 
 
 class ProposalGateTests(unittest.TestCase):
+    def test_evaluation_criteria_reject_nonfinite_and_out_of_range_numbers(self):
+        data = {"requirements": [{"criterion_ids": ["C1"]}],
+                "evaluation_criteria": [{"id": "C1", "label": "Technical", "weight": 100}]}
+        self.assertEqual(check_evaluation_criteria(data), [])
+        for field in ("weight", "minimum_ratio", "minimum_score"):
+            for value in (float("nan"), float("inf"), -float("inf"), 10**309):
+                with self.subTest(field=field, value=str(value)[:20]):
+                    item = dict(data["evaluation_criteria"][0], **{field: value})
+                    self.assertTrue(check_evaluation_criteria({**data, "evaluation_criteria": [item]}))
+        for value in (float("nan"), float("inf"), -float("inf"), 10**309):
+            with self.subTest(total=str(value)[:20]):
+                self.assertTrue(check_evaluation_criteria({**data, "evaluation_total": value}))
+        valid = dict(data["evaluation_criteria"][0], minimum_ratio=0.85, minimum_score=85)
+        self.assertEqual(check_evaluation_criteria({**data, "evaluation_criteria": [valid]}), [])
+
+    def test_out_of_range_integer_is_blocked_without_crashing(self):
+        entry = {"id": "N1", "label": "Amount", "unit": "KRW", "value": 10**307}
+        self.assertEqual(check_numbers([entry]), [])
+        for value in (10**309, -(10**309)):
+            with self.subTest(value=value):
+                entry["value"] = value
+                self.assertTrue(any("finite" in failure for failure in check_numbers([entry])))
+
     def test_ready(self):
         self.assertEqual(evaluate(ready_data()), [])
 

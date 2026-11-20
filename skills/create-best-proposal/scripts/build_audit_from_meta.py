@@ -34,6 +34,15 @@ LIST_FIELDS = ("requirements", "slides", "win_themes", "claims", "bid_conditions
                "regulatory_checks", "vendor_confirmations", "source_conflicts")
 
 
+def _unique_json_members(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
+
+
 def _as_list(value: Any) -> list:
     return value if isinstance(value, list) else []
 
@@ -339,7 +348,7 @@ def main(argv: list[str] | None = None) -> int:
         except (AttributeError, ValueError):
             pass
     try:
-        meta = json.loads(args.meta.read_text(encoding="utf-8-sig"))
+        meta = json.loads(args.meta.read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_json_members)
         audit = build_audit(meta, strict=args.strict)
     except (OSError, ValueError) as exc:  # Includes JSONDecodeError and UnicodeDecodeError.
         print(f"error: {exc}", file=sys.stderr)

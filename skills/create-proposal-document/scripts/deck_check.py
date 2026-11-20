@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -435,6 +436,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--png-dir", type=Path, help="Directory for render thumbnails (requires --render)")
     ap.add_argument("--emit-render", type=Path, help="Output JSON path for the audit render block")
     a = ap.parse_args(argv)
+    if a.min_font is not None and (not math.isfinite(a.min_font) or a.min_font <= 0):
+        print("--min-font must be a finite positive number", file=sys.stderr)
+        return 2
+    if a.max_pages is not None and a.max_pages <= 0:
+        print("--max-pages must be a positive integer", file=sys.stderr)
+        return 2
     if not a.pptx.is_file():
         print(f"파일 없음: {a.pptx}", file=sys.stderr)
         return 2

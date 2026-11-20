@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import zipfile
 from collections import Counter
@@ -163,6 +164,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--min-fill", type=float, default=0.5, help="smallest share of the page body a content slide should cover")
     ap.add_argument("--max-text-only", type=float, default=0.5, help="largest share of content slides without a picture or diagram")
     a = ap.parse_args(argv)
+    if any(not math.isfinite(value) or not 0 <= value <= 1 for value in (a.min_fill, a.max_text_only)):
+        ap.error("--min-fill and --max-text-only must be finite fractions between 0 and 1")
+    if any(value < 0 for value in (a.max_sizes, a.max_near_miss, a.max_rules, a.max_chars)):
+        ap.error("count thresholds must be non-negative")
     if not a.deck.is_file():
         print(f"file not found: {a.deck}", file=sys.stderr)
         return 2

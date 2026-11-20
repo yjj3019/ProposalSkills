@@ -10,9 +10,18 @@ import sys
 from pathlib import Path
 
 
+def _unique_json_members(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
+
+
 def read_revision(path: Path) -> tuple[dict, str]:
     raw = path.read_bytes()
-    value = json.loads(raw.decode("utf-8-sig"))
+    value = json.loads(raw.decode("utf-8-sig"), object_pairs_hook=_unique_json_members)
     if not isinstance(value, dict) or not isinstance(value.get("requirements"), list):
         raise ValueError("Revision requires a requirements array")
     result = {}

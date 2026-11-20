@@ -38,6 +38,16 @@ class RetryGuardTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 retry.verdict(bad)
 
+    def test_attempt_checks_require_explicit_lists_of_nonblank_ids(self):
+        for attempt in ({"passed": []}, {"failures": None, "passed": []},
+                        {"failures": "abc", "passed": []}, {"failures": 1, "passed": []},
+                        {"failures": [""], "passed": []}, {"failures": [" "], "passed": []},
+                        {"failures": [1], "passed": []}, {"failures": [], "passed": "a"},
+                        {"failures": []}):
+            with self.subTest(attempt=attempt), self.assertRaises(ValueError):
+                retry.verdict({"attempts": [attempt]})
+        self.assertEqual(retry.verdict(attempts(([], ["layout"])))[0], "DONE")
+
     def test_cli_exit_codes(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "a.json"
@@ -154,6 +164,10 @@ class HandoffLintTests(unittest.TestCase):
     def test_lessons_need_all_four_fields(self):
         good = "### Render\n- **Issue**: clipped\n- **Root cause**: font\n- **Resolution**: embed\n- **Revalidation**: rerun deck_check\n"
         self.assertEqual(handoff.lint_lessons(good), [])
+        for field, value in (("Issue", "clipped"), ("Root cause", "font"),
+                             ("Resolution", "embed"), ("Revalidation", "rerun deck_check")):
+            with self.subTest(field=field):
+                self.assertTrue(any(field in p for p in handoff.lint_lessons(good.replace(f"{field}**: {value}", f"{field}**:"))))
         self.assertTrue(any("Revalidation" in p for p in handoff.lint_lessons(good.replace("Revalidation", "Other"))))
         self.assertTrue(handoff.lint_lessons("no entries"))
 

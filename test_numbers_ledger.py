@@ -131,6 +131,19 @@ class GateBindingTests(unittest.TestCase):
 
 
 class DocumentComparisonTests(unittest.TestCase):
+    def test_oversized_integer_is_blocked_without_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            deck, numbers = root / "deck.pptx", root / "numbers.json"
+            fixtures.pptx(deck, raw={"ppt/slides/slide1.xml": "<p><t>100</t></p>"})
+            numbers.write_text(json.dumps([{"id": "N1", "value": 10 ** 400, "unit": "개"}]), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(CN), str(deck), "--numbers", str(numbers)],
+                                    capture_output=True, encoding="utf-8", errors="replace")
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertIn("[차단]", result.stdout)
+            self.assertEqual(cn.compare([{"id": "N1", "value": 100, "unit": "개"}], "100")[1][0]["matched"], True)
+
     """Compare ledger values with actual documents, including Korean notation variants."""
 
     def setUp(self):

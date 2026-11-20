@@ -15,6 +15,15 @@ from pathlib import Path
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 
 
+def _unique_json_members(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
+
+
 def digest(path: Path) -> str:
     value = hashlib.sha256()
     with path.open("rb") as stream:
@@ -71,7 +80,7 @@ def check_inventory(manifest: dict, base: Path) -> dict:
                             status = "extraction_unavailable"
                         else:
                             sidecar_hash = digest(extraction)
-                            sidecar = json.loads(extraction.read_text(encoding="utf-8-sig"))
+                            sidecar = json.loads(extraction.read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_json_members)
                             source_info = sidecar.get("source") if isinstance(sidecar, dict) else None
                             if (not isinstance(source_info, dict)
                                     or type(sidecar.get("schema_version")) is not int
@@ -122,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True, help="New private report; never overwritten")
     args = parser.parse_args(argv)
     try:
-        manifest = json.loads(args.manifest.read_text(encoding="utf-8-sig"))
+        manifest = json.loads(args.manifest.read_text(encoding="utf-8-sig"), object_pairs_hook=_unique_json_members)
         if not isinstance(manifest, dict):
             raise ValueError("manifest must be an object")
         report = check_inventory(manifest, args.manifest.resolve().parent)

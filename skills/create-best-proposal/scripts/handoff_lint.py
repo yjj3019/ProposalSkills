@@ -61,7 +61,7 @@ def lint_lessons(text: str) -> list[str]:
     for entry in entries:
         title = entry.splitlines()[0].strip() if entry.strip() else "?"
         for field in LESSON_FIELDS:
-            if not re.search(r"\*{0,2}" + re.escape(field) + r"[^:\n]*\*{0,2}\s*:\s*\S", entry, re.I):
+            if not re.search(r"\*{0,2}" + re.escape(field) + r"[^:\n]*\*{0,2}[ \t]*:[ \t]*\S", entry, re.I):
                 problems.append(f"lesson '{title}': missing {field}")
     return problems
 

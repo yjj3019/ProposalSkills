@@ -131,7 +131,7 @@ def _true(value: object) -> bool:
 # Placeholder evidence/hashes: 'TBD' and '[NEEDS INPUT]' are not evidence.
 _PLACEHOLDER_RE = re.compile(
     r"(?:^|[^A-Za-z])(?:tbd|tba|todo|n/?a|xxx+|\?\?+|lorem|placeholder|dummy)(?:$|[^A-Za-z])"
-    r"|needs\s*input|입력\s*요망|미정|추후|확인\s*필요|○○○|OOO",
+    r"|needs\s*input|입력\s*요망|미정(?!산)|추후|확인\s*필요|○○○|OOO",
     re.IGNORECASE)
 
 
@@ -369,7 +369,10 @@ CURRENCY_ABS_TOLERANCE = 1.0
 
 def _is_finite(value: object) -> bool:
     import math
-    return _is_number(value) and math.isfinite(float(value))
+    try:
+        return _is_number(value) and math.isfinite(float(value))
+    except OverflowError:
+        return False
 
 
 def _tolerance_for(item: dict, value: float, tol: float) -> float:
@@ -448,8 +451,15 @@ def check_numbers(entries: object) -> list[str]:
                 continue
             if not all(_is_finite(by_id[p].get("value")) for p in parts) or not _is_finite(item.get("value")):
                 continue
-            total = sum(by_id[p]["value"] for p in parts)
-            if abs(total - item["value"]) > _tolerance_for(item, item["value"], tol):
+            try:
+                total = sum(by_id[p]["value"] for p in parts)
+                delta, allowed = abs(total - item["value"]), _tolerance_for(item, item["value"], tol)
+            except OverflowError:
+                failures.append(f"number {nid} sum or tolerance exceeds the supported finite range")
+                continue
+            if not all(_is_finite(v) for v in (total, delta, allowed)):
+                failures.append(f"number {nid} sum or tolerance exceeds the supported finite range")
+            elif delta > allowed:
                 failures.append(
                     f"number {nid} ({item.get('label', '')}) is {item['value']} but its components "
                     f"sum to {total} — 합계가 맞지 않는다")
@@ -468,6 +478,9 @@ def check_numbers(entries: object) -> list[str]:
             other = by_id[other_id]
             mine = _to_hours(item)
             theirs = _to_hours(other)
+            if any(v is not None and not _is_finite(v) for v in (mine, theirs)):
+                failures.append(f"number {nid} duration conversion exceeds the supported finite range")
+                continue
             if mine is None or theirs is None:
                 # If fixed-time conversion is unavailable, compare only identical units.
                 if item.get("unit") != other.get("unit"):
@@ -506,8 +519,15 @@ def check_numbers(entries: object) -> list[str]:
                 failures.append(f"number {nid} percent_of {base} has a zero or non-numeric base "
                                 "— 나눗셈이 성립하지 않는다")
             elif _is_finite(share):
-                expected = amount / whole * 100
-                if abs(expected - share) > max(tol * max(abs(share), 1), 1e-9):
+                try:
+                    expected = amount / whole * 100
+                    delta, allowed = abs(expected - share), max(tol * max(abs(share), 1), 1e-9)
+                except OverflowError:
+                    failures.append(f"number {nid} ratio exceeds the supported finite range")
+                    continue
+                if not all(_is_finite(v) for v in (expected, delta, allowed)):
+                    failures.append(f"number {nid} ratio or tolerance exceeds the supported finite range")
+                elif delta > allowed:
                     failures.append(
                         f"number {nid} ({item.get('label', '')}) says {share}% but "
                         f"{amount}/{whole} = {expected:.4g}% — 비율이 맞지 않는다")
@@ -721,7 +741,7 @@ disclosed defaults to true. Evaluation is not always a total of 100: technical 9
         return ["evaluation_criteria must be an array"]
     failures: list[str] = []
     total_scale = data.get("evaluation_total", 100)
-    if not _is_number(total_scale) or total_scale <= 0:
+    if not _is_finite(total_scale) or total_scale <= 0:
         failures.append(f"evaluation_total must be a positive number (got {total_scale!r})")
         total_scale = 100
     by_id: dict[str, dict] = {}
@@ -745,21 +765,21 @@ disclosed defaults to true. Evaluation is not always a total of 100: technical 9
             disclosed = True
         weight = item.get("weight")
         if disclosed:
-            if not _is_number(weight) or weight < 0:
+            if not _is_finite(weight) or weight < 0:
                 failures.append(f"evaluation criterion {cid} weight must be a non-negative number "
                                 f"(got {weight!r}) — 배점이 공개되지 않았으면 disclosed:false로 적는다")
         elif weight is not None:
             failures.append(f"evaluation criterion {cid} is undisclosed but carries a weight "
                             f"({weight!r}) — 미공개 배점을 지어내지 않는다")
         ratio = item.get("minimum_ratio")
-        if ratio is not None and (not _is_number(ratio) or not 0 < ratio <= 1):
+        if ratio is not None and (not _is_finite(ratio) or not 0 < ratio <= 1):
             failures.append(f"evaluation criterion {cid} minimum_ratio must be in (0, 1] "
                             f"(got {ratio!r}) — 85%는 0.85로 적는다")
         score = item.get("minimum_score")
         if score is not None:
-            if not _is_number(score) or score < 0:
+            if not _is_finite(score) or score < 0:
                 failures.append(f"evaluation criterion {cid} minimum_score must be a non-negative number")
-            elif _is_number(weight) and score > weight:
+            elif _is_finite(weight) and score > weight:
                 failures.append(f"evaluation criterion {cid} minimum_score {score} exceeds its weight {weight}")
         for field in ("source", "stage", "method"):
             if field in item and not isinstance(item[field], str):
@@ -788,7 +808,7 @@ disclosed defaults to true. Evaluation is not always a total of 100: technical 9
         total, complete = 0.0, True
         for it in items:
             w = it.get("weight")
-            if it.get("disclosed", True) is False or not _is_number(w):
+            if it.get("disclosed", True) is False or not _is_finite(w):
                 complete = False
             else:
                 total += w
@@ -808,7 +828,7 @@ disclosed defaults to true. Evaluation is not always a total of 100: technical 9
     for pid, subs in children.items():
         parent_w = by_id[pid].get("weight")
         total, complete = _weights(subs)
-        if complete and _is_number(parent_w) and abs(total - parent_w) > 0.5:
+        if complete and _is_finite(parent_w) and abs(total - parent_w) > 0.5:
             failures.append(
                 f"evaluation criterion {pid} is {parent_w:g} but its sub-criteria sum to {total:g} "
                 "— 하위 배점의 합이 상위 배점과 다르다")
@@ -1134,6 +1154,8 @@ def evaluate(data: dict) -> list[str]:
     # while unmet and curable permits only conditional-bid/no-bid. Submission requires a ledger.
     eligibility = data.get("eligibility", [])
     for e in eligibility:
+        if data["mode"] == "submission" and _is_placeholder(e.get("criterion")):
+            failures.append(f"eligibility {e.get('id', '?')} requires a non-placeholder criterion")
         if e.get("mandatory", True) is False or _true(e.get("met")):
             continue
         # Fail closed: missing curable means incurable, preventing omission-based bypass.

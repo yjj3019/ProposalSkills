@@ -114,6 +114,7 @@ These turn the rules above into checks. None adds an approval field, and none re
 - **Same facts in every format**: `cross_format_numbers.py DOC... --audit audit.json` runs the numbers ledger on each
   delivered PPTX/DOCX/XLSX/HWPX and flags values found in some files but missing from others; `xlsx_check.py` reports
   error cells, `#REF!`, never-calculated formulas and (with `--recalc`) stored values that differ from a recalculation.
+  Both `check_numbers.py` and `cross_format_numbers.py` reject ledger JSON with duplicate object keys, including nested entries, as ambiguous input.
 - **Comparing two workflows**: `eval_metrics.py runs.json` aggregates recorded runs of a baseline and a candidate on the
   same tasks and conditions (verified success, false completion, cost per verified task, regression). It refuses unpaired
   input and counts unverified runs against success; it makes no significance claim. A `planned` task list can detect

@@ -7,6 +7,8 @@ Profiles:
 """
 from __future__ import annotations
 
+import math
+
 DEFAULT_PROFILE = "detailed-submission"
 # Stamp PPTX core properties so the file itself records its specification and the checker
 # can apply matching criteria without relying on filenames or forwarded arguments.
@@ -105,8 +107,13 @@ BUNDLE_KEYS = {"anonymous_copy", "price_separation", "file_format", "copies", "b
 
 
 def _positive(value: object, key: str, *, integer: bool = False) -> float | int:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
-        raise ValueError(f"output_spec.{key}는 양수여야 한다 (got {value!r})")
+    try:
+        valid = (not isinstance(value, bool) and isinstance(value, (int, float))
+                 and math.isfinite(value) and value > 0)
+    except OverflowError:
+        valid = False
+    if not valid:
+        raise ValueError(f"output_spec.{key}는 유한한 양수여야 한다 (got {value!r})")
     if integer and int(value) != value:
         raise ValueError(f"output_spec.{key}는 정수여야 한다 (got {value!r})")
     return int(value) if integer else float(value)

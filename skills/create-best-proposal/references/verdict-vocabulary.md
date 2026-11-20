@@ -28,7 +28,7 @@ produce leads for a person, not PASS or FAIL on quality.
 | `deck_story_check.py`, `deck_stage_gate.py` | `PASS` / `BLOCKED` | PASS / BLOCKED |
 | `edit_preservation.py` | `PASS` / `REVIEW` / `BLOCKED` | PASS / NOT VERIFIED (a person must read it) / BLOCKED |
 | `xlsx_check.py` | `PASS` / `BLOCKED`, warning "never calculated" | PASS / BLOCKED / NOT VERIFIED for never-calculated formulas |
-| `cross_format_numbers.py` | `PASS` / `BLOCKED`, `[DIVERGENT]` | PASS / BLOCKED |
+| `cross_format_numbers.py` | `PASS` / `BLOCKED`, `[DIVERGENT]`; no checked values: `[NOT INSPECTED]` | PASS / BLOCKED / NOT VERIFIED |
 | `retry_guard.py` | `DONE` / `CONTINUE` / `STOP-*` | (loop control, not a verdict on the deliverable) |
 | `evidence_chain.py` | `OK` / `BROKEN`, `RERUN:` | PASS / FAIL for the log; stale records are NOT VERIFIED |
 | `handoff_lint.py` | `OK` / `PROBLEMS` | PASS / FAIL (`STALE` rows are NOT VERIFIED) |

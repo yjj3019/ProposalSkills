@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -33,6 +34,15 @@ SUPPORT_ALIASES = {
     "O 수용": "O", "수용": "O", "△ 조건부": "조건부", "△ 부분": "부분", "X 미수용": "X", "미수용": "X",
     "": "",
 }
+
+
+def _unique_json_members(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON member")
+        result[key] = value
+    return result
 
 
 def normalize_support(value: Any, rid: str) -> str:
@@ -83,7 +93,7 @@ def normalize_strength(value: Any, mandatory: bool, fallback: Any = None) -> str
 def load_rows(path: Path) -> list[dict[str, Any]]:
     text = path.read_text(encoding="utf-8-sig")
     if path.suffix.lower() == ".json":
-        data = json.loads(text)
+        data = json.loads(text, object_pairs_hook=_unique_json_members)
         if isinstance(data, dict) and "requirements" in data:
             data = data["requirements"]
         if not isinstance(data, list):
@@ -145,6 +155,9 @@ def risk_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 
 
 def to_markdown(rows: list[dict[str, str]], summary_rows: int) -> str:
+    def cell(value: str) -> str:
+        return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\r\n", "<br>").replace("\r", "<br>").replace("\n", "<br>")
+
     counts = Counter(r["support"] or "(미기입)" for r in rows)
     lines = [
         f"# 조견표 매트릭스 ({len(rows)}건 전수)",
@@ -166,7 +179,7 @@ def to_markdown(rows: list[dict[str, str]], summary_rows: int) -> str:
     ]
     for r in risks:
         item = r["item"] or r["text"][:40]
-        lines.append(f"| {r['id']} | {item} | {r['support'] or '미기입'} | {r['note'][:60]} |")
+        lines.append(f"| {cell(r['id'])} | {cell(item)} | {cell(r['support'] or '미기입')} | {cell(r['note'][:60])} |")
     lines += [
         "",
         f"> 전체 {len(rows)}건은 아래 전수 표(또는 별첨 파일)를 따른다.",
@@ -177,14 +190,10 @@ def to_markdown(rows: list[dict[str, str]], summary_rows: int) -> str:
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
-        text = r["text"].replace("|", "\\|")
-        note = r["note"].replace("|", "\\|")
-        lines.append(
-            f"| {r['id']} | {r['section']} | {r['item']} | {text} | "
-            f"{r['support']} | {r.get('fit', '')} | {r.get('eval_weight', '')} | "
-            f"{r.get('win_theme_id', '')} | {r.get('risk', '')} | {r['product']} | "
-            f"{note} | {r['source_loc']} | {r['response_loc']} |"
-        )
+        values = (r["id"], r["section"], r["item"], r["text"], r["support"], r.get("fit", ""),
+                  r.get("eval_weight", ""), r.get("win_theme_id", ""), r.get("risk", ""),
+                  r["product"], r["note"], r["source_loc"], r["response_loc"])
+        lines.append("| " + " | ".join(cell(value) for value in values) + " |")
     lines.append("")
     return "\n".join(lines)
 
@@ -248,6 +257,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         raw = load_rows(args.input)
         rows = [normalize(r, i) for i, r in enumerate(raw, 1)]
+        seen = set()
+        for row in rows:
+            rid = row["id"].strip().upper().replace("_", "-")
+            match = re.match(r"REQ-?(\d{1,6})", rid)
+            key = f"REQ-{int(match.group(1)):03d}" if match else rid
+            if not key or key in seen:
+                raise ValueError(f"empty or duplicate requirement ID: {row['id']!r}")
+            seen.add(key)
     except (OSError, json.JSONDecodeError, ValueError, csv.Error) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

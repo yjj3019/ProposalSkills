@@ -46,6 +46,15 @@ CONTEXT_EXTENDED = CONTEXT_REQUIRED | {"budget", "tools", "prompt"}
 MAX_INPUT_BYTES = 4 * 1024 * 1024
 
 
+def _finite_nonnegative(value: object) -> bool:
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0:
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def _unique_members(pairs):
     data = {}
     for key, value in pairs:
@@ -91,7 +100,7 @@ def load(runs: list[dict]) -> dict[str, dict[str, dict]]:
             raise ValueError(f"run {index}: claimed_complete must be true/false and verified true/false/null")
         for key in ("seconds", "cost"):
             value = run.get(key)
-            if value is not None and (not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or value < 0):
+            if value is not None and not _finite_nonnegative(value):
                 raise ValueError(f"run {index}: {key} must be a finite non-negative number or null")
         for key in ("prior_pass", "regressed"):
             if key in run and run[key] is not None and not isinstance(run[key], bool):
@@ -177,10 +186,14 @@ def main(argv: list[str] | None = None) -> int:
         by_arm = load(runs)
         if planned is not None and set(by_arm["baseline"]) != planned:
             raise ValueError("planned tasks and recorded tasks differ")
-    except (OSError, ValueError, UnicodeError, RecursionError):
+        table = {arm: metrics(list(by_arm[arm].values())) for arm in ARMS}
+        if any(value is not None and not _finite_nonnegative(value)
+               for row in table.values() for key, value in row.items()
+               if key in {"cost_per_verified", "seconds_total"}):
+            raise ValueError("aggregate exceeds supported finite range")
+    except (OSError, ValueError, UnicodeError, RecursionError, OverflowError):
         print("Invalid or unreadable evaluation input", file=sys.stderr)
         return 2
-    table = {arm: metrics(list(by_arm[arm].values())) for arm in ARMS}
     print(render(table))
     complete_context = all(isinstance(r["conditions"], dict) and set(r["conditions"]) == CONTEXT_EXTENDED for arm in ARMS for r in by_arm[arm].values())
     print("CONTEXT: " + ("DECLARED-MATCH" if complete_context else "INCOMPLETE") + "; matching labels do not authenticate comparability")

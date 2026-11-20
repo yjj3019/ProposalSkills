@@ -17,6 +17,7 @@ page_plan.json: {"slides": [{"id": "S1", "action_title": "<one claim per slide>"
 
 Rules
   - generate/template need all four stages; edit needs slides; quick needs brief and slides (no approval gate).
+  - Every route requires readable slides.json with a slides list of objects.
   - generate/template: design_spec approval is BLOCKING. approved_sha256 must equal the file's current SHA-256, so
     any edit after approval invalidates it.
   - Each plan title must be a claim, not a topic label (too short or a bare label such as "개요"/"Overview").
@@ -62,7 +63,7 @@ def check(workspace: Path) -> list[str]:
     if not isinstance(manifest, dict):
         return problems or ["stages.json must be an object"]
     route = manifest.get("route")
-    if route not in ROUTES:
+    if not isinstance(route, str) or route not in ROUTES:
         return [f"route must be one of {sorted(ROUTES)}"]
     stages = manifest.get("stages") if isinstance(manifest.get("stages"), dict) else {}
     files: dict[str, Path] = {}
@@ -79,7 +80,8 @@ def check(workspace: Path) -> list[str]:
     if route in APPROVAL_ROUTES and "design_spec" in files:
         entry = stages["design_spec"]
         digest = hashlib.sha256(files["design_spec"].read_bytes()).hexdigest()
-        if not norm(entry.get("approved_by", "")):
+        approver = entry.get("approved_by")
+        if not isinstance(approver, str) or not approver.strip():
             problems.append("design_spec: not approved (approved_by is empty); this gate is blocking")
         elif str(entry.get("approved_sha256", "")).lower() != digest:
             problems.append("design_spec: changed after approval (approved_sha256 does not match the file)")
@@ -92,20 +94,24 @@ def check(workspace: Path) -> list[str]:
             plan = None
         else:
             for row in rows:
-                title = norm(row.get("action_title", "")) if isinstance(row, dict) else ""
+                raw_title = row.get("action_title") if isinstance(row, dict) else None
+                title = norm(raw_title) if isinstance(raw_title, str) else ""
                 prescribed = isinstance(row, dict) and row.get("prescribed") is True
-                if not prescribed and (len(title) < MIN_TITLE or title.lower() in LABELS):
+                if not title or (not prescribed and (len(title) < MIN_TITLE or title.lower() in LABELS)):
                     problems.append(f"page_plan {row.get('id', '?') if isinstance(row, dict) else '?'}: "
                                     f"action_title is a label, not a claim: {title!r}")
-    if plan and "slides" in files:
+    if "slides" in files:
         deck = load_json(files["slides"], problems, "slides")
         slides = deck.get("slides") if isinstance(deck, dict) else None
         if isinstance(slides, list):
-            deck_titles = [norm(s.get("title", "")) for s in slides
-                           if isinstance(s, dict) and s.get("type") not in STRUCTURAL]
-            plan_titles = [norm(r.get("action_title", "")) for r in plan["slides"] if isinstance(r, dict)]
-            if deck_titles != plan_titles:
-                problems.append(f"slides.json content titles do not match page_plan ({len(deck_titles)} vs {len(plan_titles)}, or order/text differs)")
+            if any(not isinstance(slide, dict) for slide in slides):
+                problems.append("slides.json: slides must be objects")
+            if plan:
+                deck_titles = [norm(s.get("title", "")) for s in slides
+                               if isinstance(s, dict) and s.get("type") not in STRUCTURAL]
+                plan_titles = [norm(r.get("action_title", "")) for r in plan["slides"] if isinstance(r, dict)]
+                if deck_titles != plan_titles:
+                    problems.append(f"slides.json content titles do not match page_plan ({len(deck_titles)} vs {len(plan_titles)}, or order/text differs)")
         else:
             problems.append("slides.json: needs a slides list")
     return problems

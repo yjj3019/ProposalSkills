@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -10,7 +12,8 @@ import zipfile
 from unittest import mock
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "skills/create-proposal-document/scripts"))
+REPO = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO / "skills/create-proposal-document/scripts"))
 from mapping_check import check, ids_in_doc, normalize_id, parse_matrix  # noqa: E402
 
 
@@ -66,8 +69,69 @@ class MappingCheckTests(unittest.TestCase):
             fails = check(matrix, ids_in_doc(doc_path))
             self.assertEqual(fails, [])
 
+    def test_duplicate_normalized_ids_do_not_hide_missing_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, content in (
+                ("matrix.json", '[{"id":"REQ-001","page":""},{"id":"req_1","page":"3"}]'),
+                ("matrix.md", "| REQ-ID | page |\n|---|---|\n| REQ-001 | |\n| req_1 | 3 |\n"),
+            ):
+                with self.subTest(name=name):
+                    path = root / name
+                    path.write_text(content, encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "REQ-001"):
+                        parse_matrix(path)
+
+    def test_bulk_matrix_summary_and_full_table_share_ids_without_hiding_missing_pages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, matrix, doc = root / "rows.json", root / "matrix.md", root / "body.md"
+            source.write_text(json.dumps([{"id": "REQ-1", "section": "path\\|area",
+                                           "text": "compute | storage", "support": "X",
+                                           "response_loc": "3 | 4"}]), encoding="utf-8")
+            doc.write_text("REQ-001", encoding="utf-8")
+            bulk = REPO / "skills/create-best-proposal/scripts/bulk_matrix.py"
+            result = subprocess.run([sys.executable, str(bulk), str(source), "-o", str(matrix)],
+                                    capture_output=True, encoding="utf-8", errors="replace")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(parse_matrix(matrix), {"REQ-001": "3 | 4"})
+            result = subprocess.run([sys.executable, str(REPO / "skills/create-proposal-document/scripts/mapping_check.py"),
+                                     str(matrix), "--doc", str(doc)], capture_output=True,
+                                    encoding="utf-8", errors="replace")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            source.write_text(json.dumps([{"id": "REQ-1", "text": "synthetic", "support": "X"}]), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(bulk), str(source), "-o", str(matrix)],
+                                    capture_output=True, encoding="utf-8", errors="replace")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(check(parse_matrix(matrix), ids_in_doc(doc)))
+
+    def test_conflicting_locations_across_tables_are_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "matrix.md"
+            path.write_text("| ID | page |\n|---|---|\n| REQ-1 | 3 |\n\n"
+                            "| ID | page |\n|---|---|\n| REQ-001 | 4 |\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "conflicting REQ-ID"):
+                parse_matrix(path)
+
 
 class MappingCheckCliTests(unittest.TestCase):
+    def test_cli_outputs_unicode_with_cp1252_stdio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            matrix, doc = root / "matrix.json", root / "body.md"
+            matrix.write_text('[{"id":"REQ-001","page":"3"}]', encoding="utf-8")
+            doc.write_text("REQ-001", encoding="utf-8")
+            env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+            script = REPO / "skills/create-proposal-document/scripts/mapping_check.py"
+            for args, expected, message in (([str(matrix), "--doc", str(doc)], 0, "양방향 일치"),
+                                            ([str(root / "missing.json"), "--doc", str(doc)], 2, "파일 없음")):
+                with self.subTest(args=args):
+                    result = subprocess.run([sys.executable, str(script), *args], env=env, capture_output=True)
+                    output = (result.stdout + result.stderr).decode("utf-8")
+                    self.assertEqual(result.returncode, expected, output)
+                    self.assertIn(message, output)
+                    self.assertNotIn("Traceback", output)
+
     def run_cli(self, matrix_body, doc_name, doc_bytes):
         import io
         from contextlib import redirect_stderr, redirect_stdout
@@ -90,6 +154,28 @@ class MappingCheckCliTests(unittest.TestCase):
         for body in ("[1, 2]", '{"requirements": 5}'):
             code, _ = self.run_cli(body, "d.md", b"REQ-001")
             self.assertEqual(code, 2, body)
+
+    def test_duplicate_ids_are_not_reported_as_a_match(self):
+        body = '[{"id":"REQ-001","page":""},{"id":"req_1","page":"3"}]'
+        code, err = self.run_cli(body, "d.md", b"REQ-001")
+        self.assertEqual(code, 2)
+        self.assertIn("duplicate REQ-ID", err)
+
+    def test_duplicate_json_object_keys_are_rejected_at_any_depth(self):
+        cases = (
+            '{"requirements":[],"requirements":[{"id":"REQ-001","page":"3"}]}',
+            '[{"id":"REQ-001","page":"","page":"3"}]',
+            '[{"id":"REQ-001","page":"3","meta":{"source":"a","source":"b"}}]',
+            r'[{"id":"REQ-001","\u0069d":"REQ-001","page":"3"}]',
+        )
+        for body in cases:
+            with self.subTest(body=body):
+                code, err = self.run_cli(body, "d.md", b"REQ-001")
+                self.assertEqual(code, 2, err)
+                self.assertIn("duplicate JSON member", err)
+        code, err = self.run_cli('[{"id":"REQ-001","page":"3"},{"id":"REQ-002","page":"4"}]',
+                                 "d.md", b"REQ-001 REQ-002")
+        self.assertEqual(code, 0, err)
 
 
 if __name__ == "__main__":

@@ -29,15 +29,22 @@ from pathlib import Path
 
 
 def verdict(data: dict) -> tuple[str, str]:
+    if not isinstance(data, dict):
+        raise ValueError("root must be an object")
     attempts = data.get("attempts")
     if not isinstance(attempts, list) or not attempts or not all(isinstance(a, dict) for a in attempts):
         raise ValueError("attempts must be a non-empty list of objects")
     for key in ("max_attempts", "same_cause_limit"):
         if key in data and not (isinstance(data[key], int) and not isinstance(data[key], bool) and data[key] >= 1):
             raise ValueError(f"{key} must be a positive integer")
+    for i, attempt in enumerate(attempts, 1):
+        for field in ("failures", "passed"):
+            values = attempt.get(field)
+            if not isinstance(values, list) or any(not isinstance(x, str) or not x.strip() for x in values):
+                raise ValueError(f"attempt {i} {field} must be an array of nonblank check IDs")
     maximum, same_limit = data.get("max_attempts", 3), data.get("same_cause_limit", 3)
-    fail = [set(map(str, a.get("failures") or [])) for a in attempts]
-    passed = [set(map(str, a.get("passed") or [])) for a in attempts]
+    fail = [set(a["failures"]) for a in attempts]
+    passed = [set(a["passed"]) for a in attempts]
     if not fail[-1]:
         return "DONE", "no failures remain"
     earlier_passes = set().union(*passed[:-1]) if len(passed) > 1 else set()

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""PPTX/DOCX 원본 패키지 검사 — review-checklist §8의 자동화 가능 항목.
+"""PPTX/DOCX 원본 패키지 검사 - review-checklist §8의 자동화 가능 항목.
 
 원본(ZIP) 패키지의 메타데이터·노트·댓글·숨김 슬라이드·외부 링크·임베드·매크로
-힌트를 나열한다. 렌더(PDF 이미지) 검사는 포함하지 않는다 — LibreOffice/Poppler
+힌트를 나열한다. 렌더(PDF 이미지) 검사는 포함하지 않는다 - LibreOffice/Poppler
 경로와 사람 육안이 필요하다.
 
 사용법:
@@ -25,6 +25,8 @@ from xml.etree import ElementTree as ET
 WARNING_PREFIXES = ("[NOT INSPECTED]", "[경고]")
 BLOCKING_PREFIXES = ("[메타데이터]", "[노트]", "[댓글]", "[숨김]", "[외부링크]",
                      "[임베드]", "[매크로]", "[가격힌트]", "[추적변경]")
+MAX_UNZIPPED_BYTES = 128 * 1024 * 1024
+MAX_ZIP_PARTS = 5000
 
 
 def _safe_read(z: zipfile.ZipFile, name: str) -> str:
@@ -34,9 +36,38 @@ def _safe_read(z: zipfile.ZipFile, name: str) -> str:
         return ""
 
 
-def _core_props(z: zipfile.ZipFile) -> dict[str, str]:
+def _xml_part(z: zipfile.ZipFile, name: str, findings: list[str], expected_root: str):
+    data = z.read(name)
+    if b"\0" in data or b"<!DOCTYPE" in data.upper() or b"<!ENTITY" in data.upper():
+        findings.append(f"[NOT INSPECTED] {name}: 안전하지 않은 XML 선언 또는 인코딩")
+        return None
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError:
+        findings.append(f"[NOT INSPECTED] {name}: XML을 읽을 수 없다")
+        return None
+    if root.tag.rsplit("}", 1)[-1] != expected_root:
+        findings.append(f"[NOT INSPECTED] {name}: 예상하지 못한 XML 루트")
+        if expected_root != "Relationships" or root.tag.rsplit("}", 1)[-1] != "Relationship":
+            return None
+    return root
+
+
+def _relationships(z: zipfile.ZipFile, name: str, findings: list[str]) -> list[dict[str, str]]:
+    root = _xml_part(z, name, findings, "Relationships")
+    if root is None:
+        return []
+    if root.tag.rsplit("}", 1)[-1] == "Relationship":
+        return [root.attrib]
+    return [item.attrib for item in root if item.tag.rsplit("}", 1)[-1] == "Relationship"]
+
+
+def _core_props(z: zipfile.ZipFile, findings: list[str]) -> dict[str, str]:
     xml = _safe_read(z, "docProps/core.xml")
     if not xml:
+        return {}
+    if "\0" in xml or "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():
+        findings.append("[NOT INSPECTED] docProps/core.xml: 안전하지 않은 XML 선언 또는 인코딩")
         return {}
     props: dict[str, str] = {}
     # Namespace-tolerant: match local names in Clark or prefixed form.
@@ -69,7 +100,7 @@ def inspect_pptx(path: Path) -> list[str]:
     findings: list[str] = []
     with zipfile.ZipFile(path) as z:
         names = z.namelist()
-        props = _core_props(z)
+        props = _core_props(z, findings)
         for key in ("creator", "lastModifiedBy"):
             if key in props:
                 findings.append(f"[메타데이터] {key}={props[key]} — 제출 전 조직 정책에 맞게 정리")
@@ -83,25 +114,35 @@ def inspect_pptx(path: Path) -> list[str]:
             findings.append(f"[댓글] 댓글 파트 {len(comment_files)}개 — 제출 전 삭제·정리")
 
         # Hidden slides: PowerPoint stores show="0" on the <p:sld> element of the slide part itself
-        hidden = sum(1 for n in names if re.match(r"ppt/slides/slide\d+\.xml$", n)
-                     and re.search(r'<p:sld\b[^>]*\bshow="0"', _safe_read(z, n)))
+        hidden = 0
+        for n in names:
+            if re.match(r"ppt/slides/slide\d+\.xml$", n):
+                slide = _xml_part(z, n, findings, "sld")
+                if slide is not None:
+                    show = slide.get("show", "1").strip().lower()
+                    if show in {"0", "false"}:
+                        hidden += 1
+                    elif show not in {"1", "true"}:
+                        findings.append(f"[NOT INSPECTED] {n}: show 값이 올바르지 않다")
         if hidden:
             findings.append(f"[숨김] 숨김 슬라이드 {hidden}장 — 제출 전 삭제 또는 공개 여부 확인")
 
         # External hyperlinks in relationships
         ext_links = 0
+        rel_parts = {}
         for n in names:
             if n.endswith(".rels"):
-                rel = _safe_read(z, n)
-                ext_links += len(re.findall(r'TargetMode="External"', rel))
-                ext_links += len(re.findall(r'Target="https?://', rel, re.I))
+                rel_parts[n] = _relationships(z, n, findings)
+                ext_links += sum(r.get("TargetMode", "").lower() == "external"
+                                 or r.get("Target", "").lower().startswith(("http://", "https://"))
+                                 for r in rel_parts[n])
         if ext_links:
             findings.append(f"[외부링크] 관계 파일 외부 Target {ext_links}건 — 제출 허용 여부 확인")
 
         embeds = [n for n in names if n.startswith("ppt/embeddings/")]
         chart_data = {"ppt/embeddings/" + t.rsplit("/", 1)[-1]
-                      for n in names if re.match(r"ppt/charts/_rels/[^/]+\.rels$", n)
-                      for t in re.findall(r'Target="([^"]*embeddings/[^"]+)"', _safe_read(z, n))}
+                      for n, rels in rel_parts.items() if re.match(r"ppt/charts/_rels/[^/]+\.rels$", n)
+                      for r in rels for t in [r.get("Target", "")] if "embeddings/" in t}
         attached = [n for n in embeds if n not in chart_data]
         if attached:
             findings.append(f"[임베드] embeddings/ {len(attached)}개 — 첨부 개체·원가표 혼입 여부 확인")
@@ -130,7 +171,7 @@ def inspect_docx(path: Path) -> list[str]:
     findings: list[str] = []
     with zipfile.ZipFile(path) as z:
         names = z.namelist()
-        props = _core_props(z)
+        props = _core_props(z, findings)
         for key in ("creator", "lastModifiedBy"):
             if key in props:
                 findings.append(f"[메타데이터] {key}={props[key]} — 제출 전 조직 정책에 맞게 정리")
@@ -146,12 +187,20 @@ def inspect_docx(path: Path) -> list[str]:
         rel_files = [n for n in names if n.endswith(".rels")]
         ext_links = 0
         for n in rel_files:
-            rel = _safe_read(z, n)
-            ext_links += len(re.findall(r'TargetMode="External"', rel))
+            ext_links += sum(r.get("TargetMode", "").lower() == "external"
+                             or r.get("Target", "").lower().startswith(("http://", "https://"))
+                             for r in _relationships(z, n, findings))
         if ext_links:
             findings.append(f"[외부링크] 관계 파일 외부 Target {ext_links}건")
 
-        tracked = len(re.findall(r"<w:(?:ins|del)\b", _safe_read(z, "word/document.xml")))
+        if "word/document.xml" in names:
+            document = _xml_part(z, "word/document.xml", findings, "document")
+            tracked = (sum(el.tag.rsplit("}", 1)[-1] in {"ins", "del"} for el in document.iter())
+                       if document is not None else
+                       len(re.findall(r"<w:(?:ins|del)\b", _safe_read(z, "word/document.xml"))))
+        else:
+            findings.append("[NOT INSPECTED] word/document.xml: 본문이 없다")
+            tracked = 0
         if tracked:
             findings.append(f"[추적변경] 수정 추적 {tracked}건 — 승인하거나 삭제한 뒤 제출")
         findings.append("[NOT INSPECTED] 숨김 텍스트·필드 코드 상세는 미검사")
@@ -167,11 +216,17 @@ def blocking(items: list[str]) -> list[str]:
 
 def run(path: Path) -> list[str]:
     suffix = path.suffix.lower()
+    if suffix not in {".pptx", ".docx"}:
+        raise ValueError(f"지원하지 않는 형식: {path.suffix}")
+    with zipfile.ZipFile(path) as package:
+        infos = package.infolist()
+        if len(infos) > MAX_ZIP_PARTS:
+            raise ValueError("package has too many ZIP parts")
+        if sum(info.file_size for info in infos) > MAX_UNZIPPED_BYTES:
+            raise ValueError("package uncompressed size exceeds limit")
     if suffix == ".pptx":
         return inspect_pptx(path)
-    if suffix == ".docx":
-        return inspect_docx(path)
-    raise ValueError(f"지원하지 않는 형식: {path.suffix}")
+    return inspect_docx(path)
 
 
 def main() -> int:
