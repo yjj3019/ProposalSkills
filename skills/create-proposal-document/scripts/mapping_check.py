@@ -182,6 +182,11 @@ def check(matrix: dict[str, str], doc_ids: set[str]) -> list[str]:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("matrix", type=Path, help="조견표 마크다운 또는 JSON")
     ap.add_argument("--doc", type=Path, required=True, help="본문 PPTX/DOCX/MD/TXT")

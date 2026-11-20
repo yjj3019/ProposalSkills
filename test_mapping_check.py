@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -114,6 +115,23 @@ class MappingCheckTests(unittest.TestCase):
 
 
 class MappingCheckCliTests(unittest.TestCase):
+    def test_cli_outputs_unicode_with_cp1252_stdio(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            matrix, doc = root / "matrix.json", root / "body.md"
+            matrix.write_text('[{"id":"REQ-001","page":"3"}]', encoding="utf-8")
+            doc.write_text("REQ-001", encoding="utf-8")
+            env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+            script = REPO / "skills/create-proposal-document/scripts/mapping_check.py"
+            for args, expected, message in (([str(matrix), "--doc", str(doc)], 0, "양방향 일치"),
+                                            ([str(root / "missing.json"), "--doc", str(doc)], 2, "파일 없음")):
+                with self.subTest(args=args):
+                    result = subprocess.run([sys.executable, str(script), *args], env=env, capture_output=True)
+                    output = (result.stdout + result.stderr).decode("utf-8")
+                    self.assertEqual(result.returncode, expected, output)
+                    self.assertIn(message, output)
+                    self.assertNotIn("Traceback", output)
+
     def run_cli(self, matrix_body, doc_name, doc_bytes):
         import io
         from contextlib import redirect_stderr, redirect_stdout
