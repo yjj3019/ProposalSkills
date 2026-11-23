@@ -5,6 +5,13 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Maintenance
+- Dependabot no longer raises `requirements.txt` minimums unless the declared range excludes the new version, and it now
+  opens one grouped pull request per ecosystem each month.
+- CI uses `actions/checkout@v7` and `actions/setup-python@v7`.
+- `proposal_gate.evaluate` is split into section helpers with the same checks, messages and order.
+- Added `CONTRIBUTING.md`. The READMEs now state how PPTX files are built and that only public-sector guidance ships.
+
 Fixed (repository audit)
 - `package_plugin.py` ships only Git-tracked files from a checkout and refuses when local files sit under `skills/`; an export without
   Git refuses unknown file types. `install_skill.py` applies the same selection and names the local files it did not copy.
