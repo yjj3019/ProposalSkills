@@ -75,8 +75,9 @@ For a specific path, use the original command example `python install_skill.py -
 Install **all three** skills by default. Installing only the flagship (`create-best-proposal`) leaves
 the unified gate unable to locate sibling gates and breaks the submission-decision path.
 
-Existing installations are skipped (`Skip (exists)`). Add `--force` to update skill files.
-Separately added user files are preserved.
+Existing installations are skipped: `Skip (exists)` means the files match this release, and `Skip (outdated)` means
+they differ. Report an outdated install and add `--force` to update it. An update removes files that an earlier
+install recorded in `.install-manifest.json` and this release dropped, unless they were edited. Other user files are preserved.
 
 ## Post-installation checks
 

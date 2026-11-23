@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -11,7 +12,7 @@ import shutil
 import subprocess
 import sys
 import warnings
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 SKILLS_ROOT = Path(__file__).resolve().parent / "skills"
@@ -112,6 +113,8 @@ CACHE_PARTS = frozenset({"__pycache__", ".pytest_cache", ".git"})
 # A source tree without Git metadata (an extracted release) can only be filtered by file type.
 RELEASE_SUFFIXES = frozenset({".py", ".md", ".json", ".yaml", ".yml", ".txt"})
 RELEASE_NAMES = frozenset({".gitkeep"})
+# Records what an install wrote, so an update removes only files it owns and never a user's file.
+MANIFEST_NAME = ".install-manifest.json"
 
 
 def _is_cache(relative: Path) -> bool:
@@ -169,6 +172,77 @@ def skill_release(name: str) -> tuple[list[Path], list[str]]:
     return relative, [item[len(prefix):] for item in refused if item.startswith(prefix)]
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _release_version() -> str | None:
+    try:
+        version = json.loads((SKILLS_ROOT.parent / "plugin.json").read_text(encoding="utf-8-sig")).get("version")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return version if isinstance(version, str) else None
+
+
+def read_manifest(target: Path) -> dict[str, str]:
+    """Files a previous install recorded as its own. An unreadable manifest owns nothing."""
+    path = target / MANIFEST_NAME
+    if path.is_symlink() or not path.is_file():
+        return {}
+    try:
+        files = json.loads(path.read_text(encoding="utf-8")).get("files")
+    except (OSError, ValueError, AttributeError):
+        return {}
+    if not isinstance(files, dict):
+        return {}
+    return {k: v for k, v in files.items() if isinstance(k, str) and isinstance(v, str)}
+
+
+def _owned_path(target: Path, relative: str) -> Path | None:
+    """Resolve a manifest entry only when it stays inside the install without passing through a link."""
+    parts = PurePosixPath(relative).parts
+    if not parts or PurePosixPath(relative).is_absolute() or ".." in parts or any(":" in p or "\\" in p for p in parts):
+        return None
+    path = target
+    for part in parts:
+        path = path / part
+        if path.is_symlink():
+            return None
+    return path
+
+
+def _prune_removed(target: Path, previous: dict[str, str], current: dict[str, str]) -> list[str]:
+    """Delete files an earlier release installed and this one dropped, unless the user changed them."""
+    kept: list[str] = []
+    for relative, digest in sorted(previous.items()):
+        if relative in current:
+            continue
+        path = _owned_path(target, relative)
+        if path is None or not path.is_file():
+            continue
+        if _sha256(path) != digest:
+            kept.append(relative)
+            continue
+        path.unlink()
+        parent = path.parent
+        while parent != target and not any(parent.iterdir()):
+            parent.rmdir()
+            parent = parent.parent
+    return kept
+
+
+def outdated_files(target: Path) -> list[str]:
+    """Released files that are missing from an install or differ from this source."""
+    released, _ = skill_release(target.name)
+    source = SKILLS_ROOT / target.name
+    return [relative.as_posix() for relative in released
+            if not (target / relative).is_file() or _sha256(target / relative) != _sha256(source / relative)]
+
+
 def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
     # Allow one path component to prevent names such as '../..' from escaping dest.
     if name not in available_skills() or Path(name).name != name:
@@ -194,6 +268,9 @@ def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
     for path in source.rglob("*"):
         if (target / path.relative_to(source)).is_symlink():
             raise SystemExit(f"Skill update path is a symlink: {path.relative_to(source)}")
+    if (target / MANIFEST_NAME).is_symlink():
+        raise SystemExit(f"Install manifest is a symlink: {target / MANIFEST_NAME}")
+    previous = read_manifest(target)
     # Update only released source files; do not delete separate user files or copy local ones.
     released, refused = skill_release(name)
     for relative in released:
@@ -205,6 +282,14 @@ def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
         print(f"NOTE: {name}: {len(refused)} local file(s) not installed: {shown}", file=sys.stderr)
     if not (target / "SKILL.md").is_file():
         raise SystemExit("Installation verification failed.")
+    current = {relative.as_posix(): _sha256(target / relative) for relative in released}
+    kept = _prune_removed(target, previous, current)
+    if kept:
+        shown = ", ".join(kept[:5]) + (" ..." if len(kept) > 5 else "")
+        print(f"NOTE: {name}: kept {len(kept)} file(s) removed upstream but edited locally: {shown}", file=sys.stderr)
+    manifest = {"schema": 1, "version": _release_version(), "files": current}
+    (target / MANIFEST_NAME).write_text(json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+                                        encoding="utf-8")
     return target
 
 
@@ -437,9 +522,15 @@ def install_all(root: Path, names: list[str], force: bool) -> list[str]:
     # Validate after copying all siblings, including dependencies of existing installations.
     for target, skipped in installed:
         problems = verify(target)
-        label = "Skip (exists)" if skipped else "Installed"
-        lines.append(f"  {label}: {target}" if not problems
-                     else f"  Installed with problems: {target} — {'; '.join(problems)}")
+        if problems:
+            lines.append(f"  Installed with problems: {target} — {'; '.join(problems)}")
+            continue
+        stale = outdated_files(target) if skipped else []
+        if stale:
+            lines.append(f"  Skip (outdated): {target} — {len(stale)} file(s) differ from this release; "
+                         "rerun with --force to update")
+        else:
+            lines.append(f"  {'Skip (exists)' if skipped else 'Installed'}: {target}")
     if any("Installed with problems:" in line for line in lines):
         raise SystemExit("\n".join(lines))
     return lines
