@@ -92,6 +92,31 @@ def _find_check_numbers() -> Path | None:
     return None
 
 
+GATE_OVERRIDES = {
+    "PROPOSAL_GATE_PATH": ("create-winning-proposal", "proposal_gate.py"),
+    "QUALITY_GATE_PATH": ("create-proposal-document", "quality_gate.py"),
+    "CHECK_NUMBERS_PATH": ("create-proposal-document", "check_numbers.py"),
+}
+
+
+def unverified_gate_overrides() -> list[str]:
+    """Environment overrides whose file is not byte-identical to the packaged gate of the same name."""
+    found: list[str] = []
+    for variable, (skill, filename) in GATE_OVERRIDES.items():
+        value = os.environ.get(variable)
+        if not value or not Path(value).is_file():
+            continue
+        packaged = [SKILLS_ROOT / skill / "scripts" / filename, SKILL_DIR / "vendor" / filename]
+        try:
+            actual = sha256_file(Path(value))
+            if any(p.is_file() and sha256_file(p) == actual for p in packaged):
+                continue
+        except OSError:
+            actual = "unreadable"
+        found.append(f"{variable}={value} (sha256 {actual[:12]})")
+    return found
+
+
 def _load_gate_module(path: Path):
     import importlib.util
     spec = importlib.util.spec_from_file_location("proposal_gate_mod", path)
@@ -177,7 +202,12 @@ def run_check_numbers(doc: Path, audit_path: Path) -> tuple[int, str]:
 
 
 IGNORED_BUNDLE_FILES = {"thumbs.db", ".ds_store", "desktop.ini"}
-RISKY_SUFFIXES = {".exe", ".dll", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".jar", ".scr", ".lnk", ".sh", ".msi", ".com"}
+RISKY_SUFFIXES = {
+    ".exe", ".dll", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".jar", ".scr", ".lnk", ".sh",
+    ".msi", ".msp", ".com", ".hta", ".wsf", ".wsh", ".cpl", ".msc", ".pif", ".reg",
+    # Office formats that carry macros.
+    ".pptm", ".potm", ".ppsm", ".ppam", ".docm", ".dotm", ".xlsm", ".xltm", ".xlsb", ".xlam",
+}
 
 
 def stray_files(data: dict, root: Path, allow: tuple[Path, ...] = ()) -> list[Path]:
@@ -296,6 +326,15 @@ def main(argv: list[str] | None = None) -> int:
         print("INVALID: audit root must be an object")
         return 2
     inputs = {args.audit: hashlib.sha256(audit_bytes).hexdigest()}
+
+    # A replaced gate decides its own verdict, so it may help a draft but never clears a submission.
+    overrides = unverified_gate_overrides()
+    for item in overrides:
+        print(f"WARNING: unverified gate override: {item}")
+    if overrides and str(data.get("mode", "")) == "submission":
+        print("INVALID: 제출 판정에는 패키지와 동일하지 않은 게이트를 쓸 수 없다 "
+              "— 환경변수를 지우거나 install_skill.py --with-deps로 설치한다", file=sys.stderr)
+        return 2
 
     try:
         mod = _load_gate_module(gate_path)
@@ -441,6 +480,9 @@ def main(argv: list[str] | None = None) -> int:
         display = "AUDIT-VALID"
         print("NOTE: 문서 미검사(--audit-only) — audit 자체만 유효하다. "
               "제출 판정은 --doc <최종파일>로 다시 받는다.")
+    if overrides and display in {"SUBMISSION-READY", "AUDIT-VALID"}:
+        print(f"INVALID: 검증되지 않은 게이트는 {display}를 판정할 수 없다", file=sys.stderr)
+        return 2
     if args.stage == "submission" and audit_mode != "submission":
         print(f"NOTE: audit.mode={audit_mode!r} — 제출 판정이 아니다. "
               "제출 게이트는 mode=submission audit으로 다시 실행한다.")

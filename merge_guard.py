@@ -23,7 +23,8 @@ import json
 import subprocess
 import sys
 
-REQUIRED = tuple(f"{os_name} / py{version}" for os_name in ("ubuntu-24.04", "ubuntu-26.04", "windows-latest") for version in ("3.10", "3.12"))
+REQUIRED = (*(f"{os_name} / py{version}" for os_name in ("ubuntu-24.04", "ubuntu-26.04", "windows-latest")
+              for version in ("3.10", "3.12")), "dependency floor")
 
 
 def run_gh(args: list[str]) -> str:
