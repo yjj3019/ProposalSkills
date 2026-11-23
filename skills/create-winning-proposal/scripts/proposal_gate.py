@@ -887,12 +887,11 @@ def readiness(data: dict, failures: list[str]) -> tuple[str, int]:
     return ("SUBMISSION-READY" if mode == "submission" else f"{mode.upper()}-READY"), 0
 
 
-def evaluate(data: dict) -> list[str]:
-    failures = validate_schema(data)
-    if failures:
-        return failures
-
+def _check_bid_decision(data: dict) -> list[str]:
+    """Bid decision and its accepted conditions."""
     decision = data["bid_decision"]
+    mode = data["mode"]
+    failures: list[str] = []
     mode = data["mode"]
     if decision == "conditional-bid":
         if not data["bid_conditions"]:
@@ -909,7 +908,13 @@ def evaluate(data: dict) -> list[str]:
             failures.append("submission mode requires bid_decision 'bid' (conditional-bid is internal only)")
     elif decision != "bid":
         failures.append("bid_decision must be 'bid' or accepted 'conditional-bid'")
+    return failures
 
+
+def _check_requirements(data: dict) -> list[str]:
+    """Mandatory and recommended requirement ledger."""
+    mode = data["mode"]
+    failures: list[str] = []
     mandatory_count = 0
     for item in data["requirements"]:
         # Fail closed: missing strength means mandatory, preventing bypass by omission.
@@ -942,7 +947,13 @@ def evaluate(data: dict) -> list[str]:
         failures.append(f"requirement {item.get('id', '?')} is not approved")
     if mode == "submission" and mandatory_count == 0:
         failures.append("submission requires at least one mandatory requirement in the ledger")
+    return failures
 
+
+def _check_claims(data: dict) -> list[str]:
+    """Material claims and commitments."""
+    mode = data["mode"]
+    failures: list[str] = []
     for claim in data["claims"]:
         # Missing kind means material, preventing bypass by omission.
         kind = claim.get("kind", "material")
@@ -979,7 +990,13 @@ def evaluate(data: dict) -> list[str]:
                 and not _evidence_ok(claim.get("evidence_refs")):
             failures.append(
                 f"claim {claim.get('id', '?')} is {claim.get('status')} without evidence_refs")
+    return failures
 
+
+def _check_open_items(data: dict) -> list[str]:
+    """Open tokens, conflicts, inputs, defects, attachments, outline and required checks."""
+    mode = data["mode"]
+    failures: list[str] = []
     failures.extend(f"unresolved token: {token}" for token in data["unresolved_tokens"])
     failures.extend(f"source conflict: {item}" for item in data["source_conflicts"])
 
@@ -1000,7 +1017,13 @@ def evaluate(data: dict) -> list[str]:
     for name in required_checks:
         if data["checks"].get(name) is not True:
             failures.append(f"check failed or missing: {name}")
+    return failures
 
+
+def _check_context_rules(data: dict) -> list[str]:
+    """Rules that depend on buyer, stage, RFx type and reading conditions."""
+    mode = data["mode"]
+    failures: list[str] = []
     # Classification changes evidence requirements by institution, procurement stage, and reading conditions.
     context = data.get("context") if isinstance(data.get("context"), dict) else {}
     buyers = {b for b in _as_str_list(context.get("buyer_types"))}
@@ -1053,7 +1076,13 @@ def evaluate(data: dict) -> list[str]:
                 failures.append(
                     f"context.constraints includes sensitive-data: package check {name} "
                     f"must be 'pass' (got {checks.get(name)!r})")
+    return failures
 
+
+def _check_number_ledger(data: dict) -> list[str]:
+    """Arithmetic ledger."""
+    mode = data["mode"]
+    failures: list[str] = []
     # Recalculate arithmetic from the ledger. Submission cannot pass on checks.arithmetic=true
     # alone without a ledger; arithmetic completion without showing what was checked
     # is not verification.
@@ -1071,7 +1100,13 @@ def evaluate(data: dict) -> list[str]:
         failures.append(
             "checks.arithmetic is self-declared without a numbers ledger — "
             "금액·기간·수량을 numbers[]에 적으면 게이트가 합계·비율을 다시 계산한다")
+    return failures
 
+
+def _check_artifacts(data: dict) -> list[str]:
+    """Render, package and submission evidence."""
+    mode = data["mode"]
+    failures: list[str] = []
     # Simulation artifacts are for internal inspection; never promote them to external submission readiness.
     if mode == "submission" and data.get("artifact_mode") == "simulation-only":
         failures.append("artifact_mode 'simulation-only' cannot clear submission "
@@ -1142,7 +1177,13 @@ def evaluate(data: dict) -> list[str]:
             failures.append("submission rehearsal evidence is missing")
         if _is_placeholder(data["submission"].get("receipt_plan")):
             failures.append("submission receipt plan is missing")
+    return failures
 
+
+def _check_deadline_and_eligibility(data: dict) -> list[str]:
+    """Submission deadline and eligibility ledger."""
+    decision = data["bid_decision"]
+    failures: list[str] = []
     # Anti-optimism guard 1: deadline versus current time; submission requires a future deadline.
     deadline = data["submission"].get("deadline")
     if data["mode"] == "submission" and not deadline:
@@ -1168,7 +1209,12 @@ def evaluate(data: dict) -> list[str]:
                 f"eligibility {e.get('id', '?')} unmet; requires conditional-bid or no-bid")
     if data["mode"] == "submission" and not eligibility:
         failures.append("submission requires eligibility ledger")
+    return failures
 
+
+def _check_confirmations(data: dict) -> list[str]:
+    """Vendor confirmations and regulatory checks."""
+    failures: list[str] = []
     # Required vendor_confirmations block when absent, addressing problematic pre-contract terms.
     for vc in data.get("vendor_confirmations", []):
         if vc.get("required", True) is not False and not _true(vc.get("present")):
@@ -1185,6 +1231,17 @@ def evaluate(data: dict) -> list[str]:
             failures.append(f"regulatory check {check.get('id', '?')} claims met without evidence")
     if data.get("flags", {}).get("financial") and data["mode"] == "submission" and not reg_checks:
         failures.append("financial submission requires regulatory_checks")
+    return failures
+
+
+def evaluate(data: dict) -> list[str]:
+    """Return every blocker in a stable order; schema failures stop the remaining checks."""
+    failures = validate_schema(data)
+    if failures:
+        return failures
+    for check in (_check_bid_decision, _check_requirements, _check_claims, _check_open_items,
+                  _check_context_rules, _check_number_ledger, _check_artifacts, _check_deadline_and_eligibility, _check_confirmations):
+        failures.extend(check(data))
     return failures
 
 

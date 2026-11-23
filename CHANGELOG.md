@@ -9,6 +9,7 @@ Maintenance
 - Dependabot no longer raises `requirements.txt` minimums unless the declared range excludes the new version, and it now
   opens one grouped pull request per ecosystem each month.
 - CI uses `actions/checkout@v7` and `actions/setup-python@v7`.
+- `proposal_gate.evaluate` is split into section helpers with the same checks, messages and order.
 - Added `CONTRIBUTING.md`. The READMEs now state how PPTX files are built and that only public-sector guidance ships.
 
 Fixed (repository audit)

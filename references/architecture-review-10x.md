@@ -29,6 +29,8 @@
 
 - **Strongest:** `extensibility` (9.52)
 - **Weakest:** `coupling` (4.0)
+- **Coupling status (2026-11-24): mitigated, score not re-run.** `install_skill.py --name create-best-proposal` installs both
+  sibling skills, and `unified_gate.py` exits with an install instruction when a sibling gate is missing.
 
 ## Per-run scoreboard
 
