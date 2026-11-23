@@ -4,4 +4,4 @@
 # 사항이며 pip로 설치하지 않는다 — 없으면 렌더는 NOT INSPECTED로 남는다.
 python-pptx>=0.6.23
 # visual_compare.py가 Pillow를 직접 import한다(python-pptx의 전이 의존성으로도 설치되지만 명시한다).
-Pillow>=9.0
+Pillow>=13.0.0
