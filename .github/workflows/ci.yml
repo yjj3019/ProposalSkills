@@ -23,6 +23,8 @@ jobs:
   test:
     name: ${{ matrix.os }} / py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    # The package install alone has taken up to 25 minutes; a hung job must not hold a runner for the 6-hour default.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +40,7 @@ jobs:
         run: python -m pip install --quiet -r requirements.txt
       - name: Install LibreOffice (render path)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libreoffice-impress libreoffice-calc poppler-utils fonts-nanum >/dev/null
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-impress libreoffice-calc poppler-utils fonts-nanum >/dev/null
       - name: Unit tests (repo root)
         # Windows runners cannot create symlinks or render; any further skip means a suite stopped running.
         run: python run_repo_tests.py --max-skipped ${{ runner.os == 'Windows' && 7 || 1 }}

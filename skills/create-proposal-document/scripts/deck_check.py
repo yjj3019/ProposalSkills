@@ -324,7 +324,10 @@ def render(pptx: Path, png_dir: Path | None) -> tuple[list[str], dict]:
         return items, evidence
     with tempfile.TemporaryDirectory() as tmp:
         try:
-            proc = subprocess.run([soffice, "--headless", "--convert-to", "pdf", "--outdir", tmp, str(pptx)],
+            # A throwaway profile: a shared one is locked by any other running conversion, which then exits 1.
+            profile = (Path(tmp).resolve() / "profile").as_uri()
+            proc = subprocess.run([soffice, f"-env:UserInstallation={profile}", "--headless", "--convert-to", "pdf",
+                                   "--outdir", tmp, str(pptx)],
                                   capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240)
         except (subprocess.TimeoutExpired, OSError) as exc:
             items.append(f"[차단] 렌더 실패: {exc}")

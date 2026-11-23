@@ -17,6 +17,8 @@ Fixed (repository audit)
   `bash -lc`, `git push -d`, abbreviated Git options and forced checkout or switch are checked; `mv file .` is no longer denied.
 - `install_skill.py` writes `.install-manifest.json`, reports `Skip (outdated)` when an install differs from this release, and on
   `--force` removes only files it installed earlier that this release dropped and the user did not edit.
+- `deck_check.py --render` uses a throwaway LibreOffice profile; a shared profile made concurrent renders fail with `soffice exit 1`.
+- CI jobs have time limits and install LibreOffice without recommended packages; Dependabot watches pip and GitHub Actions.
 
 Changed (recorded late)
 - Audit validation and review evidence hardened (#56); proposal workflows hardened against malformed inputs (#57).
