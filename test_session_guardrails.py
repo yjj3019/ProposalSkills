@@ -213,7 +213,9 @@ class MergeGuardTests(unittest.TestCase):
         self.assertIn("os: [ubuntu-24.04, ubuntu-26.04, windows-latest]", workflow)
         self.assertIn('python: ["3.10", "3.12"]', workflow)
         self.assertIn('name: ${{ matrix.os }} / py${{ matrix.python }}', workflow)
-        self.assertEqual(len(merge.REQUIRED), 6)
+        self.assertEqual(len(merge.REQUIRED), 7)
+        self.assertIn("name: dependency floor", workflow)
+        self.assertIn("dependency floor", merge.REQUIRED)
 
 
 class HookGuardTests(unittest.TestCase):

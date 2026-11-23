@@ -7,7 +7,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-from install_skill import skill_schema_problems
+from install_skill import release_files, skill_schema_problems
 
 REPO = Path(__file__).resolve().parent
 PACKAGE_FILES = (
@@ -70,9 +70,12 @@ def validate_distribution(root: Path) -> None:
 def build_archive(destination: Path, *, root: Path = REPO) -> Path:
     root = root.resolve()
     files = [root / name for name in PACKAGE_FILES]
-    files += sorted(p for p in (root / "skills").rglob("*")
-                    if p.is_file() and not CACHE_PARTS.intersection(p.relative_to(root).parts)
-                    and p.suffix not in {".pyc", ".pyo"})
+    released, refused = release_files(root, require_git=True)
+    if refused:
+        shown = ", ".join(refused[:10]) + (" ..." if len(refused) > 10 else "")
+        raise ValueError(f"Local files under skills/ are not part of the release ({len(refused)}): {shown}. "
+                         "Move them out of the repository or commit them deliberately")
+    files += released
     for path in files:
         if not path.is_file():
             raise FileNotFoundError(f"Required package file missing: {path.relative_to(root)}")

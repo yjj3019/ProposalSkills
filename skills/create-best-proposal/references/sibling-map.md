@@ -49,5 +49,7 @@ When sibling files are absent:
    - `PROPOSAL_GATE_PATH` — absolute path to `proposal_gate.py`.
    - `QUALITY_GATE_PATH` — absolute path to `quality_gate.py`.
    - `CHECK_NUMBERS_PATH` — absolute path to `check_numbers.py`.
+   - An override that is not byte-identical to the packaged gate prints a warning, may run draft checks, and can never
+     yield `AUDIT-VALID` or `SUBMISSION-READY`; a `mode=submission` audit is refused (exit 2).
    - PPTX submission also needs `deck_check.py`; install the content sibling together.
 4. Recommended: `python install_skill.py --dest <dir> --name create-best-proposal --with-deps`.

@@ -190,10 +190,12 @@ def classify(returncode: int, output: str) -> tuple[str, list[str]]:
     ran = re.search(r"^Ran (\d+) tests? in ", output, re.MULTILINE)
     if not ran or int(ran.group(1)) <= 0:
         return "error", []
-    fails = re.findall(r"^FAIL: (\S+)", output, re.MULTILINE)
-    errors = re.findall(r"^ERROR: (\S+)", output, re.MULTILINE)
-    if returncode == 0 and not fails and not errors:
-        return "survived", []
+    # unittest's own headers carry "(test id)"; a gate that prints "FAIL: reason" is not a test result.
+    fails = re.findall(r"^FAIL: (\S+) \(", output, re.MULTILINE)
+    errors = re.findall(r"^ERROR: (\S+) \(", output, re.MULTILINE)
+    if returncode == 0:
+        # A green exit with failure headers is contradictory: neither a kill nor a survival.
+        return ("error", []) if fails or errors else ("survived", [])
     if fails:
         return "killed", fails
     if errors:

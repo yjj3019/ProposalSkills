@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import warnings
 from pathlib import Path
@@ -105,8 +106,67 @@ def available_skills() -> list[str]:
     return sorted(p.parent.name for p in SKILLS_ROOT.glob("*/SKILL.md"))
 
 
-# Exclude caches; retain skill test_*.py files for installed self-checks.
+# Caches and the skills' own test_*.py files are never installed.
 COPY_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache", "test_*.py")
+CACHE_PARTS = frozenset({"__pycache__", ".pytest_cache", ".git"})
+# A source tree without Git metadata (an extracted release) can only be filtered by file type.
+RELEASE_SUFFIXES = frozenset({".py", ".md", ".json", ".yaml", ".yml", ".txt"})
+RELEASE_NAMES = frozenset({".gitkeep"})
+
+
+def _is_cache(relative: Path) -> bool:
+    return bool(CACHE_PARTS.intersection(relative.parts)) or relative.suffix in {".pyc", ".pyo"}
+
+
+def _git_paths(root: Path, *options: str) -> list[str]:
+    done = subprocess.run(["git", "-C", str(root), "ls-files", "-z", *options, "--", "skills"],
+                          capture_output=True, timeout=60)
+    if done.returncode != 0:
+        raise RuntimeError("git ls-files failed")
+    return [os.fsdecode(item).replace("\\", "/") for item in done.stdout.split(b"\0") if item]
+
+
+def release_files(root: Path, *, require_git: bool = False) -> tuple[list[Path], list[str]]:
+    """Return (files that may ship, local files that must not) under root/skills.
+
+    Proposal work leaves customer material near the skills, so a checkout ships only what Git tracks.
+    Without Git metadata only known source file types ship. require_git refuses to guess for a checkout.
+    """
+    skills = root / "skills"
+    if not skills.is_dir():
+        return [], []
+    if (root / ".git").exists():
+        try:
+            tracked = _git_paths(root, "--cached")
+            local = _git_paths(root, "--others", "--exclude-standard")
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            if require_git:
+                raise ValueError("Cannot list tracked files with git; refusing to package this checkout") from exc
+        else:
+            return ([root / item for item in sorted(tracked) if not _is_cache(Path(item))],
+                    sorted(item for item in local if not _is_cache(Path(item))))
+    ship: list[Path] = []
+    refused: list[str] = []
+    for path in sorted(p for p in skills.rglob("*") if p.is_file()):
+        relative = path.relative_to(root)
+        if _is_cache(relative):
+            continue
+        if path.suffix.lower() in RELEASE_SUFFIXES or path.name in RELEASE_NAMES:
+            ship.append(path)
+        else:
+            refused.append(relative.as_posix())
+    return ship, refused
+
+
+def skill_release(name: str) -> tuple[list[Path], list[str]]:
+    """Paths relative to one skill that are installed from it, and that skill's refused local files."""
+    root = SKILLS_ROOT.parent
+    prefix = f"skills/{name}/"
+    files, refused = release_files(root)
+    source = SKILLS_ROOT / name
+    relative = [path.relative_to(source) for path in files
+                if path.is_relative_to(source) and path.is_file() and not path.name.startswith("test_")]
+    return relative, [item[len(prefix):] for item in refused if item.startswith(prefix)]
 
 
 def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
@@ -134,9 +194,15 @@ def install(root: Path, name: str = DEFAULT_NAME, force: bool = False) -> Path:
     for path in source.rglob("*"):
         if (target / path.relative_to(source)).is_symlink():
             raise SystemExit(f"Skill update path is a symlink: {path.relative_to(source)}")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    # Update only source files; do not delete separate user files.
-    shutil.copytree(source, target, ignore=COPY_IGNORE, dirs_exist_ok=True)
+    # Update only released source files; do not delete separate user files or copy local ones.
+    released, refused = skill_release(name)
+    for relative in released:
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / relative, destination)
+    if refused:
+        shown = ", ".join(refused[:5]) + (" ..." if len(refused) > 5 else "")
+        print(f"NOTE: {name}: {len(refused)} local file(s) not installed: {shown}", file=sys.stderr)
     if not (target / "SKILL.md").is_file():
         raise SystemExit("Installation verification failed.")
     return target
@@ -326,15 +392,15 @@ def verify(target: Path, *, require_coinstall: bool = True) -> list[str]:
     if not (target / "SKILL.md").is_file():
         problems.append(f"{target.name}: SKILL.md 없음")
         return problems
-    source = SKILLS_ROOT / target.name
-    for script in sorted(source.glob("scripts/*.py")):
-        if script.name.startswith("test_"):
-            continue
-        if not (target / "scripts" / script.name).is_file():
-            problems.append(f"{target.name}: scripts/{script.name} 누락")
-    for ref in sorted(source.glob("references/*.md")):
-        if not (target / "references" / ref.name).is_file():
-            problems.append(f"{target.name}: references/{ref.name} 누락")
+    released, _ = skill_release(target.name)
+    for relative in released:
+        if relative.parent.as_posix() == "scripts" and relative.suffix == ".py" \
+                and not (target / relative).is_file():
+            problems.append(f"{target.name}: scripts/{relative.name} 누락")
+    for relative in released:
+        if relative.parent.as_posix() == "references" and relative.suffix == ".md" \
+                and not (target / relative).is_file():
+            problems.append(f"{target.name}: references/{relative.name} 누락")
     problems.extend(skill_schema_problems(target))
     if require_coinstall:
         problems.extend(coinstall_problems(target))

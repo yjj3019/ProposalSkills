@@ -5,6 +5,18 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Fixed (repository audit)
+- `package_plugin.py` ships only Git-tracked files from a checkout and refuses when local files sit under `skills/`; an export without
+  Git refuses unknown file types. `install_skill.py` applies the same selection and names the local files it did not copy.
+- `unified_gate.py` warns about a gate override that differs from the packaged gate, refuses it for a `mode=submission` audit and never
+  lets it report `AUDIT-VALID` or `SUBMISSION-READY`. Unlisted script and macro-enabled Office files in a bundle now block.
+- `gate_mutation_probe.py` counts only unittest's own failure headers, and a green exit with such a header is an error, not a kill.
+- `run_repo_tests.py --max-skipped` fails a run that skipped too many tests; CI sets the limit per platform.
+- `python-pptx` floor raised to 0.6.23 because 0.6.21 fails the deck tests; a `dependency floor` CI job now tests the declared minimum.
+
+Changed (recorded late)
+- Audit validation and review evidence hardened (#56); proposal workflows hardened against malformed inputs (#57).
+
 Added
 - `references/editorial-deck-design.md` (nine-step type scale, one content grid, decluttering, seven at-a-glance patterns, render
   loop and the DRM caveat) and `scripts/tidy_audit.py` (font sizes, near-miss alignments, thin rules, characters per slide).

@@ -6,6 +6,20 @@ on:
   pull_request:
 
 jobs:
+  dependency-floor:
+    name: dependency floor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Install the lowest versions requirements.txt allows
+        run: python -m pip install --quiet "python-pptx==0.6.23" "Pillow==9.0.0"
+      - name: Deck tests on the declared floor
+        run: python -m unittest test_deck_pipeline test_slide_quality test_editorial_design
+
   test:
     name: ${{ matrix.os }} / py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
@@ -26,7 +40,8 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libreoffice-impress libreoffice-calc poppler-utils fonts-nanum >/dev/null
       - name: Unit tests (repo root)
-        run: python run_repo_tests.py
+        # Windows runners cannot create symlinks or render; any further skip means a suite stopped running.
+        run: python run_repo_tests.py --max-skipped ${{ runner.os == 'Windows' && 7 || 1 }}
       - name: proposal_gate tests
         run: python skills/create-winning-proposal/scripts/test_proposal_gate.py -v
       - name: create-best-proposal tests
