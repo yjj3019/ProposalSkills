@@ -60,6 +60,12 @@ class MaintenanceContractTests(unittest.TestCase):
         config = (ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
         for ecosystem in ("pip", "github-actions"):
             self.assertIn(f"package-ecosystem: {ecosystem}", config)
+        self.assertIn("versioning-strategy: increase-if-necessary", config)
+
+    def test_contributing_guide_states_the_data_rules_and_test_command(self):
+        guide = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+        for required in ("synthetic", "brand-assets", "python run_repo_tests.py", "python merge_guard.py"):
+            self.assertIn(required, guide)
 
     def test_copies_of_the_json_guard_all_reject_duplicates(self):
         for relative in JSON_GUARD_COPIES:

@@ -51,6 +51,8 @@ The unified entry uses the two internal skills; name them explicitly for standal
 
 PPTX generation and inspection require Python 3.10+ and `python-pptx`; automated rendering requires LibreOffice and Poppler.
 Installing the plugin does not install these tools. Automated checks do not replace factual review, visual review, or submission approval.
+PPTX files are generated from `slides.json` by `build_deck.py` and inspected by `deck_check.py`. Slides use a fixed set of types; there is no dedicated master, so pass a company template with `--template`.
+Buyer-specific guidance is currently provided only for the public sector.
 Keep customer materials and generated output outside this public repository.
 Both submission checks reject duplicate JSON object keys, including duplicates in nested objects and duplicates with identical values.
 Each eligibility entry in a submission audit must identify its qualification with a nonblank, non-placeholder `criterion` string.
@@ -58,7 +60,7 @@ Each eligibility entry in a submission audit must identify its qualification wit
 [Authoring and review](skills/create-proposal-document/references/quality-first-authoring.md) ·
 [Slide specifications](skills/create-proposal-document/references/deck-production.md) ·
 [Submission checks](skills/create-winning-proposal/references/audit-schema.md) ·
-[Development and contribution](AGENTS.md)
+[Development and contribution](CONTRIBUTING.md)
 
 ## Helper checks
 
