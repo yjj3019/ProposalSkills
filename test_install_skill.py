@@ -83,8 +83,9 @@ class InstallSkillSimulations(unittest.TestCase):
         target_files = {
             p.relative_to(target)
             for p in target.rglob("*")
-            if p.is_file() and "__pycache__" not in p.parts
+            if p.is_file() and "__pycache__" not in p.parts and p.name != install_skill.MANIFEST_NAME
         }
+        self.assertTrue((target / install_skill.MANIFEST_NAME).is_file())  # the only file the installer adds
         self.assertEqual(source_files, target_files)
         for document in target.rglob("*.md"):
             for link in re.findall(r"]\((?!https?://|#)([^)]+)\)", document.read_text(encoding="utf-8")):

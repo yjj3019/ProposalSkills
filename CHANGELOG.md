@@ -13,6 +13,10 @@ Fixed (repository audit)
 - `gate_mutation_probe.py` counts only unittest's own failure headers, and a green exit with such a header is an error, not a kill.
 - `run_repo_tests.py --max-skipped` fails a run that skipped too many tests; CI sets the limit per platform.
 - `python-pptx` floor raised to 0.6.23 because 0.6.21 fails the deck tests; a `dependency floor` CI job now tests the declared minimum.
+- `hook_guard_bash.py` now parses shell quoting and control operators: `&`, subshells, `if`/`for` bodies, command substitutions,
+  `bash -lc`, `git push -d`, abbreviated Git options and forced checkout or switch are checked; `mv file .` is no longer denied.
+- `install_skill.py` writes `.install-manifest.json`, reports `Skip (outdated)` when an install differs from this release, and on
+  `--force` removes only files it installed earlier that this release dropped and the user did not edit.
 
 Changed (recorded late)
 - Audit validation and review evidence hardened (#56); proposal workflows hardened against malformed inputs (#57).
