@@ -16,15 +16,21 @@ checks `$(...)`, backtick and `<(...)` substitutions (also inside double quotes)
   - a download piped into `python`/`node`/`perl`/`ruby`/`php` with no script, PowerShell `iwr ... | iex`, `-EncodedCommand`,
     `git filter-branch`, `git reflog expire`, `git gc --prune=now`, `find -exec rm|shred` without a filter, `tee` into a
     system folder, `rm -rf $PWD`
-Aliases, functions, variables and encoded payloads can still evade it, and a `Bash` matcher does not cover a separate
-PowerShell tool; real approval and host permissions are required for external or destructive effects. Unparsable input is
-denied (fail closed).
+  - a variable assigned earlier in the same command and then used as the command or a target (`x=/; rm -rf $x`,
+    `c=rm; $c -rf /`), text piped into a shell (`echo ... | sh`), base64 output piped into a shell or interpreter,
+    PowerShell `Invoke-Expression` on base64 text, abbreviated `-Recurse` (`-r`, `-rec`), and Windows or environment
+    targets (`C:\Windows`, `$env:USERPROFILE`, `%USERPROFILE%`)
+It still cannot see a variable set in an earlier tool call or in the environment, a command assembled from pieces, a
+script file written first and run later, or an interpreter one-liner (`python -c`) that deletes files. Real approval and
+host permissions are required for external or destructive effects. Unparsable input is denied (fail closed).
+A `Bash` matcher does not cover the separate PowerShell tool; add it to the matcher, as in the setup below.
 `--force-with-lease` is denied on purpose: it is still a history rewrite on a shared branch, so the user decides.
 
 Hook protocol: reads the hook JSON on stdin (`tool_input.command`). Exit 0 allows, exit 2 denies with the reason on stderr.
 
 Opt-in setup (nothing is installed automatically), in .claude/settings.json:
-  {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "python hook_guard_bash.py"}]}]}}
+  {"hooks": {"PreToolUse": [{"matcher": "Bash|PowerShell", "hooks": [{"type": "command", "command": "python hook_guard_bash.py"}]}]}}
+Both tools pass the text to run in `tool_input.command`.
 """
 from __future__ import annotations
 
@@ -44,7 +50,14 @@ PIPE_TO_INTERPRETER = re.compile(r"\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:p
 PS_DOWNLOAD_EXEC = re.compile(r"\b(?:iwr|irm|invoke-webrequest|invoke-restmethod)\b[^\n|]*\|\s*(?:iex|invoke-expression)\b"
                               r"|\b(?:iex|invoke-expression)\b[^\n]*\b(?:iwr|irm|invoke-webrequest|invoke-restmethod|downloadstring)\b", re.I)
 SYSTEM_REDIRECT = re.compile(r"(?:^|\s)\d?>>?\s*/(?:etc|boot|bin|sbin|usr|lib|dev/(?!null\b|stderr\b|stdout\b|tty\b))", re.I)
-BROAD = re.compile(r"^(?:/|/\*|~|~/.*|\$HOME(?:/.*)?|\$\{HOME\}(?:/.*)?|\$\{?PWD\}?/?|\.|\./?|\.\.|\*|\.\*|\./\.\*|\./\*|\.\./\*|[A-Za-z]:[\\/]?|/[A-Za-z0-9._-]+/?)$")
+BROAD = re.compile(r"^(?:/|/\*|~|~/.*|\$HOME(?:/.*)?|\$\{HOME\}(?:/.*)?|\$\{?PWD\}?/?|\.|\./?|\.\.|\*|\.\*|\./\.\*|\./\*|\.\./\*|[A-Za-z]:[\\/]?|/[A-Za-z0-9._-]+/?"
+                   r"|[A-Za-z]:[\\/][A-Za-z0-9._-]+[\\/]?"
+                   r"|\$env:(?:USERPROFILE|HOME|HOMEPATH|HOMEDRIVE|SYSTEMDRIVE|SYSTEMROOT|WINDIR)(?:[\\/].*)?"
+                   r"|%(?:USERPROFILE|HOMEPATH|HOMEDRIVE|SYSTEMDRIVE|SYSTEMROOT|WINDIR)%(?:[\\/].*)?)$", re.I)
+ENCODED_EXEC = re.compile(r"\bbase64\b[^\n|]*\|\s*(?:sudo\s+)?(?:(?:ba|z|da|k)?sh|python[0-9.]*|node|perl|ruby|php|pwsh|powershell)\b", re.I)
+PS_ENCODED = re.compile(r"\b(?:iex|invoke-expression)\b[^\n]*frombase64string|frombase64string[^\n]*\|\s*(?:iex|invoke-expression)\b", re.I)
+PIPE_TO_ANY_SHELL = re.compile(r"\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\s*(?:-s\b|-)?\s*(?:$|[;&|)])", re.I | re.M)
+ASSIGNMENT = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)=(.*)", re.S)
 WRAPPERS = {"sudo", "command", "env", "nohup", "time", "nice", "ionice", "timeout", "exec", "busybox", "setsid", "stdbuf"}
 # options of a wrapper that take a value: `sudo -u root rm ...`, `env -u X ...`, `nice -n 5 ...`, `timeout -s KILL 5 ...`
 WRAPPER_VALUE_OPTIONS = {"-u", "-g", "-n", "-s", "-k", "-c", "-C", "--user", "--group", "--signal", "--kill-after"}
@@ -62,6 +75,11 @@ def is_broad(target: str) -> bool:
     if not flat.startswith(("$", "~")) and "*" not in flat and flat:
         return bool(BROAD.match(posixpath.normpath(re.sub(r"/{2,}", "/", flat))))  # `//` and `/tmp/..` are the root
     return False
+
+
+def expand_variables(word: str, variables: dict[str, str]) -> str:
+    """Replace `$name` and `${name}` that were assigned earlier in the same command; unknown names stay as written."""
+    return re.sub(r"\$(?:\{(\w+)\}|(\w+))", lambda m: variables.get(m.group(1) or m.group(2), m.group(0)), word)
 
 
 def strip_wrappers(words: list[str]) -> list[str]:
@@ -187,15 +205,20 @@ def other_denied(name: str, words: list[str]) -> str | None:
             return f"mv of broad target {risky[0]!r}"
     if name == "xargs" and "rm" in args and any(re.fullmatch(r"-[a-zA-Z]*[rR][a-zA-Z]*", w) for w in args):
         return "xargs rm -r (targets unknown)"
-    if name in PS_REMOVE and any(w.lower() in {"-recurse", "/s"} for w in args) and broad:
+    if name in PS_REMOVE and any(w.lower() == "/s" or abbreviates(w.lower(), "-recurse", 2) for w in args) and broad:
         return f"recursive delete of broad target {broad[0]!r}"
     if name == "format" and targets and re.fullmatch(r"[A-Za-z]:", targets[0]):
         return "format of a drive"
     return None
 
 
+WINDOWS_PATH = re.compile(r"(?<![\w$%.])((?:[A-Za-z]:|%\w+%|\$env:\w+|\.{1,2})(?:\\[^\s\"';|&()<>]*)+)", re.I)
+
+
 def simple_commands(command: str) -> list[list[str]]:
     """Split on unquoted control operators. A redirect and its target stay out of the command's words."""
+    # POSIX quoting would read the backslashes of `C:\Windows` as escapes and merge them away.
+    command = WINDOWS_PATH.sub(lambda m: m.group(1).replace("\\", "/"), command)
     lexer = shlex.shlex(command, posix=True, punctuation_chars=OPERATOR_CHARS)
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
@@ -252,6 +275,12 @@ def deny_reason(command: str) -> str | None:
         return "download piped into an interpreter"
     if PS_DOWNLOAD_EXEC.search(command):
         return "PowerShell download executed with iex"
+    if PS_ENCODED.search(command):
+        return "PowerShell base64 text executed with iex"
+    if ENCODED_EXEC.search(command):
+        return "base64 output piped into a shell or interpreter"
+    if PIPE_TO_ANY_SHELL.search(command):
+        return "text piped into a shell"
     if SYSTEM_REDIRECT.search(command):
         return "redirect into a system folder"
     if UPLOAD.search(command):
@@ -266,8 +295,16 @@ def deny_reason(command: str) -> str | None:
         commands = simple_commands(command)
     except ValueError:
         return "command could not be parsed (unbalanced quote)"
+    variables: dict[str, str] = {}
     for words in commands:
-        words = strip_wrappers(words)
+        # Remember `name=value` words so `x=/; rm -rf $x` is judged as `rm -rf /`. Only this command text is
+        # visible, so a variable set in an earlier call or in the environment stays unknown.
+        for word in words[1:] if words[:1] == ["export"] else words:
+            assignment = ASSIGNMENT.fullmatch(word)
+            if not assignment:
+                break
+            variables[assignment.group(1)] = expand_variables(assignment.group(2), variables)
+        words = [expand_variables(w, variables) for w in strip_wrappers(words)]
         if not words:
             continue
         name = words[0].replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")

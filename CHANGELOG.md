@@ -5,6 +5,14 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Fixed (residual risks of the repository audit)
+- `hook_guard_bash.py` resolves variables assigned in the same command (`x=/; rm -rf $x`, `c=rm; $c -rf /`), denies text or
+  base64 output piped into a shell or interpreter and PowerShell `Invoke-Expression` on base64 text, and treats abbreviated
+  `-Recurse`, Windows system folders and `$env:USERPROFILE`/`%USERPROFILE%` as broad targets. The setup example now matches
+  `Bash|PowerShell`. Variables from earlier calls, assembled commands and interpreter one-liners remain outside its view.
+- `test_emit_render_without_soffice_is_not_verified` hides tools with a patch instead of emptying `PATH`, so it no longer
+  depends on where the Python interpreter is installed.
+
 Maintenance
 - Dependabot no longer raises `requirements.txt` minimums unless the declared range excludes the new version, and it now
   opens one grouped pull request per ecosystem each month.

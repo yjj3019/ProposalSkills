@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
@@ -350,10 +351,11 @@ class DeckPipelineTests(unittest.TestCase):
 
     def test_emit_render_without_soffice_is_not_verified(self):
         rj = self.out / "render_none.json"
-        env = {"PATH": str(self.out)}  # Empty PATH to prevent locating soffice.
-        import os
-        env.update({k: v for k, v in os.environ.items() if k not in {"PATH"}})
-        proc = run(DOC / "scripts/deck_check.py", self.pptx, "--emit-render", rj, env=env)
+        # Hide every external tool in this process. Emptying PATH instead also hides the DLLs of a bundled
+        # interpreter (and still finds soffice when the interpreter ships next to LibreOffice), so it
+        # depends on where Python happens to live.
+        with patch("shutil.which", return_value=None):
+            proc = run(DOC / "scripts/deck_check.py", self.pptx, "--emit-render", rj)
         self.assertEqual(proc.returncode, 0, proc.stdout)
         block = json.loads(rj.read_text(encoding="utf-8"))
         self.assertFalse(block["verified"])
