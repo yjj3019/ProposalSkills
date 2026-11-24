@@ -87,6 +87,9 @@ were checked against each CLI's own session log. T1 to T3 should use the skill; 
   with no owner or deadline, which the skill's own rule does not allow without them; Grok, which read the playbook, answered
   `intake-incomplete`. The rule was in the playbook but not in `SKILL.md`; the entry file now states it.
   After the entry file stated it, one more Codex T2 run (opening `SKILL.md` only, as before) answered `intake-incomplete`.
+- The answer carried no `DECISION_MEMO_ONLY` label. Phase A now names it. Three more Codex T2 runs in clean sessions (each opened `SKILL.md`
+  only; session logs checked) all answered `intake-incomplete` with the `DECISION_MEMO_ONLY` label and wrote no proposal body.
+  Before the change: 1 run, no label. Three runs show the direction, not a rate. Grok and Claude Code were not rerun.
 - The records matched the logs on what mattered (which skill files were opened), but a CLI's record can leave out steps: one Codex record
   omitted a failed first read and two listing commands, and one Grok session answered a prompt meant for the other CLI before the rerun.
   Read the log, not only the record.
