@@ -10,6 +10,9 @@ Fixed
   needs an owner, an ISO deadline and acceptance for every condition. The rule had been only in the playbook; a Codex run that
   opened only `SKILL.md` recommended a conditional bid without them. Pinned by `test_skill_schema.py::EntrySkillBidDecisionTests`;
   manual runs in Codex and Grok Build are recorded in `references/trigger-eval-results-2026-11.md`.
+- `create-best-proposal/SKILL.md` Phase A also names the `DECISION_MEMO_ONLY` status label for `no-bid` and `intake-incomplete`.
+  A Codex run that opened only `SKILL.md` answered correctly but printed no label; the label had been only in later sections.
+  Three Codex T2 reruns after the change all printed it (recorded in `references/trigger-eval-results-2026-11.md`).
 
 Added (review tooling, from a read of public skill repositories; see `references/provenance-external-patterns-2026-11.md`)
 - `references/design-decisions.md` records eight deliberate decisions with rationale, location and the test that pins each;
