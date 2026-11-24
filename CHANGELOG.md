@@ -5,6 +5,17 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Added (review tooling, from a read of public skill repositories; see `references/provenance-external-patterns-2026-11.md`)
+- `references/design-decisions.md` records eight deliberate decisions with rationale, location and the test that pins each;
+  `repo_records.py` (run by the suite) fails when a path or a pinning test disappears.
+- `references/defect-ledger.jsonl` and `defect-guards.json` record fixed defects by class; a class with three entries needs a guard test.
+- `revert_proof.py` runs a change's tests on the code the change started from and requires at least one to fail there.
+- `gate_replay.py` compares two versions of a gate on the audit fixtures and field mutations (it reproduced the 7,100-case
+  comparison used for the `evaluate` split).
+- `trigger_eval_run.py` measures skill triggering with Claude Code, Codex or Grok in a fresh workspace per run. It prints a plan and
+  sends nothing without `--yes`; CI never runs it. The first measurement and a neutral-description control (`--control neutral-descriptions`) are recorded in
+  `references/trigger-eval-results-2026-11.md`.
+
 Fixed (residual risks of the repository audit)
 - `hook_guard_bash.py` resolves variables assigned in the same command (`x=/; rm -rf $x`, `c=rm; $c -rf /`), denies text or
   base64 output piped into a shell or interpreter and PowerShell `Invoke-Expression` on base64 text, and treats abbreviated

@@ -84,6 +84,7 @@ PPTX는 `slides.json`을 `build_deck.py`로 생성하고 `deck_check.py`로 검�
 | [`cross_format_numbers.py`](skills/create-proposal-document/scripts/cross_format_numbers.py), [`xlsx_check.py`](skills/create-proposal-document/scripts/xlsx_check.py) | 수치 원장을 납품한 PPTX·DOCX·XLSX·HWPX 전부에 대조해 불일치 표시. 스프레드시트의 오류 셀, `#REF!`, 계산된 적 없는 수식, 저장값과 재계산값 차이(`--recalc`) 점검 |
 | [`task_contract.py`](skills/create-best-proposal/scripts/task_contract.py), [`eval_metrics.py`](skills/create-best-proposal/scripts/eval_metrics.py) | 긴 제안 작업의 한도와 상태를 기록(증거 없이는 `Verified` 불가), 기록된 실행으로 기준과 후보를 짝지어 비교 |
 | `gate_mutation_probe.py`, `skill_audit.py`, `merge_guard.py`, `hook_guard_bash.py` | 저장소 도구: 게이트 약화 탐침, 스킬 안전·라이선스·기능 범위 감사, PR 준비 상태 확인(권고용), 위험 명령 차단 훅(선택) |
+| `revert_proof.py`, `gate_replay.py`, `repo_records.py`, `trigger_eval_run.py` | 변경 검토 도구: 변경에 딸린 테스트가 이전 코드에서 실패하는지 확인, 게이트 리팩터링 전후 판정 비교, 결정 목록·결함 장부 검증, Claude Code·Codex·Grok으로 스킬 트리거 측정(로컬 전용이며 CI에서 실행하지 않음) |
 
 릴리스 노트: [CHANGELOG.md](CHANGELOG.md).
 

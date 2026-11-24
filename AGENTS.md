@@ -150,6 +150,17 @@ It cannot decide whether a name belongs to a real customer; that judgment relies
 - After weakening-prone gate edits, run `python gate_mutation_probe.py` (minutes; needs the dependencies in
   `requirements.txt`). Every catalogued mutation must be KILLED; a SURVIVED result is a test gap. Add a test, not an
   exemption. `test_gate_mutation_probe.py` keeps the catalog valid.
+- Before filing a defect or an issue, read [references/design-decisions.md](references/design-decisions.md): a listed decision
+  is reported only if its stated rationale no longer holds. A change that alters a decision edits its entry in the same pull
+  request. `python repo_records.py` (also run by the suite) checks every entry against the files and tests it names.
+- Every defect fix adds one line to `references/defect-ledger.jsonl`: the class, why the existing checks let it through, and
+  what now prevents the class. A class with three entries needs a guard test listed in `references/defect-guards.json`.
+- Local review tools (they are not run in CI, to keep the matrix small). After committing a change to shipped code, run
+  `python revert_proof.py`: at least one new or edited test must fail on the code the change started from. A
+  behaviour-preserving refactor of a gate is titled `refactor:` and checked with `python gate_replay.py --old-ref origin/main`.
+  `python trigger_eval_run.py --yes --host all` measures with Claude Code, Codex and Grok which skill triggers; it spends the
+  accounts' model calls, so run it on purpose and read the result, it is not a gate
+  ([baseline](references/trigger-eval-results-2026-11.md)). Provenance: [references/provenance-external-patterns-2026-11.md](references/provenance-external-patterns-2026-11.md).
 - Skills declare `license:` in frontmatter; `python skill_audit.py` must stay clean. Before adopting content from another
   repository, record its license and your use in `references/` first (see `provenance-harness-review-2026-11.md`);
   never copy third-party text or code without its notice.

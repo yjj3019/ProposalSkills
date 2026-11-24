@@ -11,7 +11,7 @@ from pathlib import Path
 import package_plugin
 
 REPO = Path(__file__).resolve().parent
-TEXT_SUFFIXES = {".py", ".md", ".json", ".yml", ".yaml", ".txt"}
+TEXT_SUFFIXES = {".py", ".md", ".json", ".jsonl", ".yml", ".yaml", ".txt"}
 # Extensionless repository metadata. Anything else that is not text must be recorded in THIRD-PARTY-NOTICES.md first.
 ALLOWED_OTHER = {"Dockerfile", ".gitignore", ".gitattributes", ".mailmap", "LICENSE", "skills/create-proposal-document/assets/brand-assets/.gitkeep"}
 NOTICES = (REPO / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8")
