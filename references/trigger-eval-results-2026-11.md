@@ -89,7 +89,13 @@ were checked against each CLI's own session log. T1 to T3 should use the skill; 
   After the entry file stated it, one more Codex T2 run (opening `SKILL.md` only, as before) answered `intake-incomplete`.
 - The answer carried no `DECISION_MEMO_ONLY` label. Phase A now names it. Three more Codex T2 runs in clean sessions (each opened `SKILL.md`
   only; session logs checked) all answered `intake-incomplete` with the `DECISION_MEMO_ONLY` label and wrote no proposal body.
-  Before the change: 1 run, no label. Three runs show the direction, not a rate. Grok and Claude Code were not rerun.
+  Before the change: 1 run, no label. Three runs show the direction, not a rate.
+- Claude Code (2.1.331, headless `claude -p`, 2026-11-25) ran the same T2 prompt three times in a separate workspace that held `rfp.md` and the
+  three skills under `.claude/skills`, with `--setting-sources project` so the globally installed plugin copy was not loaded (the session's
+  skill list showed only the workspace skills) and `--allowedTools Read,Glob,Grep,Skill`. All three answered `intake-incomplete` with the
+  `DECISION_MEMO_ONLY` label and no proposal body. Each opened `SKILL.md` with Read, not the Skill tool; run 1 also opened
+  `create-proposal-document/references/bid-and-submission.md`. Runs 2 and 3 also ran one read-only `Bash` listing (`find`/`ls`/`git log`).
+  Run 1 noted that the RFP looked like test input. Three runs, so direction only. Grok was not rerun after the change.
 - The records matched the logs on what mattered (which skill files were opened), but a CLI's record can leave out steps: one Codex record
   omitted a failed first read and two listing commands, and one Grok session answered a prompt meant for the other CLI before the rerun.
   Read the log, not only the record.
