@@ -106,6 +106,28 @@ class VerifySchemaIntegrationTests(unittest.TestCase):
             self.assertTrue(any("create-winning-proposal" in p for p in problems))
 
 
+class EntrySkillBidDecisionTests(unittest.TestCase):
+    """A host that opens only the entry SKILL.md must still get the rule that separates intake-incomplete from conditional-bid.
+
+    In a manual Codex run (2026-11), the model read only this file and recommended a conditional bid with no owner or
+    deadline, because the rule lived only in the playbook and the evidence reference."""
+
+    def phase_a(self) -> str:
+        text = (SKILLS / "create-best-proposal" / "SKILL.md").read_text(encoding="utf-8")
+        start = text.index("### Phase A")
+        return text[start:text.index("### Phase B", start)]
+
+    def test_no_bidder_material_is_intake_incomplete_in_the_entry_file(self):
+        section = " ".join(self.phase_a().split())
+        self.assertRegex(section, r"No bidder material to judge eligibility.{0,160}`intake-incomplete`")
+        self.assertIn("never invent an owner or a deadline", section)
+        self.assertIn("not a `conditional-bid`", section)
+
+    def test_conditional_bid_requires_owner_deadline_and_acceptance_in_the_entry_file(self):
+        section = " ".join(self.phase_a().split())
+        self.assertRegex(section, r"`conditional-bid` applies only to a known, curable gap.{0,160}owner.{0,40}deadline.{0,40}acceptance")
+
+
 class ReferenceWiringTests(unittest.TestCase):
     """Prevent unlinked references or stale documentation after path changes. Markdown links are relative to document files; backtick paths are relative to skill roots (sibling-map.md path-base rules). Accept backticks resolved by either base."""
 
