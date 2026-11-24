@@ -127,6 +127,10 @@ class EntrySkillBidDecisionTests(unittest.TestCase):
         section = " ".join(self.phase_a().split())
         self.assertRegex(section, r"`conditional-bid` applies only to a known, curable gap.{0,160}owner.{0,40}deadline.{0,40}acceptance")
 
+    def test_decision_memo_label_is_stated_in_the_entry_file(self):
+        section = " ".join(self.phase_a().split())
+        self.assertRegex(section, r"`no-bid` and `intake-incomplete` end in a decision memo.{0,80}`DECISION_MEMO_ONLY`")
+
 
 class ReferenceWiringTests(unittest.TestCase):
     """Prevent unlinked references or stale documentation after path changes. Markdown links are relative to document files; backtick paths are relative to skill roots (sibling-map.md path-base rules). Accept backticks resolved by either base."""

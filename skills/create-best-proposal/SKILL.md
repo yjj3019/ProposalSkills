@@ -96,6 +96,8 @@ Successful extraction/comparison replaces neither facts, persuasion, human visua
    - Missing evidence ≠ ineligibility (former=conditional, latter=no-bid). `conditional-bid` applies only to a known,
      curable gap whose conditions each already have an owner, an ISO deadline (timezone) and acceptance.
    - Unmet quantitative eligibility (amount/term/company age) + incurable → no-bid.
+   - `no-bid` and `intake-incomplete` end in a decision memo: print the status label `DECISION_MEMO_ONLY` in the
+     answer and write no proposal body.
 4. For conditional bids, obtain owner/ISO deadline (timezone)/accepted for every condition before proceeding.
 
 Sibling details: `../create-proposal-document/references/bid-and-submission.md`,
