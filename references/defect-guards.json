@@ -1,0 +1,5 @@
+{
+  "rule": "A class in defect-ledger.jsonl with `threshold` or more entries needs a guard: a test that fails wherever the class shows, so the next fix is not another patch of one place. List it under `classes` as {\"test\": \"file.py::Class.test_name\", \"how\": \"what the test checks\"}. repo_records.py fails until the guard exists.",
+  "threshold": 3,
+  "classes": {}
+}

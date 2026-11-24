@@ -78,6 +78,7 @@ Standard-library scripts; each prints what it did not check and never replaces r
 | [`cross_format_numbers.py`](skills/create-proposal-document/scripts/cross_format_numbers.py), [`xlsx_check.py`](skills/create-proposal-document/scripts/xlsx_check.py) | Run the numbers ledger over every delivered PPTX/DOCX/XLSX/HWPX and flag disagreements; spreadsheet error cells, `#REF!`, never-calculated formulas, stale stored values (`--recalc`) |
 | [`task_contract.py`](skills/create-best-proposal/scripts/task_contract.py), [`eval_metrics.py`](skills/create-best-proposal/scripts/eval_metrics.py) | Written limits and states for a long proposal job (no `Verified` without evidence); paired baseline-versus-candidate metrics from recorded runs |
 | `gate_mutation_probe.py`, `skill_audit.py`, `merge_guard.py`, `hook_guard_bash.py` | Repository tools: weaken-a-gate probe, skill safety, license and capability audit, advisory PR readiness, opt-in destructive-command hook |
+| `revert_proof.py`, `gate_replay.py`, `repo_records.py`, `trigger_eval_run.py` | Change-review tools: prove a change's tests fail on the old code, compare a gate's decisions before and after a refactor, check the decision register and defect ledger, measure skill triggering with Claude Code, Codex and Grok (local only; CI does not run them) |
 
 Release notes: [CHANGELOG.md](CHANGELOG.md).
 
