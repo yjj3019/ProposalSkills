@@ -66,6 +66,34 @@ paths kept; `--control neutral-descriptions`). Compared with the real-descriptio
 Not established: why Grok reads skill files in an untouched workspace (it may be its listing of `.agents/skills`), and any
 comparison for Claude, which a neutral description cannot fake because only a Skill tool call counts. Three runs per prompt.
 
+## Manual runs in the real CLIs (2026-11-25)
+
+Six prompts, each run by hand in a new session of Codex and Grok Build, in a workspace holding only the three skills and the synthetic
+`rfp.md`. The prompts name no file and no skill; each asks the CLI to write a record of what it opened, ran and decided. The records
+were checked against each CLI's own session log. T1 to T3 should use the skill; T4 to T6 should not.
+
+| Prompt | Codex | Grok Build |
+|---|---|---|
+| T1 technical proposal outline and strategy chapter | skill used, 2 of 2 runs; read `SKILL.md` only | skill used; read the playbook and reference files of all three skills |
+| T2 bid or no-bid | skill used; read `SKILL.md` only; **decision differs from the skill's rule** | skill used; read the playbook and reference files; followed the rule |
+| T3 compliance matrix skeleton | skill used; read `SKILL.md` only | skill used; ran `scripts/bulk_matrix.py` |
+| T4 Python `AttributeError` question | no skill file opened | no skill file opened |
+| T5 team workshop schedule | no skill file opened | no skill file opened |
+| T6 one-sentence translation | no skill file opened | no skill file opened |
+
+- Both CLIs picked the skill on their own for all three proposal prompts and none of the three unrelated ones. Codex receives a list of
+  skill names and descriptions at the start of a session, so opening `SKILL.md` is its normal way of using one.
+- They differ in how far they follow it. Codex stopped at `SKILL.md` in all four proposal runs. In T2 it recommended a conditional bid
+  with no owner or deadline, which the skill's own rule does not allow without them; Grok, which read the playbook, answered
+  `intake-incomplete`. The rule was in the playbook but not in `SKILL.md`; the entry file now states it.
+  After the entry file stated it, one more Codex T2 run (opening `SKILL.md` only, as before) answered `intake-incomplete`.
+- The records matched the logs on what mattered (which skill files were opened), but a CLI's record can leave out steps: one Codex record
+  omitted a failed first read and two listing commands, and one Grok session answered a prompt meant for the other CLI before the rerun.
+  Read the log, not only the record.
+- One run per cell, except Codex T1. It shows direction, not a rate. Not covered: an empty workspace, other wordings, Claude Code.
+- Two runs were discarded and redone: a Grok session that had run the other CLI's prompt first, and a Codex T3 run in a workspace that still
+  held Grok's output.
+
 ## Reproduce
 
     python trigger_eval_run.py --yes --host all --runs 3 --max-invocations 200 --timeout 150 --report trigger-report.json

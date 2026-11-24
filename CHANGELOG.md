@@ -5,6 +5,12 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Fixed
+- `create-best-proposal/SKILL.md` Phase A now states that missing bidder material means `intake-incomplete` and that `conditional-bid`
+  needs an owner, an ISO deadline and acceptance for every condition. The rule had been only in the playbook; a Codex run that
+  opened only `SKILL.md` recommended a conditional bid without them. Pinned by `test_skill_schema.py::EntrySkillBidDecisionTests`;
+  manual runs in Codex and Grok Build are recorded in `references/trigger-eval-results-2026-11.md`.
+
 Added (review tooling, from a read of public skill repositories; see `references/provenance-external-patterns-2026-11.md`)
 - `references/design-decisions.md` records eight deliberate decisions with rationale, location and the test that pins each;
   `repo_records.py` (run by the suite) fails when a path or a pinning test disappears.

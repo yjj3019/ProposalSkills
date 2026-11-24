@@ -91,7 +91,10 @@ Successful extraction/comparison replaces neither facts, persuasion, human visua
 2. Source priority: amendment > base RFP > Q&A (clarification) > evaluation sheet (weights) > forms >
    approved internal material > external. Exhaustively **stale sweep** changed values.
 3. Four-way bid: `intake-incomplete` | `bid` | `conditional-bid` | `no-bid`.
-   - Missing evidence ≠ ineligibility (former=conditional, latter=no-bid).
+   - No bidder material to judge eligibility (no track record, company facts or evidence) → `intake-incomplete`:
+     list the required inputs; never invent an owner or a deadline. This is not a `conditional-bid`.
+   - Missing evidence ≠ ineligibility (former=conditional, latter=no-bid). `conditional-bid` applies only to a known,
+     curable gap whose conditions each already have an owner, an ISO deadline (timezone) and acceptance.
    - Unmet quantitative eligibility (amount/term/company age) + incurable → no-bid.
 4. For conditional bids, obtain owner/ISO deadline (timezone)/accepted for every condition before proceeding.
 

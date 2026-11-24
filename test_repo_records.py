@@ -31,7 +31,8 @@ class RepositoryRecordsTests(unittest.TestCase):
     def test_ledger_records_what_was_fixed_in_this_audit(self):
         rows = [json.loads(line) for line in (ROOT / rr.LEDGER).read_text(encoding="utf-8").splitlines()]
         self.assertGreaterEqual(len(rows), 8)
-        self.assertEqual({r["change"] for r in rows}, {"#58", "#59", "#60", "#66"})
+        # the audit's four changes stay recorded; later fixes append rows, so this is a subset check
+        self.assertLessEqual({"#58", "#59", "#60", "#66"}, {r["change"] for r in rows})
 
 
 class DecisionCheckTests(unittest.TestCase):
