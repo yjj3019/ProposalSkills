@@ -114,6 +114,30 @@ were checked against each CLI's own session log. T1 to T3 should use the skill; 
 - Two runs were discarded and redone: a Grok session that had run the other CLI's prompt first, and a Codex T3 run in a workspace that still
   held Grok's output.
 
+## Answer contract and checker (2026-11-26)
+
+Sampling cannot make a model's output certain, so the entry `SKILL.md` now carries a bid-decision answer contract (first line
+`BID_DECISION: ...`, the `DECISION_MEMO_ONLY` label for no-bid and intake-incomplete, `REQUIRED_INPUTS`, and per-condition
+owner / ISO deadline / acceptance), and `scripts/check_decision_answer.py` fails any answer that breaks it. The checker is
+deterministic and pinned by `test_decision_answer.py`; it checks form and consistency, not the judgment.
+
+Acceptance rule, fixed before the run: five Claude Code T2 runs on the new `SKILL.md`, graded by the checker with
+`--bidder-material absent`; accept at 4 of 5; one check, no repeats.
+
+Result: 3 of 5 passed (runs 3, 4 and 5). Runs 1 and 2 answered "conditional bid" and did not follow the contract because they never
+opened the entry `SKILL.md`: they listed the skill folder and read one reference file (`capture-and-positioning.md`) and answered
+without the skill's rules. The three runs that loaded the skill all passed, and runs 4 and 5 ran the checker on their own answer
+before replying. So the rule works when the skill is loaded, and the remaining failure is the skill not being loaded at all,
+which text inside `SKILL.md` cannot fix. The acceptance rule was not met and is recorded as not met.
+
+What this leaves open: how often a host skips the entry file. The earlier 10 Claude Code runs all opened it; these 5 did in 3.
+The skill's `description` is the only text a host shows before the file is opened, so it now ends its routing sentence with
+"For any bid decision or RFP judgment, open this SKILL.md first and follow its answer contract; never answer from a reference file
+alone." (pinned by a test). Same rule as above, fixed beforehand, one check: five more Claude Code T2 runs, graded by the checker with
+`--bidder-material absent`, accept at 4 of 5. Result: 5 of 5 passed, and all five called the Skill tool for `create-best-proposal`
+before reading the RFP. Counted per check: 3 of 5 before the description line and 5 of 5 after. Five against five is small and not a rate; this is the evidence, not proof. Codex and
+Grok were not run on the contract or the description line.
+
 ## Reproduce
 
     python trigger_eval_run.py --yes --host all --runs 3 --max-invocations 200 --timeout 150 --report trigger-report.json
