@@ -95,7 +95,18 @@ were checked against each CLI's own session log. T1 to T3 should use the skill; 
   skill list showed only the workspace skills) and `--allowedTools Read,Glob,Grep,Skill`. All three answered `intake-incomplete` with the
   `DECISION_MEMO_ONLY` label and no proposal body. Each opened `SKILL.md` with Read, not the Skill tool; run 1 also opened
   `create-proposal-document/references/bid-and-submission.md`. Runs 2 and 3 also ran one read-only `Bash` listing (`find`/`ls`/`git log`).
-  Run 1 noted that the RFP looked like test input. Three runs, so direction only. Grok was not rerun after the change.
+  Run 1 noted that the RFP looked like test input.
+- Claude Code baseline, same setup but with the entry `SKILL.md` as it was before the label sentence (it already had the `intake-incomplete`
+  rule from the first fix): 5 runs. Conclusion `intake-incomplete` 2/5, `DECISION_MEMO_ONLY` label 1/5, conditional bid 3/5. With the label
+  sentence, 5 runs: `intake-incomplete` 5/5, label 5/5, conditional bid 0/5. Five against five is not significant for the conclusion
+  (one-sided Fisher p about 0.08); the label difference is clearer but the sample is small. The sentence may also have made the
+  `intake-incomplete` path easier to find, so it is not shown to affect only the label.
+- Grok Build, three T2 runs after the change in clean sessions: `intake-incomplete` with `DECISION_MEMO_ONLY` each time. This is **not**
+  evidence that the new sentence caused it. Grok keeps a persistent memory under its own home directory, and that memory held notes from
+  the earlier T2 runs, including a note that the earlier decision was `intake-incomplete (DECISION_MEMO_ONLY)`. The third run read those
+  notes and searched `results/` for earlier outputs. Grok also ran `unified_gate.py` in runs 2 and 3 and left a `decision-audit.json` in the
+  workspace; a third run that read the file left by run 2 was discarded and rerun after the file was removed. Grok results after the first
+  session cannot be treated as independent runs. A clean comparison needs Grok's memory cleared first, which was not done here.
 - The records matched the logs on what mattered (which skill files were opened), but a CLI's record can leave out steps: one Codex record
   omitted a failed first read and two listing commands, and one Grok session answered a prompt meant for the other CLI before the rerun.
   Read the log, not only the record.
