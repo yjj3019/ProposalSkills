@@ -131,7 +131,12 @@ before replying. So the rule works when the skill is loaded, and the remaining f
 which text inside `SKILL.md` cannot fix. The acceptance rule was not met and is recorded as not met.
 
 What this leaves open: how often a host skips the entry file. The earlier 10 Claude Code runs all opened it; these 5 did in 3.
-A stronger description line or a host-side instruction is the next lever; it was not tried here. Codex and Grok were not run.
+The skill's `description` is the only text a host shows before the file is opened, so it now ends its routing sentence with
+"For any bid decision or RFP judgment, open this SKILL.md first and follow its answer contract; never answer from a reference file
+alone." (pinned by a test). Same rule as above, fixed beforehand, one check: five more Claude Code T2 runs, graded by the checker with
+`--bidder-material absent`, accept at 4 of 5. Result: 5 of 5 passed, and all five called the Skill tool for `create-best-proposal`
+before reading the RFP. Counted per check: 3 of 5 before the description line and 5 of 5 after. Five against five is small and not a rate; this is the evidence, not proof. Codex and
+Grok were not run on the contract or the description line.
 
 ## Reproduce
 

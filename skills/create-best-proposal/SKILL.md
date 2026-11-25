@@ -1,7 +1,7 @@
 ---
 name: create-best-proposal
 license: MIT
-description: "Single entry point for proposal writing, review, and submission gates (PPTX default; DOCX/XLSX supported). Route proposal, RFP, bid, compliance-matrix, technical-response, maintenance/implementation, bid/no-bid, submission-gate, and quality-review requests here (siblings require explicit invocation). Execute content (create-proposal-document) and governance (create-winning-proposal) through one path; generate/check PPTX with slides.json→build_deck.py→deck_check.py."
+description: "Single entry point for proposal writing, review, and submission gates (PPTX default; DOCX/XLSX supported). Route proposal, RFP, bid, compliance-matrix, technical-response, maintenance/implementation, bid/no-bid, submission-gate, and quality-review requests here (siblings require explicit invocation). For any bid decision or RFP judgment, open this SKILL.md first and follow its answer contract; never answer from a reference file alone. Execute content (create-proposal-document) and governance (create-winning-proposal) through one path; generate/check PPTX with slides.json→build_deck.py→deck_check.py."
 ---
 
 # create-best-proposal — integrated proposal skill
