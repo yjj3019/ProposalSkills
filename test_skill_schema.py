@@ -131,6 +131,16 @@ class EntrySkillBidDecisionTests(unittest.TestCase):
         section = " ".join(self.phase_a().split())
         self.assertRegex(section, r"`no-bid` and `intake-incomplete` end in a decision memo.{0,80}`DECISION_MEMO_ONLY`")
 
+    def test_answer_contract_is_in_the_entry_file_and_names_the_checker(self):
+        text = (SKILLS / "create-best-proposal" / "SKILL.md").read_text(encoding="utf-8")
+        start = text.index("### Bid-decision answer contract")
+        section = " ".join(text[start:text.index("## 1. Full workflow", start)].split())
+        for line in ("BID_DECISION:", "STATUS: DECISION_MEMO_ONLY", "REQUIRED_INPUTS:", "CONDITION:"):
+            self.assertIn(line, section)
+        self.assertRegex(section, r"no bidder material.{0,120}`intake-incomplete`.{0,80}not write `conditional-bid`")
+        self.assertIn("scripts/check_decision_answer.py", section)
+        self.assertTrue((SKILLS / "create-best-proposal" / "scripts" / "check_decision_answer.py").is_file())
+
 
 class ReferenceWiringTests(unittest.TestCase):
     """Prevent unlinked references or stale documentation after path changes. Markdown links are relative to document files; backtick paths are relative to skill roots (sibling-map.md path-base rules). Accept backticks resolved by either base."""

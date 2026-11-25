@@ -5,6 +5,12 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Added
+- A bid-decision answer contract in `create-best-proposal/SKILL.md` and `scripts/check_decision_answer.py`, which fails an answer with no
+  `BID_DECISION` line, a missing `DECISION_MEMO_ONLY` label, a conditional bid when no bidder material was supplied, or a condition
+  without an owner, an ISO deadline with timezone and acceptance. Tested in `test_decision_answer.py`. A five-run Claude Code check passed
+  3 of 5; both failures never opened the entry file (`references/trigger-eval-results-2026-11.md`).
+
 Fixed
 - `create-best-proposal/SKILL.md` Phase A now states that missing bidder material means `intake-incomplete` and that `conditional-bid`
   needs an owner, an ISO deadline and acceptance for every condition. The rule had been only in the playbook; a Codex run that

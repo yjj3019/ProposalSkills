@@ -63,6 +63,25 @@ For `no-bid` / `intake-incomplete`, **stop Full drafting** → Decision memo onl
 
 Detailed tree: [references/master-playbook.md](references/master-playbook.md).
 
+### Bid-decision answer contract (any answer that states a bid decision)
+
+Start the answer with these lines, in this order, before any prose:
+
+```
+BID_DECISION: intake-incomplete | bid | conditional-bid | no-bid
+STATUS: DECISION_MEMO_ONLY
+REQUIRED_INPUTS: <item>; <item>
+CONDITION: <text> | owner: <who> | deadline: <ISO 8601 with time and timezone> | accepted: yes
+```
+
+- `STATUS: DECISION_MEMO_ONLY` is for `no-bid` and `intake-incomplete` only. `REQUIRED_INPUTS` is for `intake-incomplete` only.
+  One `CONDITION` line per condition is for `conditional-bid` only. Omit the lines that do not apply.
+- **If the user supplied no bidder material (no track record, company facts or evidence), the decision is `intake-incomplete`.**
+  Do not write `conditional-bid` and do not write an owner or a deadline.
+- With a shell, write the answer to a file and run `scripts/check_decision_answer.py ANSWER.md --bidder-material absent|present`
+  (use `absent` when no bidder material was supplied). Fix every `[PROBLEM]` line before replying; without a shell, check the
+  lines above by hand. A pass checks the form and consistency, not whether the judgment is right.
+
 **Apply source priority first to every RFP path (including Pink/Red/Matrix/PT).** When a base RFP and
 explicit amendment differ, establish old value → currently effective value → change basis before writing.
 If an amendment changes 6 weeks to 4 weeks, use 4 weeks; 6 weeks belongs to change history.
@@ -251,6 +270,7 @@ Each finding: fact to change / owner / deadline / approval / sections to update 
 | `scripts/build_audit_from_meta.py` | Slide/requirement meta → audit JSON (SI-B1); [references/meta-to-audit.md](references/meta-to-audit.md) |
 | `scripts/bulk_matrix.py` | Type C bulk compliance/response matrices (SI-C1); [references/bulk-matrix.md](references/bulk-matrix.md) |
 | `scripts/unified_gate.py` | proposal_gate + quality_gate + status UX |
+| `scripts/check_decision_answer.py` | Bid-decision answer contract check (decision line, `DECISION_MEMO_ONLY` label, conditions with owner/ISO deadline/acceptance) |
 | `scripts/sensitive_scan.py` | Secrets and personal data (resident numbers, cards, contacts, internal IPs) in text and PPTX/DOCX/XLSX; [references/sensitive-scan.md](references/sensitive-scan.md) |
 | `../create-proposal-document/scripts/check_numbers.py` | Numerical ledger ↔ document comparison (format variants recognized) |
 | `fixtures/audit_ready_financial.json` | Financial submission-ready golden fixture (SI-B4) |
