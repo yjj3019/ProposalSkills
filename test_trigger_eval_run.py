@@ -283,6 +283,14 @@ class PlanTests(unittest.TestCase):
         self.assertTrue(all(r["accept"] == [] for r in rows if not r["expect"]))
         self.assertEqual({r["owner"] for r in ter.expectations(cases, "create-best-proposal")}, {"create-best-proposal"})
 
+    def test_holdout_prompts_are_separate_from_the_tuning_prompts(self):
+        cases = ter.load_cases()
+        dev = {r["prompt"] for r in ter.expectations(cases)}
+        held = ter.expectations(cases, holdout=True)
+        self.assertTrue(held, "a holdout set must exist")
+        self.assertFalse(dev & {r["prompt"] for r in held}, "a prompt must not be in both sets")
+        self.assertTrue(any(r["expect"] for r in held) and any(not r["expect"] for r in held))
+
     def test_the_entry_skill_is_the_one_a_model_may_start_by_itself(self):
         self.assertEqual(ter.entry_skills(ROOT / "skills", NAMES), ["create-best-proposal"])
         self.assertEqual(ter.entry_skills(ROOT / "no-such-dir", NAMES), NAMES)

@@ -6,6 +6,16 @@ official-directory publication (see `references/marketplace-management.md`).
 ## Unreleased
 
 Added
+- `tidy_audit.py` geometry checks (advisory): shapes running off the slide, text boxes whose *text* overlaps (boxes wider than their
+  text are not a collision), and an estimate that text does not fit its box. Intentional overlays (a badge inside a card, a label on a
+  shape or picture) are pinned as cases it must stay silent on. The overflow figure is an estimate from character count and font size,
+  not a render. Tests: `test_tidy_thresholds.py` (`TidyGeometryTests`).
+- `trigger-eval-cases.json` may carry a per-skill `holdout` set; `trigger_eval_run.py --set holdout` runs it, so a description edit can be
+  judged on prompts it was not tuned on. `references/manual-eval-prompts.md` keeps the next manual check's prompts beside its results
+  (the 2026-11-25 prompts were not saved and are not recovered).
+- `bid-and-submission.md` §1: the bid decision is now an ordered check (eligibility, mandatory qualifications, compliance mechanics,
+  capacity to deliver); the `BID_DECISION` contract is unchanged. Provenance and licenses:
+  [references/provenance-external-ideas-2026-11-27.md](references/provenance-external-ideas-2026-11-27.md).
 - `plan_coverage.py` compares two or more slide plans against the requirement matrix (answered / listed only / unknown REQ-IDs, union,
   what only one plan covers, what no plan covers) so a plan is chosen by coverage rather than taste.
 - `palette_from_image.py` derives contrast-safe `meta.palette` tokens from a reference image and checks any palette (`--check`).

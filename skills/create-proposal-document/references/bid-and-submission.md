@@ -14,6 +14,17 @@ First check qualifications, deadline, submission format, required evidence, and 
 | Conditional bid | Remediable disqualifier (e.g., missing evidence) | Specify owner/deadline for each condition and proceed after user approval |
 | No-bid recommendation | Mandatory qualifications/capability unmet, no remedy | **Stop full drafting**; produce only a decision memo with reasons and reconsideration conditions |
 
+Check in this order and stop at the first disqualifier you cannot remedy (the cheapest check comes first):
+
+1. **Eligibility**: may this bidder bid at all (entity type, registration, restrictions stated in the RFP)?
+2. **Mandatory qualifications**: every "must" requirement and required evidence; keep "should" items apart so a preference is not read as a bar.
+3. **Compliance mechanics**: question deadline, mandatory pre-bid briefing or site visit, registration or certificate lead time, and who
+   must sign, seal or hold a power of attorney. Take every value from the RFP; none is assumed here. A step whose lead time passes
+   the deadline is a disqualifier even if the bidder is otherwise qualified.
+4. **Capacity to deliver**: named people, the contract period and the penalty or liability terms against what the bidder can staff
+   and carry. Winning a contract the bidder cannot deliver is worse than not bidding; if capacity is unknown, the decision is
+   insufficient information, not bid.
+
 - Distinguish evidence not yet received from qualifications not held: the former is conditional; the latter is no-bid.
 - Internal willingness cannot bypass buyer mandatory requirements. Consider consortium/subcontractor track records
   as a remedy only when explicitly allowed by the RFP.
