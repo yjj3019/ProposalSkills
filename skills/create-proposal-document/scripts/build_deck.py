@@ -124,12 +124,23 @@ class DeckBuilder:
         self.editorial = self.theme == "editorial"
         self.pal = {**DEFAULT_PALETTE, **look.get("palette", {}), **{k: str(v).lstrip("#").upper()
                                                                     for k, v in (self.meta.get("palette") or {}).items()}}
+        if self.meta.get("palette"):
+            # A palette that is not valid hex would crash later with an obscure error; a low-contrast one is legible on
+            # screen but fails the checker. palette_from_image.py derives palettes that pass (and checks any palette).
+            import palette_from_image
+            problems = palette_from_image.check_palette(self.pal)
+            if any("not a 6-digit hex" in problem for problem in problems):
+                raise ValueError("meta.palette: " + "; ".join(problems))
+            self._palette_warnings = [f"meta.palette 색상 대비: {problem}" for problem in problems]
+        else:
+            self._palette_warnings = []
         self.font = self.meta.get("font") or look.get("font") or DEFAULT_FONT
         self.title_font = self.meta.get("title_font") or look.get("title_font") or self.font
         self.lead_font = look.get("lead_font") or self.font
         self.strict = strict
         self.violations: list[str] = []
         self.warnings: list[str] = []
+        self.warnings.extend(self._palette_warnings)
         self.page = 0
         # (slides.json matrix specification, actual table row count) for loss detection.
         self.matrix_rows: list[tuple[dict, int]] = []

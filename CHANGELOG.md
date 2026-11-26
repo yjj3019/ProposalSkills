@@ -6,6 +6,12 @@ official-directory publication (see `references/marketplace-management.md`).
 ## Unreleased
 
 Added
+- `plan_coverage.py` compares two or more slide plans against the requirement matrix (answered / listed only / unknown REQ-IDs, union,
+  what only one plan covers, what no plan covers) so a plan is chosen by coverage rather than taste.
+- `palette_from_image.py` derives contrast-safe `meta.palette` tokens from a reference image and checks any palette (`--check`).
+  `build_deck.py` now warns when `meta.palette` fails the checked pairs and rejects non-hex values with a clear message instead of
+  failing later. Tests: `test_deck_planning_tools.py`. Both ideas came from a review of a pasted video summary about building decks
+  with AI; the code is original and no external repository or asset was copied.
 - A bid-decision answer contract in `create-best-proposal/SKILL.md` and `scripts/check_decision_answer.py`, which fails an answer with no
   `BID_DECISION` line, a missing `DECISION_MEMO_ONLY` label, a conditional bid when no bidder material was supplied, or a condition
   without an owner, an ISO deadline with timezone and acceptance. Tested in `test_decision_answer.py`. A five-run Claude Code check passed

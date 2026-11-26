@@ -186,6 +186,33 @@ Do not repeatedly ask about an established audience/brand. Render one representa
 only when a new brand or visual direction genuinely needs selection. Do not default to arbitrary foreign fonts,
 neon, or full-image slides. Representative-slide inspection never replaces final all-page review.
 
+### Planning from several models
+
+Asking two models for a slide-by-slide plan from the same RFP and keeping "the best parts" drifts toward taste. Pick by
+requirement coverage instead. Give both the same inputs (the requirement matrix with REQ-IDs and the evaluation weights) and
+ask for one line per slide: the message and the REQ-IDs it answers. Then run:
+
+    python scripts/plan_coverage.py matrix.md plan_a.md plan_b.md [--weights weights.json] [--min-coverage 90]
+
+It reports, per plan, which requirements are answered (a line with the REQ-ID and a message), which are only listed, and which
+REQ-IDs the plan cites that the matrix does not have (invented or stale; exit 1). Across plans it shows the union, what only one
+plan covers, and what no plan covers. Start from the plan with the highest weighted coverage and take the requirements only the
+other plan answers. Coverage means a requirement is addressed, not that the answer is good or true: read the chosen plan, then
+ground every number and claim in evidence as usual.
+
+### Palette from a reference image
+
+A mood image (a screenshot, a photo) is a quick way to choose a color direction. Do not paste its colors in directly: pale or
+bright colors fail the contrast the generator and checker rely on. Derive tokens instead:
+
+    python scripts/palette_from_image.py reference.png --out palette.json
+
+The result is a `meta.palette` object (primary, tint1-3, text, muted, side_b) whose pairs all pass 4.5:1. Only colors are taken,
+never the image; do not embed a third party's image in the deliverable. Semantic colors (warn, ok, white, bg) stay at their
+defaults. Precedence is unchanged: RFP form → provided template → brand tokens → derived palette. A pale or gray image yields no
+usable color and keeps the default hue (the notes say so). `palette_from_image.py --check slides.json` checks any palette, and
+`build_deck.py` now warns about a `meta.palette` that fails the same pairs and rejects values that are not 6-digit hex.
+
 ### Content review and presenter notes
 
 Read titles/leads in order to check problem → proposal → execution → verification, duplication, logical jumps.
