@@ -133,14 +133,20 @@ def parse_matrix(path: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     with_location: set[str] = set()
     for lines in tables:
-        header_l = [c.lower() for c in _markdown_cells(lines[0])]
-        id_idx = next((i for i, h in enumerate(header_l)
-                       if "req" in h or "요구" in h or h in {"id", "번호"}), 0)
+        # A first row that already holds a REQ-ID is data, not a header: a table without a header must not lose it.
+        headerless = bool(REQ_RE.search(lines[0]))
+        header_l = [] if headerless else [c.lower() for c in _markdown_cells(lines[0])]
+        if headerless:
+            first_cells = _markdown_cells(lines[0])
+            id_idx = next((i for i, c in enumerate(first_cells) if REQ_RE.search(c)), 0)
+        else:
+            id_idx = next((i for i, h in enumerate(header_l)
+                           if "req" in h or "요구" in h or h in {"id", "번호"}), 0)
         page_idx = next((i for i, h in enumerate(header_l)
                          if "page" in h or "페이지" in h or "장표" in h or "slide" in h
                          or "응답위치" in h or "대응위치" in h or "response_loc" in h), None)
         rows: dict[str, str] = {}
-        for ln in lines[1:]:
+        for ln in (lines if headerless else lines[1:]):
             if re.match(r"^\|[\s:-]+\|", ln):
                 continue
             cells = _markdown_cells(ln)
