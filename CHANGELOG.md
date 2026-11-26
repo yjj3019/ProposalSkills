@@ -6,6 +6,10 @@ official-directory publication (see `references/marketplace-management.md`).
 ## Unreleased
 
 Added
+- `deck_check.py` warns when a generated title probably does not fit on one line (a title box is one line high, so a wrapped title
+  collides with the lead). Estimate from character width and font size, not a render. Found by running the new `tidy_audit.py`
+  geometry checks over 1268 generated titles: one distinct title warned, in the e2e fixture, which is shortened. Tests:
+  `test_deck_pipeline.py` (`TitleFitTests`).
 - `tidy_audit.py` geometry checks (advisory): shapes running off the slide, text boxes whose *text* overlaps (boxes wider than their
   text are not a collision), and an estimate that text does not fit its box. Intentional overlays (a badge inside a card, a label on a
   shape or picture) are pinned as cases it must stay silent on. The overflow figure is an estimate from character count and font size,

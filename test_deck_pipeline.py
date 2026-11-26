@@ -413,5 +413,33 @@ class DeckPipelineTests(unittest.TestCase):
         self.assertIn("render verification is missing", gate.stdout)
 
 
+class TitleFitTests(unittest.TestCase):
+    """A generated title box is one line high; a title that cannot fit on one line collides with the lead."""
+
+    @staticmethod
+    def box(text, size, width_in=12.33):
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        shape = slide.shapes.add_textbox(Inches(0.5), Inches(0.6), Inches(width_in), Inches(0.55))
+        run = shape.text_frame.paragraphs[0].add_run()
+        run.text, run.font.size = text, Pt(size)
+        return shape
+
+    def test_a_long_korean_title_is_reported_and_a_short_one_is_not(self):
+        self.assertIsNotNone(deck_check.title_wraps(self.box("전환안은 일정과 확장에서, 현행 유지는 초기 비용에서 앞섭니다", 30)))
+        self.assertIsNone(deck_check.title_wraps(self.box("전환안이 일정에서 앞섭니다", 30)))
+        self.assertIsNone(deck_check.title_wraps(self.box("Migration wins on schedule and scale", 30)))
+
+    def test_a_title_without_an_explicit_size_is_not_judged(self):
+        from pptx import Presentation
+        from pptx.util import Inches
+        prs = Presentation()
+        shape = prs.slides.add_slide(prs.slide_layouts[6]).shapes.add_textbox(Inches(0), Inches(0), Inches(3), Inches(1))
+        shape.text_frame.text = "가" * 60
+        self.assertIsNone(deck_check.title_wraps(shape))
+
+
 if __name__ == "__main__":
     unittest.main()
