@@ -18,6 +18,10 @@ Added
   3 of 5; both failures never opened the entry file. The entry skill's description now tells the model to open `SKILL.md` first;
   a second five-run check passed 5 of 5 (`references/trigger-eval-results-2026-11.md`).
 
+Added (record only)
+- `references/design-md-input-candidate-2026-11.md` records `DESIGN.md` (getdesign.md, Google Labs spec) as a possible deck design input:
+  what was read, what is unknown (template terms) and what a small first step would be. Nothing reads such a file yet.
+
 Fixed
 - `mapping_check.parse_matrix` no longer drops the first row of a Markdown matrix that has no header row. A first row that already
   holds a REQ-ID is treated as data, so `plan_coverage.py` and `mapping_check.py` no longer report that requirement as missing or unknown.
