@@ -27,6 +27,10 @@ Fixed
   pattern), rejects a repeated `owner`/`deadline`/`accepted` field in one condition (a later value hid a `TBD`), and prints a note on
   stderr when `--bidder-material` is not given, because the "no bidder material means intake-incomplete" rule is then not checked.
   Found by running the checker on the cases listed in a review note; the exit code without the flag is unchanged.
+- `check_decision_answer.py` also rejects owner placeholders the exact-word list missed (`TBC`, `TBD (Kim)`, `to be decided`, `someone`,
+  `<who>`, `???`, `담당자`, `미확정`, `추후 협의`). `create-best-proposal/SKILL.md` now says `accepted: yes` must record an acceptance seen in the
+  supplied material, otherwise the decision is `intake-incomplete`; the checker still cannot tell a real acceptance from a written one.
+  The entry skill's description is unchanged; the five-run trigger check was not repeated for this added bullet.
 - `mapping_check.parse_matrix` no longer drops the first row of a Markdown matrix that has no header row. A first row that already
   holds a REQ-ID is treated as data, so `plan_coverage.py` and `mapping_check.py` no longer report that requirement as missing or unknown.
 - `create-best-proposal/SKILL.md` Phase A now states that missing bidder material means `intake-incomplete` and that `conditional-bid`

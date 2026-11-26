@@ -78,6 +78,9 @@ CONDITION: <text> | owner: <who> | deadline: <ISO 8601 with time and timezone> |
   One `CONDITION` line per condition is for `conditional-bid` only. Omit the lines that do not apply.
 - **If the user supplied no bidder material (no track record, company facts or evidence), the decision is `intake-incomplete`.**
   Do not write `conditional-bid` and do not write an owner or a deadline.
+- `accepted: yes` records an acceptance that the user or the named owner stated in the material you were given. If you have not
+  seen that acceptance, do not write `yes`: the decision is `intake-incomplete` and the missing acceptance goes in
+  `REQUIRED_INPUTS`. The checker cannot tell a real acceptance from a written one.
 - With a shell, write the answer to a file and run `scripts/check_decision_answer.py ANSWER.md --bidder-material absent|present`
   (use `absent` when no bidder material was supplied). Fix every `[PROBLEM]` line before replying; without a shell, check the
   lines above by hand. A pass checks the form and consistency, not whether the judgment is right.

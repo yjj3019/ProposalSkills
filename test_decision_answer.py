@@ -89,6 +89,17 @@ class DecisionAnswerTests(unittest.TestCase):
         ok = "BID_DECISION: conditional-bid\nCONDITION: x | owner: Kim | deadline: 2028-02-29T09:00Z | accepted: yes\n"
         self.assertEqual(self.problems(ok, "present"), [])
 
+    def test_owner_placeholders_beyond_the_exact_words_are_rejected(self):
+        for owner in ("TBC", "TBD (Kim)", "TBD.", "to be decided", "someone", "the team", "owner", "<who>", "[owner]",
+                      "???", "담당자", "담당자 미정", "미확정", "추후 협의", "협의 예정"):
+            text = (f"BID_DECISION: conditional-bid\nCONDITION: x | owner: {owner} | "
+                    "deadline: 2099-12-01T09:00:00+09:00 | accepted: yes\n")
+            self.assertTrue(any("owner is missing or a placeholder" in p for p in self.problems(text, "present")), owner)
+        for owner in ("Kim", "Kim Minsu (PM)", "김민수 PMO 팀장", "Acme Corp legal counsel", "Lee, Procurement Lead"):
+            text = (f"BID_DECISION: conditional-bid\nCONDITION: x | owner: {owner} | "
+                    "deadline: 2099-12-01T09:00:00+09:00 | accepted: yes\n")
+            self.assertEqual(self.problems(text, "present"), [], owner)
+
     def test_repeated_condition_field_cannot_hide_a_placeholder(self):
         text = ("BID_DECISION: conditional-bid\nCONDITION: x | owner: TBD | owner: Kim | "
                 "deadline: 2099-12-01T09:00:00+09:00 | accepted: yes\n")

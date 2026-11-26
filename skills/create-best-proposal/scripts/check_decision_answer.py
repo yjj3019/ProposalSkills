@@ -38,6 +38,26 @@ DECISIONS = ("intake-incomplete", "bid", "conditional-bid", "no-bid")
 MEMO_DECISIONS = {"intake-incomplete", "no-bid"}
 LABEL = "DECISION_MEMO_ONLY"
 PLACEHOLDERS = {"", "tbd", "tba", "n/a", "na", "none", "unknown", "?", "미정", "없음", "미지정", "추후", "-"}
+# An owner must be someone who can be held to the deadline. These are not: a promise to name one later, a template slot, or a role
+# word with no person behind it. Matched on the owner text after case folding and stripping brackets and punctuation.
+PLACEHOLDER_WORDS = ("tbd", "tbc", "tba", "to be decided", "to be determined", "to be confirmed", "to be assigned", "not decided",
+                     "미정", "미확정", "미지정", "추후", "협의 예정", "지정 예정", "결정 예정", "확정 예정")
+GENERIC_OWNERS = {"someone", "anyone", "somebody", "team", "the team", "owner", "the owner", "who", "responsible", "person",
+                  "담당자", "담당", "팀", "관계자", "책임자", "해당 팀", "해당 부서"}
+
+
+def is_placeholder_owner(raw: str) -> bool:
+    value = raw.strip(MARKUP).lower()
+    if value in PLACEHOLDERS:
+        return True
+    plain = " ".join(re.sub(r"[\s\[\]<>(){}.,;:!?*_`'\"/\\-]+", " ", value).split())
+    if not plain or not re.search(r"\w", plain):      # "???", "[ ]", "--"
+        return True
+    if plain in PLACEHOLDERS or plain in GENERIC_OWNERS:
+        return True
+    if re.fullmatch(r"(?:owner|who|name|person|담당자|이름)", plain):   # an unfilled template slot such as <who> or [owner]
+        return True
+    return any(word in plain for word in PLACEHOLDER_WORDS)
 ISO_DEADLINE = re.compile(
     r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:Z|[+-](\d{2}):?(\d{2}))")
 
@@ -108,7 +128,7 @@ def check(text: str, bidder_material: str = "unknown") -> list[str]:
             repeated = sorted({k for k in ("owner", "deadline", "accepted") if keys.count(k) > 1})
             if repeated:
                 problems.append(f"{label}: repeated field {', '.join(repeated)} (a later value would hide an earlier one)")
-            if parts.get("owner", "").strip(MARKUP).lower() in PLACEHOLDERS:
+            if is_placeholder_owner(parts.get("owner", "")):
                 problems.append(f"{label}: owner is missing or a placeholder")
             if not valid_deadline(parts.get("deadline", "").strip(MARKUP)):
                 problems.append(f"{label}: deadline is not a real ISO 8601 date-time with a timezone")
