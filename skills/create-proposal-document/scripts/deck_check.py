@@ -61,6 +61,21 @@ def sha256(path: Path) -> str:
     return "sha256:" + h.hexdigest()
 
 
+def title_wraps(shape):
+    """(estimated one-line width, usable width) in inches when a generated title box is too narrow for its text, else None.
+    Estimate only: East Asian characters count 1 em, others 0.5 em; needs an explicit font size, else None."""
+    try:
+        sizes = [r.font.size.pt for p in shape.text_frame.paragraphs for r in p.runs if r.text.strip() and r.font.size]
+        text = shape.text_frame.text.strip()
+        usable = (shape.width - (shape.text_frame.margin_left or 0) - (shape.text_frame.margin_right or 0)) / 914400
+    except (AttributeError, TypeError):
+        return None
+    if not sizes or not text or "\n" in text:
+        return None
+    need = sum(1.0 if ord(ch) >= 0x2E80 else 0.5 for ch in text) * max(sizes) / 72
+    return (need, usable) if need > usable else None
+
+
 def shape_text(shape) -> str:
     """Visible shape text, including GraphicFrame table cells. Tables lack text frames, so previously their text vanished from density counts and dense matrices appeared empty."""
     if shape.has_text_frame:
@@ -273,6 +288,11 @@ def lint(prs, *, max_pages: int | None, exclude_cover_toc: bool, min_font: float
             lead = shape_text(names["LEAD"])
         if not title:
             items.append(f"[차단] 슬라이드 {idx}: 제목 없음{tag}")
+        elif not heuristic:
+            wrapped = title_wraps(names["TITLE"])
+            if wrapped:
+                items.append(f"{WARN} 슬라이드 {idx}: 제목이 한 줄에 들어가지 않을 가능성 "
+                             f"(추정 {wrapped[0]:.1f}in > 상자 {wrapped[1]:.1f}in) — 줄여서 한 줄 결론으로{tag}")
         if not lead:
             items.append(f"[차단] 슬라이드 {idx}: 리드문 없음 — 1페이지 1메시지 원칙{tag}")
         elif len(lead) > lead_max:
