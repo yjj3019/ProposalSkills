@@ -22,6 +22,8 @@ Checks:
 It checks the form and the consistency of the answer, not whether the judgment is right. Exit codes: 0 OK, 1 problems,
 2 usage error (unreadable input).
 
+Without --bidder-material the "no bidder material" rule is not checked, and a note on stderr says so. Pass absent or present.
+
 Usage: python check_decision_answer.py ANSWER.md [--bidder-material absent|present|unknown]
 """
 from __future__ import annotations
@@ -29,13 +31,28 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 DECISIONS = ("intake-incomplete", "bid", "conditional-bid", "no-bid")
 MEMO_DECISIONS = {"intake-incomplete", "no-bid"}
 LABEL = "DECISION_MEMO_ONLY"
 PLACEHOLDERS = {"", "tbd", "tba", "n/a", "na", "none", "unknown", "?", "미정", "없음", "미지정", "추후", "-"}
-ISO_DEADLINE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})")
+ISO_DEADLINE = re.compile(
+    r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:Z|[+-](\d{2}):?(\d{2}))")
+
+
+def valid_deadline(value: str) -> bool:
+    """An ISO 8601 date-time with a timezone, on a date that exists (not 2026-13-45T25:61)."""
+    match = ISO_DEADLINE.fullmatch(value)
+    if not match:
+        return False
+    year, month, day, hour, minute, second, off_h, off_m = match.groups()
+    try:
+        datetime(int(year), int(month), int(day), int(hour), int(minute), int(second or 0))
+    except ValueError:
+        return False
+    return off_h is None or (int(off_h) <= 23 and int(off_m) <= 59)
 MARKUP = "*`#> \t_"
 
 
@@ -83,13 +100,18 @@ def check(text: str, bidder_material: str = "unknown") -> list[str]:
         if not conditions:
             problems.append("conditional-bid needs at least one `CONDITION:` line")
         for index, condition in enumerate(conditions, 1):
-            parts = {key.strip().lower(): value.strip() for key, _, value in
-                     (part.partition(":") for part in condition.split("|")[1:])}
+            pairs = [(key.strip().lower(), value.strip()) for key, _, value in
+                     (part.partition(":") for part in condition.split("|")[1:])]
+            parts = dict(pairs)
             label = f"condition {index}"
+            keys = [key for key, _ in pairs]
+            repeated = sorted({k for k in ("owner", "deadline", "accepted") if keys.count(k) > 1})
+            if repeated:
+                problems.append(f"{label}: repeated field {', '.join(repeated)} (a later value would hide an earlier one)")
             if parts.get("owner", "").strip(MARKUP).lower() in PLACEHOLDERS:
                 problems.append(f"{label}: owner is missing or a placeholder")
-            if not ISO_DEADLINE.fullmatch(parts.get("deadline", "").strip(MARKUP)):
-                problems.append(f"{label}: deadline is not an ISO 8601 date-time with a timezone")
+            if not valid_deadline(parts.get("deadline", "").strip(MARKUP)):
+                problems.append(f"{label}: deadline is not a real ISO 8601 date-time with a timezone")
             if parts.get("accepted", "").strip(MARKUP).lower() not in {"yes", "accepted", "true"}:
                 problems.append(f"{label}: not accepted (`accepted: yes` is required)")
     return problems
@@ -106,6 +128,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Cannot read input: {type(exc).__name__}", file=sys.stderr)
         return 2
     problems = check(text, args.bidder_material)
+    if args.bidder_material == "unknown":
+        print("NOTE: --bidder-material was not given, so the rule that missing bidder material means intake-incomplete "
+              "was not checked. Pass absent or present.", file=sys.stderr)
     for problem in problems:
         print(f"[PROBLEM] {problem}")
     print(f"DECISION-ANSWER: {'PROBLEMS' if problems else 'OK'} ({len(problems)})")

@@ -81,6 +81,30 @@ class DecisionAnswerTests(unittest.TestCase):
         self.assertEqual(len(self.problems(text)), 1)
         self.assertIn("condition 3", self.problems(text)[0])
 
+    def test_impossible_calendar_deadline_is_rejected(self):
+        for bad in ("2026-13-45T25:61:00+09:00", "2026-02-30T09:00:00Z", "2026-12-01T24:00:00Z",
+                    "2026-12-01T09:00:00+25:00", "2026-12-01T09:00:00+09:99"):
+            text = f"BID_DECISION: conditional-bid\nCONDITION: x | owner: Kim | deadline: {bad} | accepted: yes\n"
+            self.assertTrue(any("real ISO 8601" in p for p in self.problems(text, "present")), bad)
+        ok = "BID_DECISION: conditional-bid\nCONDITION: x | owner: Kim | deadline: 2028-02-29T09:00Z | accepted: yes\n"
+        self.assertEqual(self.problems(ok, "present"), [])
+
+    def test_repeated_condition_field_cannot_hide_a_placeholder(self):
+        text = ("BID_DECISION: conditional-bid\nCONDITION: x | owner: TBD | owner: Kim | "
+                "deadline: 2099-12-01T09:00:00+09:00 | accepted: yes\n")
+        self.assertTrue(any("repeated field owner" in p for p in self.problems(text, "present")))
+
+    def test_missing_bidder_material_flag_is_announced_on_stderr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "answer.md"
+            path.write_text("BID_DECISION: bid\n", encoding="utf-8")
+            for extra, expect in (([], True), (["--bidder-material", "present"], False)):
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    code = check.main([str(path), *extra])
+                self.assertEqual(code, 0)
+                self.assertEqual("--bidder-material was not given" in err.getvalue(), expect)
+
     def test_cli_exit_codes(self):
         def run(content, *extra):
             with tempfile.TemporaryDirectory() as tmp:
