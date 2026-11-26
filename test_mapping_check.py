@@ -36,6 +36,12 @@ class MappingCheckTests(unittest.TestCase):
             self.assertEqual(matrix["REQ-001"], "3")
             self.assertEqual(matrix["REQ-002"], "")
 
+    def test_table_without_header_keeps_its_first_requirement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "matrix.md"
+            path.write_text("| REQ-001 | a | 3 |\n| REQ-002 | b | |\n", encoding="utf-8")
+            self.assertEqual(sorted(parse_matrix(path)), ["REQ-001", "REQ-002"])
+
     def test_bidirectional_failures(self):
         matrix = {"REQ-001": "3", "REQ-002": "4"}
         doc_ids = {"REQ-001", "REQ-003"}

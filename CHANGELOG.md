@@ -19,6 +19,8 @@ Added
   a second five-run check passed 5 of 5 (`references/trigger-eval-results-2026-11.md`).
 
 Fixed
+- `mapping_check.parse_matrix` no longer drops the first row of a Markdown matrix that has no header row. A first row that already
+  holds a REQ-ID is treated as data, so `plan_coverage.py` and `mapping_check.py` no longer report that requirement as missing or unknown.
 - `create-best-proposal/SKILL.md` Phase A now states that missing bidder material means `intake-incomplete` and that `conditional-bid`
   needs an owner, an ISO deadline and acceptance for every condition. The rule had been only in the playbook; a Codex run that
   opened only `SKILL.md` recommended a conditional bid without them. Pinned by `test_skill_schema.py::EntrySkillBidDecisionTests`;
