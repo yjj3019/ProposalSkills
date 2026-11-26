@@ -22,6 +22,13 @@ Added (record only)
 - `references/design-md-input-candidate-2026-11.md` records `DESIGN.md` (getdesign.md, Google Labs spec) as a possible deck design input:
   what was read, what is unknown (template terms) and what a small first step would be. Nothing reads such a file yet.
 
+Changed (records and pinned behaviour)
+- `plan_coverage.py` documents and pins two deliberate behaviours: a grouped line credits each REQ-ID it cites, and only REQ-001, REQ001
+  and REQ_1 spellings are read as IDs (`req 10` is not, because the shared pattern also reads real documents).
+- `references/design-md-input-candidate-2026-11.md` now records the site's terms (free files "use in your projects", no stated client-work
+  right, entries named after real brands) and narrows the first step to a user-supplied file. `trigger-eval-results-2026-11.md` states that
+  the `accepted: yes` bullet was not re-measured and why.
+
 Fixed
 - `check_decision_answer.py` rejects a condition deadline that is not on the calendar (`2026-13-45T25:61:00+09:00` used to pass the
   pattern), rejects a repeated `owner`/`deadline`/`accepted` field in one condition (a later value hid a `TBD`), and prints a note on

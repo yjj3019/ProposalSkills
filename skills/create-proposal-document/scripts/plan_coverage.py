@@ -10,6 +10,11 @@ A REQ-ID counts as answered when a line that cites it also carries at least 12 o
 table or list markup are removed. A bare mention such as `| REQ-004 | |` is reported as listed only. This measures that a plan
 addresses a requirement, not that the answer is good or true; a person still reads the chosen plan.
 
+Two behaviours that are deliberate: a line that cites several REQ-IDs credits each of them when it carries a message (a grouped row
+such as `REQ-001, REQ-002 | one integrated security design` answers both), and only the spellings REQ-001, REQ001 and REQ_1 are
+read as IDs. `req 10` and `Req.10` are not, because the same pattern reads real documents in mapping_check.py and a looser one would
+match ordinary text. A plan that writes IDs another way shows its answers as "unknown" or "listed only", never as extra coverage.
+
 Weights (optional): a JSON object {"REQ-001": 25, ...} of evaluation points per requirement. Every matrix REQ-ID must then
 have a weight. Without it every requirement weighs 1.
 

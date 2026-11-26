@@ -18,10 +18,22 @@ layout) to restyle a draft deck. The other ideas in that summary are already cov
   `colors`, `typography`, `rounded`, `spacing`, `motion`, `components`. A color may be any CSS color string; hex `#RRGGBB` is the
   recommended default. Tokens may reference each other as `{colors.primary-60}`. The spec mentions a linter but names no tool or command.
 
+## Terms of the site (read 2026-11-26: the home page and `/terms`, "Last updated: November 24, 2026")
+
+- Operator: "the VoltAgent team"; the legal entity is not named.
+- Section 5: the DESIGN.md files in the public directory are "free to browse, download, and use in your projects", provided "as is", and
+  "are not official design systems from the listed companies".
+- Section 8: brand names are used nominatively and the site is not affiliated with the companies; the files "do not reproduce third-party
+  logos, copyrighted imagery, or proprietary source code". Section 7 forbids passing a product off as a third-party brand or copying
+  their logos and wordmarks into it, and forbids reselling the paid deliverables as a standalone product.
+- The catalog lists entries named after real companies (for example Airbnb, Apple, Stripe, Notion, Vercel).
+
 ## What was not found
 
-Not on either page: who runs getdesign.md, any template names, any license or trademark terms for the templates, any license
-for the spec. A template's reuse terms are therefore **unknown**. I did not open the catalog pages or any individual template.
+- Commercial or client-work use of the **free** files is not stated; the words are "use in your projects". Client-project rights are
+  spelled out only for the paid Starter Kits.
+- No license for the Google Labs spec, and no mention of Google Labs on the site's home or terms page. How the two relate is not shown.
+- Pages not read: `/privacy`, `/affiliate/terms`, the catalog entries and any individual template.
 
 ## Fit with this repository
 
@@ -35,7 +47,9 @@ for the spec. A template's reuse terms are therefore **unknown**. I did not open
 
 ## Decision needed before any code
 
-1. Confirm the reuse terms of the template source, or restrict input to a file the user supplies.
+1. Keep to a file the user supplies and never bundle or fetch catalog templates: the free files are "use in your projects" with no
+   stated client-work right, and many are named after real brands, so a deck for a buyer must not look like another company's
+   identity (terms section 7). If catalog files are ever bundled, get the operator's written answer on client work first.
 2. If it goes ahead, keep it small: read the `colors` group of a user-supplied file, convert to the hex tokens, run the existing
    contrast check, and print what was ignored. Take no template catalog and no network access.
 3. Add a test that a non-hex color and an unknown group are reported, not silently dropped.
