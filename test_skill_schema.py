@@ -127,6 +127,13 @@ class EntrySkillBidDecisionTests(unittest.TestCase):
         section = " ".join(self.phase_a().split())
         self.assertRegex(section, r"`conditional-bid` applies only to a known, curable gap.{0,160}owner.{0,40}deadline.{0,40}acceptance")
 
+    def test_acceptance_must_come_from_the_material_not_from_the_model(self):
+        text = (SKILLS / "create-best-proposal" / "SKILL.md").read_text(encoding="utf-8")
+        start = text.index("### Bid-decision answer contract")
+        section = " ".join(text[start:text.index("## 1. Full workflow", start)].split())
+        self.assertRegex(section, r"`accepted: yes` records an acceptance that the user or the named owner stated")
+        self.assertRegex(section, r"do not write `yes`.{0,80}`intake-incomplete`.{0,80}`REQUIRED_INPUTS`")
+
     def test_decision_memo_label_is_stated_in_the_entry_file(self):
         section = " ".join(self.phase_a().split())
         self.assertRegex(section, r"`no-bid` and `intake-incomplete` end in a decision memo.{0,80}`DECISION_MEMO_ONLY`")
