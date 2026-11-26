@@ -213,6 +213,16 @@ defaults. Precedence is unchanged: RFP form → provided template → brand toke
 usable color and keeps the default hue (the notes say so). `palette_from_image.py --check slides.json` checks any palette, and
 `build_deck.py` now warns about a `meta.palette` that fails the same pairs and rejects values that are not 6-digit hex.
 
+A user may instead supply a `DESIGN.md` (Google Labs `design.md` format) as the color direction:
+
+    python scripts/palette_from_design_md.py DESIGN.md --out palette.json
+
+Only the `colors` group is read; `#RGB`/`#RRGGBB` values and `{colors.x}` references are used, and `rgb()`, `hsl()`, named colors,
+alpha hex, unmapped names and every other group are listed in `notes`, not converted or dropped silently. Role matching
+(`secondary` becomes `side_b`, `background` becomes `bg`) is this tool's own convention, not the spec's. A palette that fails the
+contrast pairs exits 1 with the failing pairs under `problems`. Use only a file the user supplies: do not fetch catalog templates,
+and do not let a deck imitate another company's brand identity (record: design-md-input-candidate-2026-11.md in the repository-level references folder).
+
 ### Content review and presenter notes
 
 Read titles/leads in order to check problem → proposal → execution → verification, duplication, logical jumps.

@@ -129,8 +129,8 @@ Submission requires closed Critical/Major/BLOCKING INPUT plus confirmed rehearsa
 - `scripts/build_deck.py` — slides.json → PPTX generator (15 layouts incl. scoreboard, triage, weights; role names for shapes).
 - `scripts/plan_coverage.py` — compares two or more slide plans against the requirement matrix (answered, listed-only, unknown IDs,
   union, what only one plan covers); pick the base plan by coverage, not taste. `scripts/palette_from_image.py` — turns a reference
-  image into contrast-safe `meta.palette` tokens and checks any palette. See `references/deck-production.md` (Planning from several
-  models; Palette from a reference image).
+  image into contrast-safe `meta.palette` tokens and checks any palette; `scripts/palette_from_design_md.py` reads only the `colors` of a
+  DESIGN.md the user supplies. See `references/deck-production.md` (Planning from several models; Palette from a reference image).
 - `references/editorial-deck-design.md` — type scale, grid, decluttering and at-a-glance patterns for decks that must look finished;
   `scripts/tidy_audit.py` measures it (font sizes, near-miss alignment, rules, density). Read it before restyling a deck.
 - `references/deck-intake-and-self-review.md` — ask up to five questions before building (with defaults), show an outline and sample

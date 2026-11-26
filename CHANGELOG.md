@@ -6,6 +6,10 @@ official-directory publication (see `references/marketplace-management.md`).
 ## Unreleased
 
 Added
+- `palette_from_design_md.py` reads the `colors` group of a DESIGN.md the user supplies (hex and `{colors.x}` references), lists every
+  non-hex color, unmapped name and ignored group, and runs the existing contrast check. It bundles no catalog template and uses no network.
+  Role names (`secondary` to `side_b`, `background` to `bg`) are this tool's convention, not the spec's. Tests: `test_deck_planning_tools.py`.
+- A holdout baseline and a T2 re-check are recorded in `references/trigger-eval-results-2026-11.md`.
 - `deck_check.py` warns when a generated title probably does not fit on one line (a title box is one line high, so a wrapped title
   collides with the lead). Estimate from character width and font size, not a render. Found by running the new `tidy_audit.py`
   geometry checks over 1268 generated titles: one distinct title warned, in the e2e fixture, which is shortened. Tests:
