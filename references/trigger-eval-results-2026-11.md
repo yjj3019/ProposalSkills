@@ -138,6 +138,14 @@ alone." (pinned by a test). Same rule as above, fixed beforehand, one check: fiv
 before reading the RFP. Counted per check: 3 of 5 before the description line and 5 of 5 after. Five against five is small and not a rate; this is the evidence, not proof. Codex and
 Grok were not run on the contract or the description line.
 
+## Not re-measured after the acceptance bullet (2026-11-26)
+
+`create-best-proposal/SKILL.md` gained one bullet in the answer contract: `accepted: yes` must record an acceptance seen in the supplied
+material, otherwise the decision is `intake-incomplete`. The five-run Claude Code check above was **not** repeated. The prompt text of
+that manual run is not kept in this repository, so a new run would use a different prompt and could not be compared with 5 of 5. The
+bullet only changes the conditional-bid path; the measured path (no bidder material, `intake-incomplete`) is unchanged. The sentence is
+pinned by `test_skill_schema.py::EntrySkillBidDecisionTests`. A future check should save its prompt next to its result.
+
 ## Reproduce
 
     python trigger_eval_run.py --yes --host all --runs 3 --max-invocations 200 --timeout 150 --report trigger-report.json

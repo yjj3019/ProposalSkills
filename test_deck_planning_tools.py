@@ -49,6 +49,16 @@ class PlanCoverageTests(unittest.TestCase):
         info = coverage.analyse_plan("REQ_1 이 요구에 대한 충분히 긴 메시지가 같은 줄에 있다\n", self.ids)
         self.assertEqual(info["answered"], {"REQ-001"})
 
+    def test_a_grouped_line_credits_each_id_and_only_the_known_spellings_count(self):
+        grouped = coverage.analyse_plan("REQ-001, REQ-002 | 통합 보안 체계를 하나의 설계로 구성한다\n", self.ids)
+        self.assertEqual(grouped["answered"], {"REQ-001", "REQ-002"})
+        for spelling in ("REQ001", "REQ_1", "req-001"):
+            info = coverage.analyse_plan(f"{spelling} 이 요구에 대한 충분히 긴 메시지가 같은 줄에 있다\n", self.ids)
+            self.assertEqual(info["answered"], {"REQ-001"}, spelling)
+        for spelling in ("req 1", "Req.1", "요구 1"):
+            info = coverage.analyse_plan(f"{spelling} 이 요구에 대한 충분히 긴 메시지가 같은 줄에 있다\n", self.ids)
+            self.assertEqual((info["answered"], info["listed_only"], info["unknown"]), (set(), set(), set()), spelling)
+
     def test_union_only_in_and_gaps(self):
         a = "REQ-001 구축 일정과 근거를 충분히 설명하는 문장\nREQ-002 이관 방식과 검증 절차를 설명하는 문장\n"
         b = "REQ-002 이관 방식과 검증 절차를 설명하는 문장\nREQ-003 보안 통제 항목과 증빙을 설명하는 문장\n"
