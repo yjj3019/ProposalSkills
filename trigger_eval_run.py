@@ -165,12 +165,15 @@ def entry_skills(skills_dir: Path, names: list[str]) -> list[str]:
     return entry or list(names)
 
 
-def expectations(cases: dict[str, dict], only: str | None = None, entry: Iterable[str] = ()) -> list[dict]:
-    """One row per prompt: the skill that must be used (or an entry skill), or None when no repository skill may be."""
+def expectations(cases: dict[str, dict], only: str | None = None, entry: Iterable[str] = (), holdout: bool = False) -> list[dict]:
+    """One row per prompt: the skill that must be used (or an entry skill), or None when no repository skill may be.
+    `holdout` selects the prompts kept out of description tuning (a skill's optional "holdout" object) instead of the main lists."""
     rows = []
     for skill, spec in cases.items():
         if only and skill != only:
             continue
+        if holdout:
+            spec = spec.get("holdout", {})
         accept = sorted({skill, *entry})
         rows += [{"owner": skill, "prompt": p, "expect": skill, "accept": accept} for p in spec.get("should_trigger", [])]
         rows += [{"owner": skill, "prompt": p, "expect": None, "accept": []} for p in spec.get("should_not_trigger", [])]
@@ -353,6 +356,8 @@ def main(argv: list[str] | None = None, launch: Launch | None = None) -> int:
     parser.add_argument("--control", choices=["none", "neutral-descriptions"], default="none",
                         help="neutral-descriptions: replace every description to separate what the description earns from browsing")
     parser.add_argument("--kind", choices=["all", "positive", "near-miss"], default="all", help="only should-trigger or only near-miss prompts")
+    parser.add_argument("--set", dest="prompt_set", choices=["dev", "holdout"], default="dev",
+                        help="dev: the prompts a description is tuned on (default); holdout: prompts kept out of tuning, to judge an edit")
     parser.add_argument("--model", help="model name passed to the CLI")
     parser.add_argument("--timeout", type=int, default=120, help="seconds allowed per run (default 120)")
     parser.add_argument("--max-calls", type=int, default=8, help="tool calls watched per run (default 8)")
@@ -367,7 +372,7 @@ def main(argv: list[str] | None = None, launch: Launch | None = None) -> int:
     launch = launch or launch_host  # looked up now so a test can replace it
     cases = load_cases(args.cases)
     names = list(cases)
-    rows = expectations(cases, args.skill, entry_skills(args.skills_dir, names))
+    rows = expectations(cases, args.skill, entry_skills(args.skills_dir, names), args.prompt_set == "holdout")
     if args.kind != "all":
         rows = [r for r in rows if bool(r["expect"]) == (args.kind == "positive")]
     hosts = list(HOSTS.values()) if args.host == "all" else [HOSTS[args.host]]

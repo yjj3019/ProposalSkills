@@ -16,6 +16,9 @@ Measured per deck
   - characters per slide
   - body fill: how much of the page body (below the title block, above the footer) the content covers; a low value is the
     "plain, half-empty slide" look
+  - geometry (advisory): shapes that run off the slide, text boxes that overlap each other, and text that probably does not
+    fit its box (an estimate from character count and font size, not a render). A small box fully inside a larger one
+    (a badge on a card) and a label over a picture are intentional and not reported
   - text-only slides: content slides with no chart, picture or diagram shapes (tables and paragraphs only), the "must be
     read, not seen" look
 
@@ -42,12 +45,102 @@ BODY_TOP, BODY_BOTTOM = 0.253, 0.927     # fractions of the slide height: below 
 DIAGRAM_SHAPES = 4                       # this many non-rule shapes make a slide a diagram, not a text page
 NEAR_LO, NEAR_HI = 0.012, 0.12          # inches: a gap in this band reads as a mistake, not a choice
 THIN = 0.05                              # inches: thinner than this counts as a rule
+OFF_SLIDE = 0.02                         # inches a shape may poke past the slide edge before it is reported
+OVERLAP_SHARE = 0.2                      # overlap, as a share of the smaller text box, that is reported
+INSIDE_SHARE = 0.5                       # a box this much smaller than the one containing it is an overlay, not a collision
+FIT_SLACK = 1.3                          # estimated text height may exceed the box by this factor before it is reported
+FIT_MIN_EXCESS = 0.1                     # ...and by at least this many inches
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 
 
 def _near(values: list[float]) -> int:
     unique = sorted(set(values))
     return sum(1 for a, b in zip(unique, unique[1:]) if NEAR_LO < b - a < NEAR_HI)
+
+
+def _em_width(text: str) -> float:
+    """Width of a line in em: 1.0 for East Asian characters, 0.5 for the rest. A rough estimate, not font metrics."""
+    return sum(1.0 if ord(ch) >= 0x2E80 else 0.5 for ch in text)
+
+
+def estimated_height_in(frame, width_in: float) -> float | None:
+    """Estimated height in inches of the text in `frame` when wrapped to `width_in`; None when a size is not explicit."""
+    import math as _math
+    total = 0.0
+    for paragraph in frame.paragraphs:
+        sizes = [r.font.size.pt for r in paragraph.runs if r.text.strip() and r.font.size is not None]
+        if any(r.text.strip() and r.font.size is None for r in paragraph.runs):
+            return None
+        size = max(sizes, default=0.0)
+        if not size:
+            continue
+        line_in = _em_width("".join(r.text for r in paragraph.runs)) * size / 72
+        total += max(1, _math.ceil(line_in / max(width_in, 0.1))) * size * 1.2 / 72
+    return total
+
+
+def _text_extent(shape, frame, rect: tuple) -> tuple:
+    """The part of a text box its text probably covers (left, top, right, bottom in inches). A box is often wider than its
+    text, so two boxes overlapping is only a collision when the text itself would. Without explicit sizes, the whole box."""
+    left, top, right, bottom = rect
+    inner = (right - left) - ((frame.margin_left or 0) + (frame.margin_right or 0)) / EMU
+    widest = 0.0
+    for paragraph in frame.paragraphs:
+        sizes = [r.font.size.pt for r in paragraph.runs if r.text.strip() and r.font.size is not None]
+        if any(r.text.strip() and r.font.size is None for r in paragraph.runs):
+            return rect
+        if sizes:
+            widest = max(widest, min(inner, _em_width("".join(r.text for r in paragraph.runs)) * max(sizes) / 72))
+    need = estimated_height_in(frame, inner)
+    if not widest or need is None:
+        return rect
+    width = widest + ((frame.margin_left or 0) + (frame.margin_right or 0)) / EMU
+    align = frame.paragraphs[0].alignment
+    if align == 2:      # centered
+        left = left + ((right - left) - width) / 2
+    elif align == 3:    # right
+        left = right - width
+    return (left, top, left + width, top + min(bottom - top, need + ((frame.margin_top or 0) + (frame.margin_bottom or 0)) / EMU))
+
+
+def _geometry(slide, slide_w: int, slide_h: int) -> dict:
+    """Off-slide shapes, overlapping text boxes and boxes the text probably overflows, for one slide."""
+    from pptx.enum.text import MSO_AUTO_SIZE
+    off, boxes, overflow = [], [], []
+    tol = OFF_SLIDE * EMU
+    for shape in slide.shapes:
+        if shape.left is None or shape.width is None:
+            continue
+        background = shape.width >= 0.95 * slide_w and shape.height >= 0.9 * slide_h
+        if not background and (shape.left < -tol or shape.top < -tol or shape.left + shape.width > slide_w + tol
+                               or shape.top + shape.height > slide_h + tol):
+            off.append(shape.name)
+        if background or not shape.has_text_frame or not shape.text_frame.text.strip():
+            continue
+        rect = (shape.left / EMU, shape.top / EMU, (shape.left + shape.width) / EMU, (shape.top + shape.height) / EMU)
+        frame = shape.text_frame
+        boxes.append((shape.name, _text_extent(shape, frame, rect)))
+        if frame.auto_size == MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE or frame.word_wrap is False:
+            continue
+        width = (shape.width - (frame.margin_left or 0) - (frame.margin_right or 0)) / EMU
+        height = shape.height / EMU    # insets are ignored on purpose: text that only eats the inset is not visibly cut
+        need = estimated_height_in(frame, width)
+        if need is not None and height > 0 and need > height * FIT_SLACK and need - height > FIT_MIN_EXCESS:
+            overflow.append(shape.name)
+    overlaps = []
+    for i, (name_a, a) in enumerate(boxes):
+        for name_b, b in boxes[i + 1:]:
+            w, h = min(a[2], b[2]) - max(a[0], b[0]), min(a[3], b[3]) - max(a[1], b[1])
+            if w <= 0 or h <= 0:
+                continue
+            area_a, area_b = (a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1])
+            small, large = min(area_a, area_b), max(area_a, area_b)
+            if small <= 0 or w * h / small <= OVERLAP_SHARE:
+                continue
+            if w * h >= 0.95 * small and small <= INSIDE_SHARE * large:
+                continue
+            overlaps.append(f"{name_a} / {name_b}")
+    return {"off_slide": off, "overlaps": overlaps, "overflow": overflow}
 
 
 def _runs(text_frame):
@@ -107,7 +200,8 @@ def measure(path: Path) -> dict:
             if bottom > top:
                 covered += max(0, bottom - max(top, edge))
                 edge = max(edge, bottom)
-        slides.append({"slide": number, "chars": chars, "near_x": _near(xs), "near_y": _near(ys),
+        geometry = _geometry(slide, slide_w, slide_h)
+        slides.append({"slide": number, "chars": chars, **geometry, "near_x": _near(xs), "near_y": _near(ys),
                        "rules": rules, "shapes": shapes,
                        "fill": round(covered / (band_bottom - band_top), 2) if band_bottom > band_top else 1.0,
                        "visual": bool(picture_or_chart or graphics >= DIAGRAM_SHAPES)})
@@ -145,6 +239,12 @@ def warnings(report: dict, max_sizes: int, max_near: int, max_rules: int, max_ch
     for s in report["slides"]:
         if s["rules"] > max_rules:
             out.append(f"slide {s['slide']}: {s['rules']} thin rules (limit {max_rules}); separate with space instead")
+        if s["off_slide"]:
+            out.append(f"slide {s['slide']}: shape(s) run off the slide: {', '.join(s['off_slide'])}")
+        if s["overlaps"]:
+            out.append(f"slide {s['slide']}: text boxes overlap: {'; '.join(s['overlaps'])}")
+        if s["overflow"]:
+            out.append(f"slide {s['slide']}: text probably does not fit (estimate, not a render): {', '.join(s['overflow'])}")
         if s["chars"] > max_chars:
             out.append(f"slide {s['slide']}: {s['chars']} characters (limit {max_chars}); split or cut")
     if report["runs_without_size"]:
