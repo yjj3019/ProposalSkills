@@ -173,6 +173,23 @@ This covers the path the acceptance bullet leaves unchanged (no bidder material)
 **T2, Codex** (`codex exec`, read-only sandbox, `.agents/skills`, 240 s limit, 3 runs): one run answered and passed the checker; two ended at the limit
 with no final answer, so there is nothing to grade. Inconclusive. **Grok** was not run: its persistent memory holds notes from earlier T2 runs, so a run would not be independent, and clearing it was not done.
 
+**T2, Codex, rerun** (`--timeout 600`, 3 runs): runs 1 and 2 passed the checker; run 3 had no answer because Codex's sandbox helper failed ("Failed to create unified exec process"), an infrastructure error, not a contract result. Across both sets: 3 graded runs, all passed; 3 runs produced no answer (2 timeouts, 1 sandbox failure). That is 3 of 3 where graded, not 3 of 6.
+
+## Second holdout, and a description edit that was tried and reverted (2026-11-27)
+
+The five holdout prompts above had been read and discussed, so they were moved into the dev lists in `trigger-eval-cases.json` (except "We received this tender notice. Should we respond to it?", which the dev lint rejects because the description has no matching route term; it is listed under `known_misses` in the cases file, which the lint and the runner skip, so the gap stays visible), and five new
+holdout prompts were written before any further edit. Same CLIs and versions, 3 runs per prompt, `--timeout 300`.
+
+| Description | Claude Code | Codex |
+|---|---|---|
+| Unchanged | 4 of 5 prompts pass; "Verify that every mandatory requirement in this RFP is covered by our submission": 0 of 3 | 5 of 5 pass (one prompt at 2 of 3) |
+| Edited: added "tender" and "requirement-coverage check" to the route list | 4 of 5; the same prompt still 0 of 3 | 4 of 5; "Get our bid package ready to submit next week" 1 of 3, 2 runs timed out |
+
+The edit did not fix the targeted miss and did not improve either CLI; the Codex drop comes with two timeouts, so it is mostly noise, but there is
+no gain to weigh against it. **The edit was reverted; the description is unchanged.** The miss (a plain request, no skill named, phrased as
+verifying coverage of an RFP) remains open, along with the first one. Grok was not run on the new set. Three runs per prompt is evidence, not a rate.
+The holdout used here is spent in the same way as the first: its prompts are now in the dev lists, and a third holdout (3 should-trigger, 2 near-miss, written without running them) replaces it. That third set has not been measured, so there is no baseline for it yet. The RFP-coverage prompt still misses and is now a dev prompt, so a future edit can be tuned on it.
+
 ## Reproduce
 
     python trigger_eval_run.py --yes --host all --runs 3 --max-invocations 200 --timeout 150 --report trigger-report.json

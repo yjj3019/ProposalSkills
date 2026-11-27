@@ -291,6 +291,13 @@ class PlanTests(unittest.TestCase):
         self.assertFalse(dev & {r["prompt"] for r in held}, "a prompt must not be in both sets")
         self.assertTrue(any(r["expect"] for r in held) and any(not r["expect"] for r in held))
 
+    def test_known_misses_are_recorded_but_not_run_in_either_set(self):
+        cases = ter.load_cases()
+        misses = set(cases["create-best-proposal"]["known_misses"])
+        self.assertTrue(misses)
+        run = {r["prompt"] for r in ter.expectations(cases)} | {r["prompt"] for r in ter.expectations(cases, holdout=True)}
+        self.assertFalse(misses & run)
+
     def test_the_entry_skill_is_the_one_a_model_may_start_by_itself(self):
         self.assertEqual(ter.entry_skills(ROOT / "skills", NAMES), ["create-best-proposal"])
         self.assertEqual(ter.entry_skills(ROOT / "no-such-dir", NAMES), NAMES)
@@ -299,7 +306,7 @@ class PlanTests(unittest.TestCase):
         def forbidden(*_a):
             raise AssertionError("the model must not be called without --yes")
         for host in ("claude", "all"):
-            code, text = self.main("--host", host, "--max-invocations", "200", launch=forbidden)
+            code, text = self.main("--host", host, "--max-invocations", "500", launch=forbidden)
             self.assertEqual(code, 3, text)
             self.assertIn("nothing was sent", text)
             self.assertIn("TRIGGER-EVAL: PLAN", text)
