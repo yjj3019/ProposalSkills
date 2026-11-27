@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT / "skills/create-proposal-document/scripts"))
 import build_deck  # noqa: E402
+import palette_from_design_md as design_md  # noqa: E402
 import palette_from_image as palette  # noqa: E402
 import plan_coverage as coverage  # noqa: E402
 
@@ -214,6 +215,80 @@ class BuildDeckPaletteTests(unittest.TestCase):
     def test_without_a_palette_nothing_changes(self):
         deck = build_deck.DeckBuilder({"meta": {}, "slides": []}, None, False)
         self.assertFalse([w for w in deck.warnings if "meta.palette" in w])
+
+
+class DesignMdPaletteTests(unittest.TestCase):
+    """A user-supplied DESIGN.md: only `colors` is read, and everything not used is reported, not dropped."""
+
+    SAMPLE = """---
+name: Sample
+colors:
+  primary: "#1A3C6E"
+  secondary: '#2E7D32'   # accent
+  text: "#111111"
+  background: "#FFFFFF"
+  accent-soft: "{colors.primary}"
+  brand-glow: "rgb(10, 20, 30)"
+  hsl-one: "hsl(210 50% 40%)"
+  named: "rebeccapurple"
+  alpha: "#11223344"
+  loose: "#fff"
+  mystery: "#123456"
+  broken-ref: "{colors.nowhere}"
+typography:
+  body: Inter
+spacing:
+  gap: 8px
+---
+# Body text is not read
+"""
+
+    def test_hex_and_references_become_tokens_and_the_rest_is_reported(self):
+        tokens, notes = design_md.convert(self.SAMPLE)
+        self.assertEqual(tokens["primary"], "1A3C6E")
+        self.assertEqual(tokens["side_b"], "2E7D32", "secondary is this tool's alias for side_b")
+        self.assertEqual(tokens["bg"], "FFFFFF")
+        text = "\n".join(notes)
+        for expected in ("brand-glow", "hsl-one", "named", "alpha", "broken-ref"):
+            self.assertIn(f"colors.{expected}", text)
+        self.assertIn("colors.mystery: no matching deck role", text)
+        self.assertIn("ignored group `typography`", text)
+        self.assertIn("ignored group `spacing`", text)
+        self.assertNotIn("brand-glow", tokens)
+
+    def test_three_digit_hex_is_expanded_and_a_reference_cycle_is_ignored(self):
+        self.assertEqual(design_md.to_hex6("#abc"), "AABBCC")
+        self.assertIsNone(design_md.to_hex6("#abcd"))
+        cycle = '---\ncolors:\n  primary: "{colors.text}"\n  text: "{colors.primary}"\n---\n'
+        tokens, notes = design_md.convert(cycle)
+        self.assertEqual(tokens, {})
+        self.assertEqual(len([n for n in notes if "could not be resolved" in n]), 2)
+
+    def test_a_file_without_front_matter_or_colors_says_so(self):
+        with self.assertRaises(ValueError):
+            design_md.convert("# just a heading\n")
+        tokens, notes = design_md.convert("---\ntypography:\n  body: Inter\n---\n")
+        self.assertEqual(tokens, {})
+        self.assertTrue(any("no `colors` group" in n for n in notes))
+
+    def run_cli(self, content, *extra):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "DESIGN.md"
+            path.write_text(content, encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                code = design_md.main([str(path), *extra])
+            return code, out.getvalue(), err.getvalue()
+
+    def test_cli_reports_a_failing_contrast_pair_and_a_bad_file(self):
+        code, out, _ = self.run_cli('---\ncolors:\n  primary: "#FFFF99"\n---\n')
+        self.assertEqual(code, 1)
+        self.assertTrue(json.loads(out)["problems"])
+        code, out, _ = self.run_cli(self.SAMPLE)
+        self.assertEqual((code, json.loads(out)["problems"]), (0, []))
+        code, _, err = self.run_cli("no front matter")
+        self.assertEqual(code, 2)
+        self.assertIn("Cannot read input", err)
 
 
 if __name__ == "__main__":

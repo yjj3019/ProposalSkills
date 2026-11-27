@@ -138,13 +138,40 @@ alone." (pinned by a test). Same rule as above, fixed beforehand, one check: fiv
 before reading the RFP. Counted per check: 3 of 5 before the description line and 5 of 5 after. Five against five is small and not a rate; this is the evidence, not proof. Codex and
 Grok were not run on the contract or the description line.
 
-## Not re-measured after the acceptance bullet (2026-11-26)
+## Not re-measured after the acceptance bullet (2026-11-26; see the 2026-11-27 section below for a later check)
 
 `create-best-proposal/SKILL.md` gained one bullet in the answer contract: `accepted: yes` must record an acceptance seen in the supplied
 material, otherwise the decision is `intake-incomplete`. The five-run Claude Code check above was **not** repeated. The prompt text of
 that manual run is not kept in this repository, so a new run would use a different prompt and could not be compared with 5 of 5. The
 bullet only changes the conditional-bid path; the measured path (no bidder material, `intake-incomplete`) is unchanged. The sentence is
 pinned by `test_skill_schema.py::EntrySkillBidDecisionTests`. A future check should save its prompt next to its result.
+
+## Holdout baseline and the acceptance bullet re-checked (2026-11-27)
+
+Claude Code 2.1.332, Codex CLI 0.172.0, Grok Build 1.0.92; the skills at `main` after PR #78 (`proposal-skills` as then released).
+
+**Holdout baseline.** `trigger_eval_run.py --set holdout --runs 3` (5 prompts, 45 model calls, `--timeout 150`). These prompts were written
+after the description was last edited and were not used to tune it. Pass rules as in the first measurement.
+
+| CLI | should-trigger passed | near-miss passed | notes |
+|---|---|---|---|
+| Claude Code | 2 of 3 | 2 of 2 | "Check that our response answers every requirement in the RFP": skill in 0 of 3 runs |
+| Codex | 2 of 3 | 2 of 2 | "We received this tender notice. Should we respond to it?": 0 of 3, all three runs timed out; the RFP-check prompt 2 of 3 |
+| Grok Build | 3 of 3 | 2 of 2 | 5 of the 6 near-miss runs timed out; counted as no skill. Grok opens skill files in a neutral-description control too, so this is not evidence for the wording |
+
+The two misses are plain requests that name no skill and no file, like the two Claude misses in the first measurement. They are a candidate
+for a wording change and are **not acted on here**: editing the description until these pass would turn the holdout into tuning data.
+If the description is changed, write new holdout prompts first. Three runs per prompt; this is a baseline, not a rate.
+
+**T2 on the current entry file, Claude Code.** Rule fixed before the run: five headless runs, graded by `check_decision_answer.py
+--bidder-material absent`, accept at 4 of 5. Prompt: T2 in [manual-eval-prompts.md](manual-eval-prompts.md) without its record tail (the answer is read
+from stdout). Setup as before: workspace with `.claude/skills`, `rfp.md`, `--setting-sources project`, `--allowedTools Read,Glob,Grep,Skill`.
+A first set of five was discarded: the script's copy of `rfp.md` used a wrong path, so the file may not have been in the workspace (not
+verified; all five answered `intake-incomplete`). Second set, with `rfp.md` confirmed present: **5 of 5 passed** (one answer was wrapped in a code fence, which the checker tolerates).
+This covers the path the acceptance bullet leaves unchanged (no bidder material); it does not exercise the bullet itself, which only applies to a conditional bid.
+
+**T2, Codex** (`codex exec`, read-only sandbox, `.agents/skills`, 240 s limit, 3 runs): one run answered and passed the checker; two ended at the limit
+with no final answer, so there is nothing to grade. Inconclusive. **Grok** was not run: its persistent memory holds notes from earlier T2 runs, so a run would not be independent, and clearing it was not done.
 
 ## Reproduce
 

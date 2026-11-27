@@ -1,7 +1,8 @@
 # Candidate: DESIGN.md as a deck design input (2026-11-26)
 
-Status: **not adopted; recorded for a later decision.** Nothing in this repository reads a `DESIGN.md` today. This is a
-development record, not legal advice.
+Status: **adopted in the small form below (2026-11-27)**: `palette_from_design_md.py` reads the `colors` of a file the user supplies,
+reports everything it did not use, and checks contrast. No catalog templates are bundled or fetched and nothing uses the network.
+The site terms below were not re-read for this change. This is a development record, not legal advice.
 
 ## Why it came up
 
