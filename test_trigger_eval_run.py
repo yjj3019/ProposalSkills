@@ -242,6 +242,10 @@ def reading_events(host_name, skill):
     return {"claude": [claude_call("Skill", skill=skill)], "codex": [codex_read(skill)], "grok": [grok_read(skill)]}[host_name]
 
 
+def dev_positives(spec):
+    return spec["should_trigger"] + spec.get("semantic_should_trigger", [])
+
+
 class PlanTests(unittest.TestCase):
     def setUp(self):
         # No test in this class may start a real CLI: that would spend model calls. A bug here fails loudly instead.
@@ -276,7 +280,7 @@ class PlanTests(unittest.TestCase):
     def test_the_cases_become_one_row_per_prompt(self):
         cases = ter.load_cases()
         rows = ter.expectations(cases, entry=["create-best-proposal"])
-        self.assertEqual(len(rows), sum(len(v["should_trigger"]) + len(v["should_not_trigger"]) for v in cases.values()))
+        self.assertEqual(len(rows), sum(len(dev_positives(v)) + len(v["should_not_trigger"]) for v in cases.values()))
         self.assertEqual({r["expect"] for r in rows if r["expect"]}, set(cases))
         sibling = next(r for r in rows if r["expect"] == "create-winning-proposal")
         self.assertEqual(sibling["accept"], ["create-best-proposal", "create-winning-proposal"])
@@ -291,12 +295,12 @@ class PlanTests(unittest.TestCase):
         self.assertFalse(dev & {r["prompt"] for r in held}, "a prompt must not be in both sets")
         self.assertTrue(any(r["expect"] for r in held) and any(not r["expect"] for r in held))
 
-    def test_known_misses_are_recorded_but_not_run_in_either_set(self):
+    def test_semantic_prompts_run_with_the_dev_set_and_never_in_the_holdout(self):
         cases = ter.load_cases()
-        misses = set(cases["create-best-proposal"]["known_misses"])
-        self.assertTrue(misses)
-        run = {r["prompt"] for r in ter.expectations(cases)} | {r["prompt"] for r in ter.expectations(cases, holdout=True)}
-        self.assertFalse(misses & run)
+        semantic = set(cases["create-best-proposal"]["semantic_should_trigger"])
+        self.assertTrue(semantic)
+        self.assertTrue(semantic <= {r["prompt"] for r in ter.expectations(cases)})
+        self.assertFalse(semantic & {r["prompt"] for r in ter.expectations(cases, holdout=True)})
 
     def test_the_entry_skill_is_the_one_a_model_may_start_by_itself(self):
         self.assertEqual(ter.entry_skills(ROOT / "skills", NAMES), ["create-best-proposal"])
@@ -323,7 +327,7 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("not on PATH", text)
 
-        should = {p: s for s, spec in ter.load_cases().items() for p in spec["should_trigger"]}
+        should = {p: s for s, spec in ter.load_cases().items() for p in dev_positives(spec)}
 
         def correct(host, prompt, model, workspace, timeout):
             return iter(reading_events(host.name, should[prompt]) if prompt in should else [{"type": "result"}])
@@ -337,7 +341,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn("TRIGGER-EVAL: NOT VERIFIED", text)
 
     def test_every_run_gets_a_workspace_and_only_a_should_trigger_prompt_gets_the_rfp(self):
-        positives = {p for spec in ter.load_cases().values() for p in spec["should_trigger"]}
+        positives = {p for spec in ter.load_cases().values() for p in dev_positives(spec)}
         seen = []
 
         def spy(host, prompt, model, workspace, timeout):
@@ -351,7 +355,7 @@ class PlanTests(unittest.TestCase):
         self.assertTrue(all(rfp == positive for _, positive, _, rfp in seen), "the RFP is for should-trigger prompts only")
 
     def test_kind_selects_only_the_positives_or_only_the_near_misses(self):
-        positives = {p for spec in ter.load_cases().values() for p in spec["should_trigger"]}
+        positives = {p for spec in ter.load_cases().values() for p in dev_positives(spec)}
         for kind, expected in (("positive", True), ("near-miss", False)):
             prompts = []
 
@@ -364,7 +368,7 @@ class PlanTests(unittest.TestCase):
 
     def test_a_correct_model_on_every_host_passes_and_writes_the_report(self):
         cases = ter.load_cases()
-        should = {p: s for s, spec in cases.items() for p in spec["should_trigger"]}
+        should = {p: s for s, spec in cases.items() for p in dev_positives(spec)}
 
         def fake(host, prompt, model, workspace, timeout):
             return iter(reading_events(host.name, should[prompt]) if prompt in should else [{"type": "result"}])

@@ -175,7 +175,9 @@ def expectations(cases: dict[str, dict], only: str | None = None, entry: Iterabl
         if holdout:
             spec = spec.get("holdout", {})
         accept = sorted({skill, *entry})
-        rows += [{"owner": skill, "prompt": p, "expect": skill, "accept": accept} for p in spec.get("should_trigger", [])]
+        # "semantic_should_trigger": dev prompts without a route term, so the term lint skips them but a model run does not
+        should = spec.get("should_trigger", []) + ([] if holdout else spec.get("semantic_should_trigger", []))
+        rows += [{"owner": skill, "prompt": p, "expect": skill, "accept": accept} for p in should]
         rows += [{"owner": skill, "prompt": p, "expect": None, "accept": []} for p in spec.get("should_not_trigger", [])]
     return rows
 
