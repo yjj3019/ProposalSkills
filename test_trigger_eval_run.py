@@ -299,7 +299,7 @@ class PlanTests(unittest.TestCase):
         def forbidden(*_a):
             raise AssertionError("the model must not be called without --yes")
         for host in ("claude", "all"):
-            code, text = self.main("--host", host, "--max-invocations", "200", launch=forbidden)
+            code, text = self.main("--host", host, "--max-invocations", "500", launch=forbidden)
             self.assertEqual(code, 3, text)
             self.assertIn("nothing was sent", text)
             self.assertIn("TRIGGER-EVAL: PLAN", text)

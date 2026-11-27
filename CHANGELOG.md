@@ -6,6 +6,7 @@ official-directory publication (see `references/marketplace-management.md`).
 ## Unreleased
 
 Added
+- Trigger evaluation: the first holdout prompts moved into the dev lists and a new holdout written; a description edit ("tender", "requirement-coverage check") was measured on it, did not help, and was reverted. Codex T2 rerun recorded. See `references/trigger-eval-results-2026-11.md`.
 - `palette_from_design_md.py` reads the `colors` group of a DESIGN.md the user supplies (hex and `{colors.x}` references), lists every
   non-hex color, unmapped name and ignored group, and runs the existing contrast check. It bundles no catalog template and uses no network.
   Role names (`secondary` to `side_b`, `background` to `bg`) are this tool's convention, not the spec's. Tests: `test_deck_planning_tools.py`.

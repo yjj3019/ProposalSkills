@@ -8,23 +8,27 @@
       "Build the compliance matrix for the tender",
       "Review my proposal before submission",
       "Run the submission gate on this deck",
-      "Draft the technical-response section for the maintenance bid"
+      "Draft the technical-response section for the maintenance bid",
+      "Check that our response answers every requirement in the RFP",
+      "Prepare the pre-submission checklist for our bid"
     ],
     "should_not_trigger": [
       "Fix the null pointer in my parser",
       "Summarize this meeting transcript",
       "Translate this blog post into English",
-      "Design a logo for my bakery"
+      "Design a logo for my bakery",
+      "Write unit tests for my date parser",
+      "Plan a quarterly marketing calendar"
     ],
     "holdout": {
       "should_trigger": [
-        "We received this tender notice. Should we respond to it?",
-        "Check that our response answers every requirement in the RFP",
-        "Prepare the pre-submission checklist for our bid"
+        "A government agency posted a tender. Is it worth responding to?",
+        "Verify that every mandatory requirement in this RFP is covered by our submission",
+        "Get our bid package ready to submit next week"
       ],
       "should_not_trigger": [
-        "Write unit tests for my date parser",
-        "Plan a quarterly marketing calendar"
+        "Write a README for my open-source library",
+        "Draft an agenda for a customer workshop"
       ]
     }
   },
