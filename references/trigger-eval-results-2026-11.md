@@ -177,7 +177,7 @@ with no final answer, so there is nothing to grade. Inconclusive. **Grok** was n
 
 ## Second holdout, and a description edit that was tried and reverted (2026-11-27)
 
-The five holdout prompts above had been read and discussed, so they were moved into the dev lists in `trigger-eval-cases.json` (except "We received this tender notice. Should we respond to it?", which the dev lint rejects because the description has no matching route term; it is retired, not kept as a holdout), and five new
+The five holdout prompts above had been read and discussed, so they were moved into the dev lists in `trigger-eval-cases.json` (except "We received this tender notice. Should we respond to it?", which the dev lint rejects because the description has no matching route term; it is listed under `known_misses` in the cases file, which the lint and the runner skip, so the gap stays visible), and five new
 holdout prompts were written before any further edit. Same CLIs and versions, 3 runs per prompt, `--timeout 300`.
 
 | Description | Claude Code | Codex |
@@ -188,7 +188,7 @@ holdout prompts were written before any further edit. Same CLIs and versions, 3 
 The edit did not fix the targeted miss and did not improve either CLI; the Codex drop comes with two timeouts, so it is mostly noise, but there is
 no gain to weigh against it. **The edit was reverted; the description is unchanged.** The miss (a plain request, no skill named, phrased as
 verifying coverage of an RFP) remains open, along with the first one. Grok was not run on the new set. Three runs per prompt is evidence, not a rate.
-The holdout used here is now spent in the same way as the first: new prompts are needed before the next edit.
+The holdout used here is spent in the same way as the first: its prompts are now in the dev lists, and a third holdout (3 should-trigger, 2 near-miss, written without running them) replaces it. That third set has not been measured, so there is no baseline for it yet. The RFP-coverage prompt still misses and is now a dev prompt, so a future edit can be tuned on it.
 
 ## Reproduce
 
