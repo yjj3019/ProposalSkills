@@ -7,8 +7,9 @@ official-directory publication (see `references/marketplace-management.md`).
 
 Changed
 - `create-best-proposal` description: the route sentence now includes "checking that a response answers every requirement the buyer or client set".
-  Claude Code missed plain requests of that kind in three holdouts in a row; on a fourth, unseen holdout the prompt went from 0 of 3 to 3 of 3, and no
-  near-miss prompt triggered the skill. One dev prompt still misses (1 of 3). See `references/trigger-eval-results-2026-11.md`.
+  Full dev runs before and after the edit show no measurable effect (Claude Code 29 of 31 and 30 of 31 prompts, mean use rate 0.91 both; Codex 27 and
+  26 of 31, dominated by timeouts); no near-miss prompt triggered the skill. An earlier note here said the edit fixed the miss; that rested on one
+  prompt at three runs and is withdrawn. See `references/trigger-eval-results-2026-11.md`.
 
 Added
 - `trigger-eval-cases.json` `semantic_should_trigger`: dev should-trigger prompts without a route term; the routing lint skips them and `trigger_eval_run.py` runs them with the dev set (never in the holdout). Test: `test_trigger_eval_run.py`.

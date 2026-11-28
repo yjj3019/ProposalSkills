@@ -190,32 +190,44 @@ no gain to weigh against it. **The edit was reverted; the description is unchang
 verifying coverage of an RFP) remains open, along with the first one. Grok was not run on the new set. Three runs per prompt is evidence, not a rate.
 The holdout used here is spent in the same way as the first: its prompts are now in the dev lists, and a third holdout (3 should-trigger, 2 near-miss, written without running them) replaces it. That third set has not been measured, so there is no baseline for it yet. The RFP-coverage prompt still misses and is now a dev prompt, so a future edit can be tuned on it.
 
-## Third and fourth holdout, and a description edit that helped (2026-11-28)
+## Third and fourth holdout, and a description edit with no measured effect (2026-11-28)
 
 **Third holdout** (written without running, baseline on the unchanged description): Claude Code 4 of 5 prompts, Codex 5 of 5. The Claude miss was
 "Make sure nothing in the buyer's requirements list is left unanswered in our response" (0 of 3). It is the third holdout in a row in which Claude
-missed a plain request to check that a response covers every requirement (0 of 3 each time, in different wording), so it is a gap in the description,
-not noise. That set was then spent: its prompts moved to the dev lists under `semantic_should_trigger` (dev prompts that carry no route term, so the
+missed a plain request to check that a response covers every requirement (0 of 3 each time, in different wording). This was read as a gap in the
+description; the full dev runs below do not support that reading. That set was then spent: its prompts moved to the dev lists under `semantic_should_trigger` (dev prompts that carry no route term, so the
 routing lint skips them and the runner runs them). The two tender prompts that were `known_misses` moved there too, so they are now measured.
 
 **Fourth holdout** (new, written before any edit): baseline on the unchanged description, Claude Code 4 of 5 ("Before we submit, double-check that
 our answer covers each item the client asked for": 0 of 3), Codex 5 of 5.
 
 **The edit.** Added to the route sentence of `create-best-proposal`: "including checking that a response answers every requirement the buyer or client
-set". An earlier edit that only added the terms "tender" and "requirement-coverage check" had not helped; this one describes the user's action in plain words.
+set". An earlier edit that only added the terms "tender" and "requirement-coverage check" had no measured effect; this one describes the user's action in plain words.
 
 | | Before | After |
 |---|---|---|
 | Fourth holdout, Claude Code | 4 of 5 (the coverage prompt 0 of 3) | **5 of 5** (the coverage prompt 3 of 3) |
 | Fourth holdout, Codex | 5 of 5 | 5 of 5 |
-| Dev set, Claude Code (31 prompts, 3 runs each) | not run on the full set | 30 of 31 prompts pass; all 14 near-miss prompts used no skill |
+| Dev set, Claude Code (31 prompts, 3 runs each) | 29 of 31 prompts pass, mean use rate 0.91 | 30 of 31 prompts pass, mean use rate 0.91 |
+| Dev set, Codex (31 prompts, 3 runs each) | 27 of 31, mean use rate 0.77, 29 of 93 runs timed out | 26 of 31, mean use rate 0.74, 21 of 93 runs timed out |
 
-The one dev miss is "Verify that every mandatory requirement in this RFP is covered by our submission": 1 of 3 after the edit, 0 of 3 before it (from the
-second holdout, with the unedited description and with the first edit). It improved and still fails. Two of the prompts it was judged on are close in
-meaning to the dev prompts the wording was written against, so the holdout result shows the fix for this kind of request, not a general guarantee.
+**Correction.** This section first reported that the edit helped, on the strength of the fourth-holdout row alone. The full dev set was then run on
+the description as it was before the edit (the skills at `caa7c0f`) and after it, and the two do not differ:
 
-Not done: Codex and Grok were not run on the full dev set, and no full dev run exists for the description before this edit, so "no regression" is
-measured only for Claude Code and only on the near-miss prompts. Three runs per prompt. The fourth holdout is now spent as well.
+- Claude Code: 29 of 31 before, 30 of 31 after, mean use rate 0.91 both times. All 14 near-miss prompts used no skill in both runs. The one prompt
+  that changed verdict is "Review my proposal before submission" (1 of 3 before, 2 of 3 after), which the edit does not address.
+- "Verify that every mandatory requirement in this RFP is covered by our submission" fails at 1 of 3 before and 1 of 3 after. It had been 0 of 3 on the
+  second holdout with the same unedited description.
+- "Make sure nothing in the buyer's requirements list is left unanswered in our response" was 0 of 3 on the third-holdout baseline and 3 of 3 in the
+  dev run, both on the unedited description. The same prompt and the same description gave both extremes, so a 0 of 3 to 3 of 3 change on one prompt,
+  which is all the fourth-holdout row shows, is within run-to-run variation.
+- Codex: 27 of 31 before, 26 of 31 after. Every failing prompt in both runs had one to three timed-out runs (300 s), and a timed-out run counts as
+  "skill not used", so the Codex verdicts mostly measure timeouts, not the description.
+
+What the evidence supports: the edit did not make near-miss prompts trigger the skill, and it has no measured effect on the prompts it was meant to
+fix. Whether it helps is unknown at three runs per prompt. The edit stays in place because nothing shows harm; it should not be cited as a fix. Before
+any further description edit: more runs per prompt, timed-out runs reported as unmeasured, not as misses, before and after measured in the same
+session, and a new holdout (the fourth is spent). Grok was not run.
 
 ## Reproduce
 
