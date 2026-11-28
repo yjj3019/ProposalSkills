@@ -1,0 +1,22 @@
+# The trust set: these files decide what a verdict means, what CI runs, and what gets installed. A change to any
+# of them is a change to the checker itself, so it needs the owner's own reading.
+# This file only requests a review. Enforcement is a server setting ("Require review from Code Owners" in the
+# branch ruleset), and GitHub does not count the author's own review, so a single owner cannot satisfy it alone.
+/.github/ @yjj3019
+/run_repo_tests.py @yjj3019
+/merge_guard.py @yjj3019
+/hook_guard_bash.py @yjj3019
+/gate_mutation_probe.py @yjj3019
+/skill_audit.py @yjj3019
+/install_skill.py @yjj3019
+/package_plugin.py @yjj3019
+/test_repo_hygiene.py @yjj3019
+/test_license_hygiene.py @yjj3019
+/references/defect-guards.json @yjj3019
+/references/trigger-eval-cases.json @yjj3019
+/skills/create-best-proposal/scripts/unified_gate.py @yjj3019
+/skills/create-best-proposal/scripts/sensitive_scan.py @yjj3019
+/skills/create-winning-proposal/scripts/proposal_gate.py @yjj3019
+/skills/create-proposal-document/scripts/quality_gate.py @yjj3019
+/skills/create-proposal-document/scripts/deck_check.py @yjj3019
+/skills/create-proposal-document/scripts/check_numbers.py @yjj3019

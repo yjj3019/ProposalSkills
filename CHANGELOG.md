@@ -6,11 +6,32 @@ official-directory publication (see `references/marketplace-management.md`).
 ## Unreleased
 
 Changed
+- `trigger_eval_run.py`: a timed-out run of a should-trigger prompt is unmeasured, not a miss. The verdict is given only when the
+  unmeasured runs cannot change it (two uses and a timeout pass; one use and two timeouts are NOT VERIFIED). `rate` is now the share
+  of finished runs, and each row records `uses`. Reports written earlier are judged again from their counts by `--compare`.
+- `hook_guard_bash.py` now denies: a recursive `rm` of `.git`, of a system folder at any depth, of a user profile or a folder
+  directly under it (also `$USERPROFILE`, `/c/Users/...`, `/mnt/c/Windows`), targets hidden by `././` or `../..`, and a command name
+  split by a backslash-newline; commands behind `sudo -n`, `sudo -nu root`, `doas`, `pkexec`, `su -c`, `time -o`, `powershell -Command`
+  and `cmd /c`; a download piped into `sudo -E bash` or `env bash`, or sourced with `. <(curl ...)`; and reading or copying `.env`
+  through the shell. It no longer denies `git clean -n`, `dd of=/dev/null`, `command -v mkfs.xfs` or `del /s /q build`.
+  Build and temp folders deeper inside a profile stay allowed. Tests: `test_hook_guard_targets.py`.
+- CI: read-only token (`permissions: contents: read`), a newer push cancels the older run of the same pull request, actions are
+  pinned to a commit, and the checkout keeps no token. Source of these ideas and what was not adopted:
+  `references/provenance-harness-review-2026-11.md` (2026-11-28).
 - `create-best-proposal` description: the route sentence now includes "checking that a response answers every requirement the buyer or client set".
   Claude Code missed plain requests of that kind in three holdouts in a row; on a fourth, unseen holdout the prompt went from 0 of 3 to 3 of 3, and no
   near-miss prompt triggered the skill. One dev prompt still misses (1 of 3). See `references/trigger-eval-results-2026-11.md`.
 
 Added
+- `trigger_eval_run.py --compare BEFORE AFTER` pairs two reports prompt by prompt (pass/pass, fail/pass, pass/fail, fail/fail, undecided)
+  and prints INCONCLUSIVE when a pair is undecided or the reports differ in prompts or settings. It calls no model and says it is
+  not a significance test. Test: `test_trigger_eval_run.py`.
+- `run_repo_tests.py --min-tests` (default 1000) and `--min-files` (default 60): a run smaller than the committed suite fails even
+  when every remaining test passes. `.github/CODEOWNERS` lists the files that decide a verdict (it requests review; it does not enforce).
+  Tests: `test_harness_adoption.py`.
+- `sensitive_scan.py` finds temporary cloud keys (`ASIA...`), private keys with any label, chat webhooks, payment live keys and
+  model-hub tokens. `skill_audit.py` rejects secrecy directives (English and Korean), coercion wording and a PowerShell
+  download-and-run line.
 - `trigger-eval-cases.json` `semantic_should_trigger`: dev should-trigger prompts without a route term; the routing lint skips them and `trigger_eval_run.py` runs them with the dev set (never in the holdout). Test: `test_trigger_eval_run.py`.
 - Trigger evaluation: the first holdout prompts moved into the dev lists and a new holdout written; a description edit ("tender", "requirement-coverage check") was measured on it, did not help, and was reverted. Codex T2 rerun recorded. See `references/trigger-eval-results-2026-11.md`.
 - `palette_from_design_md.py` reads the `colors` group of a DESIGN.md the user supplies (hex and `{colors.x}` references), lists every
