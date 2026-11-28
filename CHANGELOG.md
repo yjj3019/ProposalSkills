@@ -5,7 +5,13 @@ official-directory publication (see `references/marketplace-management.md`).
 
 ## Unreleased
 
+Changed
+- `create-best-proposal` description: the route sentence now includes "checking that a response answers every requirement the buyer or client set".
+  Claude Code missed plain requests of that kind in three holdouts in a row; on a fourth, unseen holdout the prompt went from 0 of 3 to 3 of 3, and no
+  near-miss prompt triggered the skill. One dev prompt still misses (1 of 3). See `references/trigger-eval-results-2026-11.md`.
+
 Added
+- `trigger-eval-cases.json` `semantic_should_trigger`: dev should-trigger prompts without a route term; the routing lint skips them and `trigger_eval_run.py` runs them with the dev set (never in the holdout). Test: `test_trigger_eval_run.py`.
 - Trigger evaluation: the first holdout prompts moved into the dev lists and a new holdout written; a description edit ("tender", "requirement-coverage check") was measured on it, did not help, and was reverted. Codex T2 rerun recorded. See `references/trigger-eval-results-2026-11.md`.
 - `palette_from_design_md.py` reads the `colors` group of a DESIGN.md the user supplies (hex and `{colors.x}` references), lists every
   non-hex color, unmapped name and ignored group, and runs the existing contrast check. It bundles no catalog template and uses no network.

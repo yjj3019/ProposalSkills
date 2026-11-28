@@ -190,6 +190,33 @@ no gain to weigh against it. **The edit was reverted; the description is unchang
 verifying coverage of an RFP) remains open, along with the first one. Grok was not run on the new set. Three runs per prompt is evidence, not a rate.
 The holdout used here is spent in the same way as the first: its prompts are now in the dev lists, and a third holdout (3 should-trigger, 2 near-miss, written without running them) replaces it. That third set has not been measured, so there is no baseline for it yet. The RFP-coverage prompt still misses and is now a dev prompt, so a future edit can be tuned on it.
 
+## Third and fourth holdout, and a description edit that helped (2026-11-28)
+
+**Third holdout** (written without running, baseline on the unchanged description): Claude Code 4 of 5 prompts, Codex 5 of 5. The Claude miss was
+"Make sure nothing in the buyer's requirements list is left unanswered in our response" (0 of 3). It is the third holdout in a row in which Claude
+missed a plain request to check that a response covers every requirement (0 of 3 each time, in different wording), so it is a gap in the description,
+not noise. That set was then spent: its prompts moved to the dev lists under `semantic_should_trigger` (dev prompts that carry no route term, so the
+routing lint skips them and the runner runs them). The two tender prompts that were `known_misses` moved there too, so they are now measured.
+
+**Fourth holdout** (new, written before any edit): baseline on the unchanged description, Claude Code 4 of 5 ("Before we submit, double-check that
+our answer covers each item the client asked for": 0 of 3), Codex 5 of 5.
+
+**The edit.** Added to the route sentence of `create-best-proposal`: "including checking that a response answers every requirement the buyer or client
+set". An earlier edit that only added the terms "tender" and "requirement-coverage check" had not helped; this one describes the user's action in plain words.
+
+| | Before | After |
+|---|---|---|
+| Fourth holdout, Claude Code | 4 of 5 (the coverage prompt 0 of 3) | **5 of 5** (the coverage prompt 3 of 3) |
+| Fourth holdout, Codex | 5 of 5 | 5 of 5 |
+| Dev set, Claude Code (31 prompts, 3 runs each) | not run on the full set | 30 of 31 prompts pass; all 14 near-miss prompts used no skill |
+
+The one dev miss is "Verify that every mandatory requirement in this RFP is covered by our submission": 1 of 3 after the edit, 0 of 3 before it (from the
+second holdout, with the unedited description and with the first edit). It improved and still fails. Two of the prompts it was judged on are close in
+meaning to the dev prompts the wording was written against, so the holdout result shows the fix for this kind of request, not a general guarantee.
+
+Not done: Codex and Grok were not run on the full dev set, and no full dev run exists for the description before this edit, so "no regression" is
+measured only for Claude Code and only on the near-miss prompts. Three runs per prompt. The fourth holdout is now spent as well.
+
 ## Reproduce
 
     python trigger_eval_run.py --yes --host all --runs 3 --max-invocations 200 --timeout 150 --report trigger-report.json
