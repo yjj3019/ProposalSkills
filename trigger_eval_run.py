@@ -11,6 +11,7 @@ and records which of this repository's skills the model used.
     python trigger_eval_run.py --yes --host codex --skill create-best-proposal
     python trigger_eval_run.py --yes --host all --kind near-miss --max-invocations 100
     python trigger_eval_run.py --yes --host all --kind positive --control neutral-descriptions   # is it the description or browsing?
+    python trigger_eval_run.py --compare before.json after.json   # pair two reports prompt by prompt; no model is called
 
 Hosts: `claude` (Claude Code), `codex` (OpenAI Codex CLI), `grok` (Grok Build). Each run gets a fresh temporary workspace, and the
 descriptions under test are the ones in THIS checkout. A prompt that should trigger a skill gets a synthetic `rfp.md` (the repository's
@@ -27,12 +28,24 @@ did):
   codex   a command that names `<skill>/SKILL.md` (Codex loads a skill by reading its file; its sentence "I'll use the X skill" is
           not counted because a refusal can use the same words)
   grok    a tool call whose input names `<skill>/SKILL.md`
-A `should_trigger` prompt passes when its skill, or the entry skill, is used in at least --min-rate of the completed runs. The entry
+A `should_trigger` prompt passes when its skill, or the entry skill, is used in at least --min-rate of the runs. The entry
 skill is the one without `disable-model-invocation`: the other two are explicit-only by design, so a model that answers "use
 create-proposal-document" through the entry skill behaves as designed. A `should_not_trigger` prompt passes when no repository skill
-is used in more than --max-false-rate of the runs. A run that produced events but did not finish in --timeout counts as "no skill
-used by then" and is reported as a timeout; a run that produced nothing, or crashed, is an error and is never a pass.
-Verdict: PASS (exit 0), FAIL (1), NOT VERIFIED (2: a CLI is missing, a run errored, or no run completed), plan only (3).
+is used in more than --max-false-rate of the runs. A run that produced nothing, or crashed, is an error and is never a pass.
+
+A run that produced events but did not finish in --timeout is reported as a timeout. For a near-miss prompt it counts as "no skill
+used by then". For a should-trigger prompt it is an unmeasured run, not a miss: the model was still working, and counting it as a
+miss made a slow CLI look like a weak description (in one Codex run of the dev set, every failing prompt had timed-out runs). The
+verdict is given only when the unmeasured runs cannot change it: two uses and one timeout pass, no use in two finished runs and one
+timeout fail, one use and two timeouts are NOT VERIFIED. `rate` is the share of finished runs that used the skill.
+Verdict: PASS (exit 0), FAIL (1), NOT VERIFIED (2: a CLI is missing, a run errored, no run completed, or timeouts leave a
+should-trigger prompt undecided), plan only (3).
+
+Comparing two reports: `--compare BEFORE AFTER` pairs the rows of two --report files by host, skill and prompt, judges both with
+the rule above, and counts pass/pass, fail/pass, pass/fail, fail/fail and pairs where either side is NOT VERIFIED. The outcome is
+INCONCLUSIVE when the two reports do not hold the same prompts, were made with different --runs, --max-calls or --control, or any
+pair is undecided; otherwise REGRESSIONS PRESENT, GAINS ONLY or NO DIFFERENCE. It is a count of verdicts, not a significance test:
+the same prompt on the same description has given 0 of 3 and 3 of 3, so one prompt changing sides at three runs is not a result.
 
 Control run: `--control neutral-descriptions` replaces every skill description in the workspace with "Reference material." and keeps
 names and paths. Codex and Grok read skill files while browsing, so a high use rate alone does not show the description worked. Run
@@ -326,20 +339,103 @@ def run_once(host: Host, prompt: str, names: list[str], model: str | None, timeo
 def judge_prompt(row: dict, outcomes: list[tuple[str | None, str | None, list[str], str]], min_rate: float, max_false: float) -> dict:
     done = [skill for skill, error, _, _ in outcomes if error is None]
     errors = [error for _, error, _, _ in outcomes if error]
+    timeouts = sum(1 for _, error, _, ended in outcomes if error is None and ended == "timeout")
+    accept = set(row.get("accept") or [row["expect"]]) if row["expect"] else None
+    uses = sum(1 for s in done if (s in accept if accept else s))
     result = {**row, "runs": len(outcomes), "completed": len(done), "errors": errors[:3], "used": sorted({s for s in done if s}),
-              "timeouts": sum(1 for _, error, _, ended in outcomes if error is None and ended == "timeout"),
+              "timeouts": timeouts, "uses": uses,
               "first_tools": [tools[:3] for _, error, tools, _ in outcomes if error is None][:3]}
-    if not done:
-        return {**result, "verdict": "NOT VERIFIED", "rate": None}
-    if row["expect"]:
-        accept = set(row.get("accept") or [row["expect"]])
-        rate = sum(1 for s in done if s in accept) / len(done)
-        passed = rate >= min_rate
-    else:
-        rate = sum(1 for s in done if s) / len(done)  # the false-trigger rate
+    verdict, rate = verdict_of(bool(row["expect"]), uses, len(done), timeouts, bool(errors), min_rate, max_false)
+    return {**result, "verdict": verdict, "rate": rate}
+
+
+def verdict_of(positive: bool, uses: int, completed: int, timeouts: int, errored: bool, min_rate: float,
+               max_false: float) -> tuple[str, float | None]:
+    """Verdict and rate from counts. A timed-out run of a should-trigger prompt is unmeasured: it can neither pass nor fail it."""
+    if not completed:
+        return "NOT VERIFIED", None
+    if not positive:
+        rate = uses / completed  # the false-trigger rate; a timeout is "no skill used by then"
         passed = rate <= max_false
-    verdict = ("PASS" if passed else "FAIL") if not errors else ("FAIL" if not passed else "NOT VERIFIED")
-    return {**result, "verdict": verdict, "rate": round(rate, 3)}
+        return (("PASS" if passed else "FAIL") if not errored else ("FAIL" if not passed else "NOT VERIFIED")), round(rate, 3)
+    finished = completed - timeouts
+    rate = round(uses / finished, 3) if finished else None
+    if uses / completed >= min_rate:  # passes even if every unmeasured run had missed
+        return ("PASS" if not errored else "NOT VERIFIED"), rate
+    if (uses + timeouts) / completed < min_rate:  # fails even if every unmeasured run had used the skill
+        return "FAIL", rate
+    return "NOT VERIFIED", rate
+
+
+def rejudge(row: dict, min_rate: float, max_false: float) -> str:
+    """Verdict of a stored report row under the current rule. Reports written before `uses` existed stored
+    rate = uses / completed with timeouts counted as misses, so the count is recovered from that."""
+    completed, timeouts = int(row.get("completed") or 0), int(row.get("timeouts") or 0)
+    uses = row.get("uses")
+    if uses is None:
+        uses = round((row.get("rate") or 0) * completed)
+    return verdict_of(bool(row.get("expect")), int(uses), completed, timeouts, bool(row.get("errors")), min_rate, max_false)[0]
+
+
+def compare_reports(before: dict, after: dict, min_rate: float = MIN_RATE, max_false: float = MAX_FALSE_RATE) -> dict:
+    """Pair two reports prompt by prompt. Counts verdicts; it does not test significance and it calls no model."""
+    def keyed(report: dict) -> dict[tuple, dict]:
+        rows = {}
+        for row in report.get("results", []):
+            key = (row.get("host"), row.get("owner"), row.get("prompt"), row.get("expect"))
+            if key in rows:
+                raise ValueError(f"duplicate row for {key[0]} | {key[2]}")
+            rows[key] = row
+        return rows
+
+    old, new = keyed(before), keyed(after)
+    context = [name for name in ("runs", "max_calls", "control") if before.get(name) != after.get(name)]
+    counts = {"pairs": 0, "pass_pass": 0, "fail_pass": 0, "pass_fail": 0, "fail_fail": 0, "undecided": 0}
+    changed, undecided = [], []
+    for key in sorted(set(old) & set(new), key=str):
+        was, now = rejudge(old[key], min_rate, max_false), rejudge(new[key], min_rate, max_false)
+        counts["pairs"] += 1
+        if "NOT VERIFIED" in (was, now):
+            counts["undecided"] += 1
+            undecided.append({"host": key[0], "prompt": key[2], "before": was, "after": now})
+            continue
+        counts[f"{was.lower()}_{now.lower()}"] += 1
+        if was != now:
+            changed.append({"host": key[0], "prompt": key[2], "before": was, "after": now})
+    unpaired = len(set(old) ^ set(new))
+    if not counts["pairs"] or unpaired or context or counts["undecided"]:
+        outcome = "INCONCLUSIVE"
+    elif counts["pass_fail"]:
+        outcome = "REGRESSIONS PRESENT"
+    else:
+        outcome = "GAINS ONLY" if counts["fail_pass"] else "NO DIFFERENCE"
+    return {"outcome": outcome, "counts": counts, "unpaired_rows": unpaired, "context_mismatch": context,
+            "changed": changed, "undecided": undecided}
+
+
+def compare_main(paths: list[Path], min_rate: float, max_false: float) -> int:
+    try:
+        before, after = (json.loads(path.read_text(encoding="utf-8")) for path in paths)
+        if not isinstance(before, dict) or not isinstance(after, dict):
+            raise ValueError("a report is a JSON object written by --report")
+        result = compare_reports(before, after, min_rate, max_false)
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        print(f"TRIGGER-COMPARE: NOT VERIFIED ({type(exc).__name__}: {exc})")
+        return EXIT["NOT VERIFIED"]
+    counts = result["counts"]
+    print(f"pairs {counts['pairs']}: pass/pass {counts['pass_pass']}, fail/pass {counts['fail_pass']}, "
+          f"pass/fail {counts['pass_fail']}, fail/fail {counts['fail_fail']}, undecided {counts['undecided']}")
+    for row in result["changed"]:
+        print(f"  changed   {row['host']} | {row['before']} -> {row['after']} | {row['prompt'][:70]}")
+    for row in result["undecided"]:
+        print(f"  undecided {row['host']} | {row['before']} -> {row['after']} | {row['prompt'][:70]}")
+    if result["unpaired_rows"]:
+        print(f"  {result['unpaired_rows']} row(s) appear in only one report")
+    if result["context_mismatch"]:
+        print(f"  the reports differ in: {', '.join(result['context_mismatch'])}")
+    print("note: a count of verdicts, not a significance test; one prompt changing sides at a few runs is within run-to-run variation")
+    print(f"TRIGGER-COMPARE: {result['outcome']}")
+    return 0
 
 
 def overall(results: list[dict]) -> str:
@@ -370,7 +466,11 @@ def main(argv: list[str] | None = None, launch: Launch | None = None) -> int:
     parser.add_argument("--skills-dir", type=Path, default=SKILLS)
     parser.add_argument("--rfp", type=Path, default=RFP, help="synthetic RFP placed in the workspace of should-trigger prompts")
     parser.add_argument("--report", type=Path, help="write the full result as JSON")
+    parser.add_argument("--compare", type=Path, nargs=2, metavar=("BEFORE", "AFTER"),
+                        help="pair two --report files prompt by prompt and print the differences; no model is called")
     args = parser.parse_args(argv)
+    if args.compare:
+        return compare_main(args.compare, args.min_rate, args.max_false_rate)
     launch = launch or launch_host  # looked up now so a test can replace it
     cases = load_cases(args.cases)
     names = list(cases)
@@ -428,7 +528,9 @@ def main(argv: list[str] | None = None, launch: Launch | None = None) -> int:
         positives = [r for r in mine if r["expect"] and r["completed"]]
         rated = [r["rate"] for r in mine if r["rate"] is not None and r["expect"]]
         mean = f", mean use rate {sum(rated) / len(rated):.2f} over {len(rated)} should-trigger prompts" if rated else ""
-        print(f"{host.name}: {overall(mine) if mine else 'NOT VERIFIED'} ({passed}/{len(mine)} prompts pass{mean})")
+        open_rows = sum(r["verdict"] == "NOT VERIFIED" for r in mine)
+        unmeasured = f", {open_rows} not verified" if open_rows else ""
+        print(f"{host.name}: {overall(mine) if mine else 'NOT VERIFIED'} ({passed}/{len(mine)} prompts pass{unmeasured}{mean})")
         if positives and not any(r["used"] for r in positives):
             print(f"note: {host.name} used no repository skill on any positive prompt; check the skills load for this CLI")
     if args.report:

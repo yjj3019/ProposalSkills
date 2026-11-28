@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Code PreToolUse(Bash) hook: deny a short list of destructive commands.
+r"""Claude Code PreToolUse(Bash) hook: deny a short list of destructive commands.
 
 This is a lexical guardrail, NOT a security boundary and not a sandbox. It tokenizes the command with shell quoting, splits
 it on control operators (`;`, `&`, `&&`, `||`, `|`, parentheses, newlines), skips shell keywords (`if`, `then`, `do`, `!`...),
@@ -25,6 +25,14 @@ script file written first and run later, or an interpreter one-liner (`python -c
 host permissions are required for external or destructive effects. Unparsable input is denied (fail closed).
 A `Bash` matcher does not cover the separate PowerShell tool; add it to the matcher, as in the setup below.
 `--force-with-lease` is denied on purpose: it is still a history rewrite on a shared branch, so the user decides.
+Also denied: a recursive `rm` of `.git`, of a system folder at any depth (`/etc/nginx`, `/usr/local/bin`, `/var/lib/db`), of a
+user profile or a folder directly under it (`/home/u1`, `C:/Users/u1`, `/c/Users/u1/Documents`), of the Windows
+folders on any spelling of the drive (`C:\Windows`, `/c/Windows`, `/mnt/c/ProgramData`) and of `$USERPROFILE`; a command
+behind `sudo -n`, `sudo -nu root`, `doas`, `pkexec`, `su -c '...'`, `time -o file`, `powershell -Command '...'` or
+`cmd /c ...`; a download piped into `sudo -E bash` or `env bash`, or sourced with `. <(curl ...)`; and a reader or copy
+command aimed at an environment secrets file (`cat .env`, `cp .env.local x`; templates such as `.env.example` pass).
+A backslash-newline inside a word is joined before the check, as the shell does. Not denied: `git clean -n` (dry run),
+`dd of=/dev/null`, `command -v mkfs.xfs` (a lookup, nothing runs) and `del /s /q build` (the switches are not targets).
 
 Hook protocol: reads the hook JSON on stdin (`tool_input.command`). Exit 0 allows, exit 2 denies with the reason on stderr.
 
@@ -43,10 +51,14 @@ import sys
 OPERATOR_CHARS = "();<>|&\n"
 REDIRECTS = {">", ">>", "<", "<<", "<<<", ">&", "<&", "&>", "&>>", ">|", "<>"}
 SHELL_KEYWORDS = {"if", "then", "elif", "else", "while", "until", "do", "!"}
+# `curl ... | sudo -E bash`, `| sudo -u root bash`, `| env bash`: the options of the wrapper must not hide the shell.
+_ELEVATED = (r"(?:(?:sudo|doas|env)(?:\s+-\S+(?:\s+(?!(?:ba|z|da|k)?sh\b|python|node\b|perl\b|ruby\b|php\b|pwsh\b|powershell\b)"
+             r"[^-\s|;&]\S*)?)*\s+)?")
 PIPE_TO_SHELL = re.compile(
-    r"\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b"
-    r"|\b(?:(?:ba|z|da|k)?sh|source|eval)\b[^\n]*(?:<\(|\$\(|`)\s*(?:curl|wget)\b", re.I)
-PIPE_TO_INTERPRETER = re.compile(r"\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:python[0-9.]*|node|perl|ruby|php)(?:\s+-)?\s*(?:$|[;&])", re.I | re.M)
+    r"\b(?:curl|wget)\b[^\n|]*\|\s*" + _ELEVATED + r"(?:ba|z|da|k)?sh\b"
+    r"|\b(?:(?:ba|z|da|k)?sh|source|eval)\b[^\n]*(?:<\(|\$\(|`)\s*(?:curl|wget)\b"
+    r"|(?:^|[\s;&|(])\.\s+<\(\s*(?:curl|wget)\b", re.I | re.M)
+PIPE_TO_INTERPRETER = re.compile(r"\b(?:curl|wget)\b[^\n|]*\|\s*" + _ELEVATED + r"(?:python[0-9.]*|node|perl|ruby|php)(?:\s+-)?\s*(?:$|[;&])", re.I | re.M)
 PS_DOWNLOAD_EXEC = re.compile(r"\b(?:iwr|irm|invoke-webrequest|invoke-restmethod)\b[^\n|]*\|\s*(?:iex|invoke-expression)\b"
                               r"|\b(?:iex|invoke-expression)\b[^\n]*\b(?:iwr|irm|invoke-webrequest|invoke-restmethod|downloadstring)\b", re.I)
 SYSTEM_REDIRECT = re.compile(r"(?:^|\s)\d?>>?\s*/(?:etc|boot|bin|sbin|usr|lib|dev/(?!null\b|stderr\b|stdout\b|tty\b))", re.I)
@@ -54,23 +66,58 @@ BROAD = re.compile(r"^(?:/|/\*|~|~/.*|\$HOME(?:/.*)?|\$\{HOME\}(?:/.*)?|\$\{?PWD
                    r"|[A-Za-z]:[\\/][A-Za-z0-9._-]+[\\/]?"
                    r"|\$env:(?:USERPROFILE|HOME|HOMEPATH|HOMEDRIVE|SYSTEMDRIVE|SYSTEMROOT|WINDIR)(?:[\\/].*)?"
                    r"|%(?:USERPROFILE|HOMEPATH|HOMEDRIVE|SYSTEMDRIVE|SYSTEMROOT|WINDIR)%(?:[\\/].*)?)$", re.I)
-ENCODED_EXEC = re.compile(r"\bbase64\b[^\n|]*\|\s*(?:sudo\s+)?(?:(?:ba|z|da|k)?sh|python[0-9.]*|node|perl|ruby|php|pwsh|powershell)\b", re.I)
+ENCODED_EXEC = re.compile(r"\bbase64\b[^\n|]*\|\s*" + _ELEVATED + r"(?:(?:ba|z|da|k)?sh|python[0-9.]*|node|perl|ruby|php|pwsh|powershell)\b", re.I)
 PS_ENCODED = re.compile(r"\b(?:iex|invoke-expression)\b[^\n]*frombase64string|frombase64string[^\n]*\|\s*(?:iex|invoke-expression)\b", re.I)
-PIPE_TO_ANY_SHELL = re.compile(r"\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\s*(?:-s\b|-)?\s*(?:$|[;&|)])", re.I | re.M)
+PIPE_TO_ANY_SHELL = re.compile(r"\|\s*" + _ELEVATED + r"(?:ba|z|da|k)?sh\s*(?:-s\b|-)?\s*(?:$|[;&|)])", re.I | re.M)
 ASSIGNMENT = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)=(.*)", re.S)
-WRAPPERS = {"sudo", "command", "env", "nohup", "time", "nice", "ionice", "timeout", "exec", "busybox", "setsid", "stdbuf"}
-# options of a wrapper that take a value: `sudo -u root rm ...`, `env -u X ...`, `nice -n 5 ...`, `timeout -s KILL 5 ...`
-WRAPPER_VALUE_OPTIONS = {"-u", "-g", "-n", "-s", "-k", "-c", "-C", "--user", "--group", "--signal", "--kill-after"}
+# Each wrapper and the letters of its options that take a value. One shared list read `sudo -n rm -rf /` as
+# `sudo -n <value>` and judged nothing: `-n` takes a value for nice and none for sudo.
+WRAPPER_VALUE_LETTERS = {
+    "sudo": "ughpCDRTUrt", "doas": "uC", "pkexec": "", "env": "uCS", "nice": "n", "ionice": "cnp", "timeout": "sk",
+    "time": "of", "stdbuf": "ioe", "exec": "a", "command": "", "builtin": "", "nohup": "", "busybox": "", "setsid": "",
+}
+WRAPPERS = set(WRAPPER_VALUE_LETTERS)
+WRAPPER_VALUE_LONG = {"--user", "--group", "--host", "--prompt", "--chdir", "--chroot", "--role", "--type", "--other-user",
+                      "--close-from", "--command-timeout", "--signal", "--kill-after", "--output", "--format", "--unset"}
 UPLOAD = re.compile(r"\b(?:curl|wget)\b[^\n|;&]*(?:\s-d\s*@|--data(?:-binary|-raw|-urlencode)?[ =]@|\s-F\s*\S*=@|\s-T\s|--upload-file|--post-file)", re.I)
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
 GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 FIND_FILTERS = {"-name", "-iname", "-path", "-ipath", "-regex", "-type", "-newer", "-mtime", "-mmin", "-size", "-empty", "-user"}
 PS_REMOVE = {"remove-item", "ri", "rd", "rmdir", "del", "erase"}
+# Commands that print or copy a file. The host's Read deny rule covers only its Read tool, so `cat .env` reached the same bytes.
+ENV_READERS = {"cat", "bat", "less", "more", "head", "tail", "grep", "egrep", "fgrep", "rg", "sed", "awk", "gawk", "cut", "sort",
+               "uniq", "tr", "od", "xxd", "hexdump", "strings", "base64", "nl", "tac", "rev", "diff", "cmp", "source", ".",
+               "cp", "mv", "ln", "scp", "copy", "type", "gc", "get-content", "select-string", "sls"}
+ENV_TEMPLATES = (".example", ".sample", ".template", ".dist", ".tpl")
 
 
-def is_broad(target: str) -> bool:
+DRIVE = r"(?:[A-Za-z]:|/(?:mnt/)?[A-Za-z])"  # C:, /c (Git Bash), /mnt/c (WSL)
+# Folders whose contents are the system or somebody's whole profile. A build or temp folder deeper inside a profile
+# (`C:/Users/u1/AppData/Local/Temp/x`, `/home/u1/project/build`) is routine and stays allowed: a guard that denies
+# those gets switched off (design decision D04).
+PROTECTED = re.compile(
+    r"^(?:/(?:bin|sbin|boot|etc|root|usr|lib|lib64|proc|sys)(?:/.*)?"
+    r"|/dev(?:/(?!shm/|null$|stdout$|stderr$|tty$).*)?"
+    r"|/var/(?:lib|log|spool|mail|www|db|backups)(?:/.*)?"
+    r"|/(?:home|Users)/[^/]+(?:/[^/]+)?"
+    r"|/(?:opt|srv|mnt|media)/[^/]+"
+    r"|" + DRIVE + r"/(?:Windows|Program Files(?: \(x86\))?|ProgramData)(?:/.*)?"
+    r"|" + DRIVE + r"/Users(?:/[^/]+(?:/[^/]+)?)?"
+    r"|(?:\$USERPROFILE|\$\{USERPROFILE\})(?:/.*)?"
+    r"|(?:.*/)?\.git)$", re.I)
+
+
+def is_broad(target: str, destination: bool = False) -> bool:
+    """`destination`: the place a file is moved INTO. Putting a file in Documents or /opt/tool is routine, so only the
+    older, narrower list applies there; deleting or moving such a folder itself is judged with the protected list."""
     flat = target.replace("\\", "/")
     if BROAD.match(flat) or BROAD.match(target):
+        return True
+    trimmed = re.sub(r"^(?:\./)+", "", flat)  # `././*` and `./.git` name the same entries as `*` and `.git`
+    trimmed = trimmed.rstrip("/") if len(trimmed) > 1 else trimmed
+    if trimmed != flat and (BROAD.match(trimmed) or not trimmed):
+        return True
+    if re.fullmatch(r"\.\.(?:/\.\.)*(?:/\*)?", trimmed) or (not destination and PROTECTED.match(trimmed)):
         return True
     if not flat.startswith(("$", "~")) and "*" not in flat and flat:
         return bool(BROAD.match(posixpath.normpath(re.sub(r"/{2,}", "/", flat))))  # `//` and `/tmp/..` are the root
@@ -89,10 +136,23 @@ def strip_wrappers(words: list[str]) -> list[str]:
         head = words[0]
         if head in SHELL_KEYWORDS:
             words = words[1:]
-        elif head in WRAPPERS:
+        elif head.rsplit("/", 1)[-1] in WRAPPERS:
+            head = head.rsplit("/", 1)[-1]
             words = words[1:]
+            if head == "command" and words and re.fullmatch(r"-[pP]*[vV][pvV]*", words[0]):
+                return []  # `command -v name` looks a name up; nothing runs
+            letters = WRAPPER_VALUE_LETTERS[head]
             while words and words[0].startswith("-"):
-                words = words[2:] if words[0] in WRAPPER_VALUE_OPTIONS else words[1:]
+                option = words[0]
+                if option == "--":
+                    words = words[1:]
+                    break
+                if option.startswith("--"):
+                    takes_value = option in WRAPPER_VALUE_LONG
+                else:  # `-nu root` takes the next word; an attached value (`-uroot`) does not
+                    first_value = next((k for k, ch in enumerate(option[1:]) if ch in letters), None)
+                    takes_value = first_value is not None and first_value == len(option) - 2
+                words = words[2:] if takes_value else words[1:]
             if head == "timeout" and words and re.fullmatch(r"\d+[smhd]?", words[0]):
                 words = words[1:]
         elif re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", head):
@@ -145,7 +205,10 @@ def git_denied(words: list[str]) -> str | None:
     if sub == "reset" and any(abbreviates(w, "--hard", 4) for w in rest):
         return "git reset --hard"
     if sub == "clean" and (short_f or any(abbreviates(w, "--force", 3) for w in rest)):
-        return "git clean with force"
+        options = rest[:rest.index("--")] if "--" in rest else rest  # after `--` a word is a path, not a flag
+        dry_run = any(abbreviates(w, "--dry-run", 3) or re.fullmatch(r"-[a-zA-Z]*n[a-zA-Z]*", w) for w in options)
+        if not dry_run:
+            return "git clean with force"
     if sub in {"checkout", "restore"} and any(w in {".", "./", "*", ":/", ":/*"} for w in rest):
         return f"git {sub} that discards all working-tree changes"
     if sub in {"checkout", "switch"} and (short_f or long_force or any(abbreviates(w, "--discard-changes", 4) for w in rest)):
@@ -170,6 +233,21 @@ def other_denied(name: str, words: list[str]) -> str | None:
     flags = "".join(w.lstrip("-") for w in args if w.startswith("-") and not w.startswith("--"))
     targets = [w for w in args if not w.startswith("-")]
     broad = [t for t in targets if is_broad(t)]
+    if name in ENV_READERS:
+        for word in args:
+            leaf = word.replace("\\", "/").removeprefix("--file=").rsplit("/", 1)[-1].lower()
+            if (leaf == ".env" or leaf.startswith(".env.")) and not leaf.endswith(ENV_TEMPLATES):
+                return "reading an environment secrets file through the shell"
+    if name in {"powershell", "pwsh"}:  # the text after -Command / -c is PowerShell: judge it again
+        at = next((k for k, w in enumerate(args) if abbreviates(w.lower(), "-command", 2)), None)
+        if at is not None and args[at + 1:]:
+            return deny_reason(" ".join(args[at + 1:]))
+    if name == "cmd" and args[:1] and args[0].lower() in {"/c", "/k"} and args[1:]:
+        return deny_reason(" ".join(args[1:]))
+    if name == "su":  # `su -c '...'`, `su root -c '...'`
+        at = next((k for k, w in enumerate(args[:-1]) if w in {"-c", "--command"}), None)
+        if at is not None:
+            return deny_reason(args[at + 1])
     if name in SHELLS:  # `-c` may be clustered: `bash -lc`, `sh -ec`
         script_at = next((k for k, w in enumerate(args[:-1]) if re.fullmatch(r"-[A-Za-z]*c[A-Za-z]*", w)), None)
         if script_at is not None:
@@ -190,7 +268,7 @@ def other_denied(name: str, words: list[str]) -> str | None:
         return "tee into a system folder"
     if name in {"powershell", "pwsh"} and any(w.lower() in {"-enc", "-ec", "-encodedcommand"} for w in args):
         return "encoded PowerShell command"
-    if name == "dd" and any(w.startswith("of=/dev/") for w in args):
+    if name == "dd" and any(w.startswith("of=/dev/") and w[3:] not in {"/dev/null", "/dev/stdout", "/dev/stderr"} for w in args):
         return "dd onto a device"
     if name.startswith("mkfs") or name == "shred":
         return f"{name} destroys data"
@@ -199,14 +277,17 @@ def other_denied(name: str, words: list[str]) -> str | None:
     if name == "mv" and targets:
         # Moving a file into the current or parent folder is routine; moving such a folder is not.
         risky = [t for t in targets[:-1] if is_broad(t)]
-        if is_broad(targets[-1]) and targets[-1] not in {".", "./", "..", "../"}:
+        if is_broad(targets[-1], destination=True) and targets[-1] not in {".", "./", "..", "../"}:
             risky.append(targets[-1])
         if risky:
             return f"mv of broad target {risky[0]!r}"
     if name == "xargs" and "rm" in args and any(re.fullmatch(r"-[a-zA-Z]*[rR][a-zA-Z]*", w) for w in args):
         return "xargs rm -r (targets unknown)"
-    if name in PS_REMOVE and any(w.lower() == "/s" or abbreviates(w.lower(), "-recurse", 2) for w in args) and broad:
-        return f"recursive delete of broad target {broad[0]!r}"
+    if name in PS_REMOVE and any(w.lower() == "/s" or abbreviates(w.lower().split(":")[0], "-recurse", 2) for w in args):
+        # `/s` and `/q` are cmd switches, not folders: `del /s /q build` deletes `build`.
+        ps_broad = [t for t in targets if not re.fullmatch(r"/[A-Za-z?]", t) and is_broad(t)]
+        if ps_broad:
+            return f"recursive delete of broad target {ps_broad[0]!r}"
     if name == "format" and targets and re.fullmatch(r"[A-Za-z]:", targets[0]):
         return "format of a drive"
     return None
@@ -269,6 +350,8 @@ def substitutions(text: str) -> list[str]:
 
 
 def deny_reason(command: str) -> str | None:
+    # The shell joins a backslash-newline before it splits words, so a command name split across lines is one word.
+    command = re.sub(r"\\\r*\n", "", command)
     if PIPE_TO_SHELL.search(command):
         return "download piped into a shell"
     if PIPE_TO_INTERPRETER.search(command):

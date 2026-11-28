@@ -46,13 +46,16 @@ MAX_UNZIPPED_BYTES = 128 * 1024 * 1024  # zip-bomb guard across all parts of one
 MAX_ZIP_PARTS = 5000
 
 # severity: high = likely credential or identifier; medium = personal/contact data; low = review lead.
-# Family list: AWS, private key, GitHub/GitLab/Slack/Google/npm/OpenAI-style tokens are public formats.
+# Family list: AWS, private key, GitHub/GitLab/Slack/Google/npm/OpenAI-style, payment and model-hub tokens are public formats.
 SECRET_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
-    ("aws-access-key", "high", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
-    ("private-key", "high", re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA |PGP )?PRIVATE KEY(?: BLOCK)?-----")),
+    ("aws-access-key", "high", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),  # ASIA: temporary session keys
+    ("private-key", "high", re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----")),  # any label: ENCRYPTED, ED25519
     ("github-token", "high", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}\b|\bgithub_pat_[A-Za-z0-9_]{40,}\b")),
     ("gitlab-token", "high", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}")),
     ("slack-token", "high", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}")),
+    ("slack-webhook", "high", re.compile(r"https://hooks\.slack\.com/services/[A-Za-z0-9/]{20,}")),
+    ("payment-live-key", "high", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}")),
+    ("model-hub-token", "high", re.compile(r"\bhf_[A-Za-z0-9]{30,}\b")),
     ("openai-style-key", "high", re.compile(r"\bsk-(?:proj-|ant-)?[A-Za-z0-9_-]{16,}")),
     ("google-api-key", "high", re.compile(r"\bAIza[0-9A-Za-z_-]{30,}")),
     ("npm-token", "high", re.compile(r"\bnpm_[A-Za-z0-9]{20,}\b")),

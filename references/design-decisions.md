@@ -38,7 +38,8 @@ Gate-hardening rounds and their longer reasoning stay in [gate-hardening-2026-09
 - **Why:** The environment and earlier tool calls are invisible to it. Guessing would deny routine commands, and a guard that cries wolf gets switched off. Real approval and host permissions remain the boundary.
 - **Revisit only if:** the host passes the environment or the shell state to the hook.
 - **Lives in:** `hook_guard_bash.py`
-- **Pinned by:** `test_audit_residual_risks.py::HookEvasionTests.test_unknown_variables_are_not_guessed`
+- **Scope of protected folders:** system folders are protected at any depth; a user profile is protected itself and one level below it. A build or temp folder deeper inside a profile, or anywhere on a data drive, is allowed, because agents clean those up constantly.
+- **Pinned by:** `test_audit_residual_risks.py::HookEvasionTests.test_unknown_variables_are_not_guessed`, `test_hook_guard_targets.py::ProtectedTargetTests.test_build_and_temp_folders_inside_a_profile_stay_allowed`
 
 ### D05 The strict JSON reader is copied into each script on purpose
 

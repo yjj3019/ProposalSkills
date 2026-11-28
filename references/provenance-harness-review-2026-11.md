@@ -130,6 +130,36 @@ informed a fresh implementation in this repository's existing Python tools. No u
 or prose were copied or translated. The source's declarations and hashes do not authenticate execution; the same
 limitation applies here. The phase runner, dashboard, and broker were not incorporated.
 
+### Follow-up review (2026-11-28)
+
+Reviewed the public AI-Harness repository at commit `b8037ea3cedc7a3772c46ab6885182b45a9b2f5f`
+([source](https://github.com/yjj3019/AI-Harness/tree/b8037ea3cedc7a3772c46ab6885182b45a9b2f5f)). Its licence is now
+**MIT** (it was Apache-2.0 at the earlier reviews), owned by the same author, so adopting its ideas creates no third-party
+obligation. Method for every row: **re-implemented (ideas only)**. No upstream code, test, fixture or prose was copied or
+translated; the upstream shell hook and Node scripts were read, and the behaviour was written fresh in this repository's
+Python tools. Upstream's hook test commands were replayed against `hook_guard_bash.py` once, locally, to find differences;
+the regression cases committed here are this repository's own.
+
+| Idea in the reviewed repository | Implementation here | Notes |
+|---|---|---|
+| Destructive-command hook: wrapper options must not hide the command, `.git` and profile folders are protected, PowerShell and cmd deletes, a secrets file read through the shell, a dry-run clean and a name lookup are not destructive | `hook_guard_bash.py`, `test_hook_guard_targets.py` | Narrower than upstream on purpose: a build or temp folder deeper inside a profile or on a data drive stays allowed (design decision D04). `--force-with-lease` and `tee` into a system folder stay denied here although upstream allows them. |
+| Evaluation accounting: an attempt that did not complete is UNKNOWN, not FAIL; a paired comparison with any unknown pair or unequal context is inconclusive | `trigger_eval_run.py` (`verdict_of`, `--compare`), `test_trigger_eval_run.py` | A timed-out run of a should-trigger prompt is unmeasured. The comparison counts verdicts and states that it is not a significance test. |
+| A test run must reach a minimum number of executed tests and of test files, not only exit 0 | `run_repo_tests.py` (`--min-tests`, `--min-files`), `test_harness_adoption.py` | Floors 1000 tests and 60 files against a suite of about 1,100 and 67. |
+| CI: read-only token, cancel the older run of a pull request, actions pinned to a commit, no token left in the checkout | `.github/workflows/ci.yml`, pinned by `test_harness_adoption.py` | The commit hashes were resolved from the action repositories with `gh api`, not taken from upstream's file. |
+| Code owners for the files that decide what a verdict means | `.github/CODEOWNERS` | Requests a review only; enforcement is a server setting, and a single owner cannot satisfy it alone. |
+| Credential shapes: temporary cloud keys, any private-key label, chat webhook, payment live key, model-hub token | `sensitive_scan.py` | Public token formats only. |
+| Skill audit: secrecy directive, coercion wording, PowerShell download-and-run | `skill_audit.py` | English and Korean secrecy wording; prose that only names the shape is not a finding. |
+
+Considered and not adopted in this pass:
+
+| Item | Reason |
+|---|---|
+| A macOS CI leg | Its skip counts are unknown here (no LibreOffice or Poppler by default), and it would change the required check names in `merge_guard.py`. Left as a candidate. |
+| Protecting every path under a drive mount or a profile | Denies routine cleanup of a build or temp folder on this project's own working drive; see D04. |
+| Local never-committed list of sensitive terms, encrypted-file header check, scanning every text file regardless of suffix | The repository hygiene test already scans every tracked text file; the other two address a host-specific risk that has not occurred here. Candidates if a real name or an encrypted file is ever found in a commit. |
+| Phase gate, attestations and their signature, tool broker, dashboard, task graph, read tracker, evidence guard | Unchanged from the earlier passes: supervision of coding agents, with a Node runtime dependency. |
+| Pinned-hash list of evaluation inputs | The holdout prompts live in one reviewed JSON file that is now in `CODEOWNERS`; a second hash list would restate it. |
+
 - Keep `skill_audit.py` green: every skill declares `license:`; a skill that differs from the root license
   must ship its own LICENSE file.
 - If third-party text or code is ever added, record its exact license and notice here first, and preserve

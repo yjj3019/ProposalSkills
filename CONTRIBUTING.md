@@ -19,6 +19,9 @@ python run_repo_tests.py
 python skill_audit.py
 ```
 
+`run_repo_tests.py` fails when fewer than 1000 tests ran or fewer than 60 `test_*.py` files exist, so a removed suite
+cannot pass quietly. Raise the floors in that file when the suite grows.
+
 If you change a gate, add a reproduction test to `test_gate_integrity.py` and run `python gate_mutation_probe.py`.
 Every catalogued mutation must be KILLED. Never weaken a gate or fixture to make a test pass.
 

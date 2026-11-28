@@ -218,6 +218,27 @@ class JudgeTests(unittest.TestCase):
         result = ter.judge_prompt(self.negative, outcomes, ter.MIN_RATE, ter.MAX_FALSE_RATE)
         self.assertEqual((result["verdict"], result["timeouts"], result["errors"]), ("PASS", 3, []))
 
+    def test_a_timed_out_run_of_a_positive_prompt_is_unmeasured_not_a_miss(self):
+        hit, miss, slow = ("create-best-proposal", None, ["Skill"], "done"), (None, None, ["Glob"], "done"), (None, None, ["Glob"], "timeout")
+
+        def verdict(outcomes):
+            result = ter.judge_prompt(self.positive, outcomes, ter.MIN_RATE, ter.MAX_FALSE_RATE)
+            return result["verdict"], result["rate"], result["uses"]
+
+        self.assertEqual(verdict([hit, hit, slow]), ("PASS", 1.0, 2))            # the missing run cannot make it fail
+        self.assertEqual(verdict([miss, miss, slow]), ("FAIL", 0.0, 0))          # the missing run cannot make it pass
+        self.assertEqual(verdict([hit, slow, slow]), ("NOT VERIFIED", 1.0, 1))   # the two missing runs decide it
+        self.assertEqual(verdict([hit, miss, slow]), ("NOT VERIFIED", 0.5, 1))
+        self.assertEqual(verdict([slow, slow, slow]), ("NOT VERIFIED", None, 0))
+
+    def test_a_stored_row_is_judged_again_from_its_counts(self):
+        old = {"expect": "create-best-proposal", "completed": 3, "timeouts": 2, "rate": 0.333, "errors": [], "verdict": "FAIL"}
+        self.assertEqual(ter.rejudge(old, ter.MIN_RATE, ter.MAX_FALSE_RATE), "NOT VERIFIED")
+        self.assertEqual(ter.rejudge({**old, "timeouts": 0}, ter.MIN_RATE, ter.MAX_FALSE_RATE), "FAIL")
+        self.assertEqual(ter.rejudge({**old, "uses": 2, "timeouts": 1}, ter.MIN_RATE, ter.MAX_FALSE_RATE), "PASS")
+        near_miss = {"expect": None, "completed": 3, "timeouts": 3, "rate": 0.0, "errors": []}
+        self.assertEqual(ter.rejudge(near_miss, ter.MIN_RATE, ter.MAX_FALSE_RATE), "PASS")
+
     def test_a_near_miss_may_not_use_any_repository_skill_often(self):
         hit, miss = ("create-best-proposal", None), (None, None)
         self.assertEqual(self.judge(self.negative, [miss, miss, miss])["verdict"], "PASS")
@@ -434,6 +455,59 @@ class LocalOnlyTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
         for tool in ("trigger_eval_run", "revert_proof", "gate_replay"):
             self.assertNotIn(tool, workflow, tool)
+
+
+class CompareTests(unittest.TestCase):
+    @staticmethod
+    def report(rows, **context):
+        return {"runs": 3, "max_calls": 8, "control": "none", **context,
+                "results": [{"host": "claude", "owner": "create-best-proposal", "prompt": prompt, "expect": "create-best-proposal",
+                             "completed": 3, "timeouts": timeouts, "uses": uses, "errors": []} for prompt, uses, timeouts in rows]}
+
+    def outcome(self, before, after):
+        return ter.compare_reports(before, after)
+
+    def test_identical_verdicts_are_no_difference_and_fail_fail_is_not_success(self):
+        result = self.outcome(self.report([("a", 3, 0), ("b", 0, 0)]), self.report([("a", 2, 0), ("b", 1, 0)]))
+        self.assertEqual((result["outcome"], result["counts"]["pass_pass"], result["counts"]["fail_fail"]), ("NO DIFFERENCE", 1, 1))
+
+    def test_a_gain_and_a_regression(self):
+        gain = self.outcome(self.report([("a", 0, 0), ("b", 3, 0)]), self.report([("a", 3, 0), ("b", 3, 0)]))
+        self.assertEqual((gain["outcome"], gain["changed"][0]["prompt"]), ("GAINS ONLY", "a"))
+        mixed = self.outcome(self.report([("a", 0, 0), ("b", 3, 0)]), self.report([("a", 3, 0), ("b", 0, 0)]))
+        self.assertEqual(mixed["outcome"], "REGRESSIONS PRESENT")
+
+    def test_an_undecided_pair_makes_the_comparison_inconclusive(self):
+        result = self.outcome(self.report([("a", 0, 0), ("b", 3, 0)]), self.report([("a", 3, 0), ("b", 1, 2)]))
+        self.assertEqual((result["outcome"], result["counts"]["undecided"], result["counts"]["fail_pass"]), ("INCONCLUSIVE", 1, 1))
+
+    def test_different_prompts_or_settings_are_inconclusive(self):
+        base = self.report([("a", 3, 0)])
+        self.assertEqual(self.outcome(base, self.report([("a", 3, 0), ("b", 3, 0)]))["outcome"], "INCONCLUSIVE")
+        self.assertEqual(self.outcome(base, self.report([("a", 3, 0)], runs=5))["context_mismatch"], ["runs"])
+        self.assertEqual(self.outcome(base, self.report([("a", 3, 0)], control="neutral-descriptions"))["outcome"], "INCONCLUSIVE")
+        self.assertEqual(self.outcome({"results": []}, {"results": []})["outcome"], "INCONCLUSIVE")
+
+    def test_the_command_reads_two_reports_and_calls_no_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            before, after = Path(tmp) / "before.json", Path(tmp) / "after.json"
+            before.write_text(json.dumps(self.report([("a", 0, 0)])), encoding="utf-8")
+            after.write_text(json.dumps(self.report([("a", 3, 0)])), encoding="utf-8")
+
+            def forbidden(*_):
+                raise AssertionError("--compare must not start a CLI")
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = ter.main(["--compare", str(before), str(after)], launch=forbidden)
+            self.assertEqual(code, 0)
+            self.assertIn("TRIGGER-COMPARE: GAINS ONLY", out.getvalue())
+            self.assertIn("not a significance test", out.getvalue())
+            after.write_text("[]", encoding="utf-8")
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(ter.main(["--compare", str(before), str(after)], launch=forbidden), 2)
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(ter.main(["--compare", str(before), str(Path(tmp) / "missing.json")], launch=forbidden), 2)
 
 
 if __name__ == "__main__":
